@@ -1,0 +1,56 @@
+{
+  "name": "spec-lite",
+  "version": "1.0.0",
+  "description": "Lightweight, modular, LLM-agnostic prompt collection for structured software engineering — installable CLI",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "spec-lite": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "prompts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "prepublishOnly": "npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "ai",
+    "llm",
+    "prompts",
+    "copilot",
+    "claude",
+    "cursor",
+    "agents",
+    "sdlc",
+    "cli",
+    "spec"
+  ],
+  "author": "Ranjith A B",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ranjithab/spec-lite"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}
