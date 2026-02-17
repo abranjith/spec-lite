@@ -27,50 +27,66 @@ export interface PromptFile {
 }
 
 /** Map of prompt names to their human titles and descriptions */
-const PROMPT_CATALOG: Record<string, { title: string; description: string }> = {
+export const PROMPT_CATALOG: Record<string, { title: string; description: string; output?: string }> = {
+  spec_help: {
+    title: "Spec Help",
+    description: "Lists available sub-agents, their purpose, inputs, and outputs",
+    output: "(interactive guide)",
+  },
   brainstorm: {
-    title: "Brainstorm Agent",
-    description: "Refines a vague idea into a clear vision",
+    title: "Brainstorm",
+    description: "Refines a vague idea into a clear, actionable vision",
+    output: ".spec/brainstorm.md",
   },
   planner: {
-    title: "Planner Agent",
-    description: "Creates a detailed technical blueprint",
+    title: "Planner",
+    description: "Creates a detailed technical blueprint from requirements",
+    output: ".spec/plan.md",
   },
   feature: {
-    title: "Feature Agent",
-    description: "Breaks one feature into granular, verifiable tasks",
+    title: "Feature",
+    description: "Breaks one feature into granular, verifiable vertical slices",
+    output: ".spec/features/feature_<name>.md",
   },
   code_review: {
-    title: "Code Review Agent",
-    description: "Reviews code for correctness, architecture, readability",
+    title: "Code Review",
+    description: "Reviews code for correctness, architecture, and readability",
+    output: ".spec/reviews/code_review_<name>.md",
   },
   security_audit: {
-    title: "Security Audit Agent",
-    description: "Scans for vulnerabilities and security risks",
+    title: "Security Audit",
+    description: "Scans for vulnerabilities, misconfigurations, and security risks",
+    output: ".spec/reviews/security_audit_<scope>.md",
   },
   performance_review: {
-    title: "Performance Review Agent",
+    title: "Performance Review",
     description: "Identifies bottlenecks and optimization opportunities",
+    output: ".spec/reviews/performance_review_<scope>.md",
   },
   integration_tests: {
-    title: "Integration Tests Agent",
+    title: "Integration Tests",
     description: "Writes traceable test scenarios from feature specs",
+    output: "tests/",
   },
   devops: {
-    title: "DevOps Agent",
+    title: "DevOps",
     description: "Sets up Docker, CI/CD, environments, and deployment",
+    output: "Project infrastructure files",
   },
   fix: {
-    title: "Fix & Refactor Agent",
+    title: "Fix & Refactor",
     description: "Debugs issues or restructures code safely",
+    output: "Targeted fixes with verification",
   },
   technical_docs: {
-    title: "Technical Docs Agent",
-    description: "Creates architecture documentation for developers",
+    title: "Technical Docs",
+    description: "Creates deep architecture documentation for developers",
+    output: "docs/technical_architecture.md",
   },
   readme: {
-    title: "README Agent",
+    title: "README",
     description: "Writes the project README and optional user guide",
+    output: "README.md + docs/user_guide.md",
   },
 };
 
@@ -117,6 +133,13 @@ export async function loadPrompts(
  */
 export function getAvailablePromptNames(): string[] {
   return Object.keys(PROMPT_CATALOG);
+}
+
+/**
+ * Get the full prompt catalog (for display in CLI list command).
+ */
+export function getPromptCatalog(): Record<string, { title: string; description: string; output?: string }> {
+  return PROMPT_CATALOG;
 }
 
 /**

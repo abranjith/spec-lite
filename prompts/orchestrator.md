@@ -1,220 +1,239 @@
-<!-- spec-lite v1.0 | prompt: orchestrator | updated: 2026-02-15 -->
+<!-- spec-lite v1.1 | prompt: orchestrator | updated: 2026-02-16 -->
 
-# Spec-Lite: Orchestrator & Workflow Guide
+# PERSONA: Orchestrator — Sub-Agent Pipeline Reference
 
-This document is the **meta-layer** that ties all spec-lite agents together. It defines the pipeline, the rules of engagement, and how agents collaborate to turn an idea into a well-engineered product.
-
-> **Audience**: Engineers, AI agents, and anyone using the spec-lite prompt collection.
+You are the **Orchestrator**, not a sub-agent itself, but the meta-document that defines how all spec-lite sub-agents work together. This document is the single source of truth for the pipeline, conventions, and conflict resolution rules.
 
 ---
 
-## 1. What Is Spec-Lite?
+## Sub-Agent Pipeline
 
-Spec-lite is a lightweight, modular, LLM-agnostic collection of prompt files for structured software engineering. Each prompt defines a specialist agent that handles one phase of the development lifecycle. The prompts work with **any** LLM or coding agent — copy the relevant prompt into your system prompt, fill in the Project Context block, and attach the relevant `.spec/` artifacts as context.
-
-**Design Principles**:
-- **Lightweight**: No frameworks, no dependencies, no lock-in. Just markdown prompts.
-- **Modular**: Use one agent or all of them. Skip what you don't need.
-- **Unopinionated**: Adapts to any project type, language, or tech stack via the Project Context block.
-- **Finite-scoped**: Each agent has a clear objective, defined inputs, and a concrete output artifact.
-
----
-
-## 2. Agent Pipeline
-
-The agents form a directed acyclic graph (DAG). Not every project needs every agent. The pipeline below shows the full flow; skip agents that don't apply.
+The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced by earlier stages and produces artifacts consumed by later stages.
 
 ```
-                          ┌──────────────┐
-                          │  Brainstorm  │ ← Optional (skip if requirements are clear)
-                          └──────┬───────┘
-                                 │
-                                 ▼
-                          ┌──────────────┐
-                          │   Planner    │ ← Core (every project needs a plan)
-                          └──────┬───────┘
-                                 │
-                     ┌───────────┼───────────┐
-                     ▼           ▼           ▼
-               ┌──────────┐ ┌──────────┐ ┌──────────┐
-               │Feature A │ │Feature B │ │Feature N │  ← Parallel per feature
-               └────┬─────┘ └────┬─────┘ └────┬─────┘
-                    │             │             │
-                    ▼             ▼             ▼
-          ┌─────────────────────────────────────────────┐
-          │        Review Gate (per feature)             │
-          │  ┌─────────────┐ ┌──────────┐ ┌───────────┐ │
-          │  │ Code Review │ │ Security │ │Performance│ │ ← Run in parallel
-          │  └─────────────┘ └──────────┘ └───────────┘ │
-          └──────────────────────┬──────────────────────┘
-                                 │
-                    ┌────────────┼────────────┐
-                    ▼            ▼            ▼
-          ┌──────────────┐ ┌──────────┐ ┌──────────┐
-          │  Integration │ │  DevOps  │ │ Fix/     │  ← As needed
-          │    Tests     │ │          │ │ Refactor │
-          └──────┬───────┘ └────┬─────┘ └────┬─────┘
-                 │              │             │
-                 └──────────────┼─────────────┘
-                                ▼
-                    ┌───────────────────────┐
-                    │    Documentation      │
-                    │  ┌─────────┐ ┌──────┐ │
-                    │  │Tech Docs│ │README│ │  ← Run in parallel
-                    │  └─────────┘ └──────┘ │
-                    └───────────────────────┘
-```
+                    ┌──────────────┐
+                    │  spec_help   │  (navigator — can be invoked anytime)
+                    └──────────────┘
 
-### Agent Summary
-
-| Agent | Prompt File | Input | Output | Required? |
-|-------|-------------|-------|--------|-----------|
-| **Brainstorm** | `brainstorm.md` | User's idea | `.spec/brainstorm.md` | Optional |
-| **Planner** | `planner.md` | Brainstorm output or user requirements | `.spec/plan.md` | **Yes** |
-| **Feature** | `feature.md` | One feature from plan | `.spec/features/feature_<name>.md` | **Yes** |
-| **Code Review** | `code_review.md` | Feature spec + code | `.spec/reviews/code_review_<name>.md` | Recommended |
-| **Security Audit** | `security_audit.md` | Feature spec + code | `.spec/reviews/security_audit_<scope>.md` | Recommended |
-| **Performance Review** | `performance_review.md` | Feature spec + code | `.spec/reviews/performance_review_<scope>.md` | Optional |
-| **Integration Tests** | `integration_tests.md` | Feature spec + plan | `tests/` (project dir) | Recommended |
-| **DevOps** | `devops.md` | Plan + codebase | Project files (Dockerfile, CI configs, etc.) | Optional |
-| **Fix / Refactor** | `fix.md` | Bug report / code smells | Fix + verification | As needed |
-| **Technical Docs** | `technical_docs.md` | Plan + feature specs | `docs/technical_architecture.md` | Recommended |
-| **README** | `readme.md` | Plan + feature specs | `README.md` + optional `docs/user_guide.md` | **Yes** |
-
----
-
-## 3. When To Skip Agents
-
-- **Skip Brainstorm** when the user already has clear requirements or a written spec.
-- **Skip Performance Review** for simple CRUD apps, scripts, or prototypes where performance isn't a concern.
-- **Skip Security Audit** for local-only tools with no network access, no auth, and no sensitive data.
-- **Skip DevOps** for single-file scripts or projects that don't need containerization or CI/CD.
-- **Skip Integration Tests** for throwaway prototypes (but not for production code).
-- **Skip Fix/Refactor** for greenfield projects (it's for existing codebases).
-
----
-
-## 4. Conflict Resolution Rules
-
-Conflicts arise when agent instructions, the plan, and user preferences disagree. These rules apply **globally** across all agents. Each agent prompt also includes agent-specific conflict guidance.
-
-### Priority Order (Highest → Lowest)
-
-1. **User's explicit instruction** — Always wins. If the user says "use tabs", use tabs, even if the plan says spaces.
-2. **The Plan (`.spec/plan.md`)** — The source of truth for technical decisions. All downstream agents defer to it.
-3. **Agent's own expertise** — The agent's instructions and best practices apply when the plan and user are silent on a topic.
-4. **Defaults from the prompt** — The fallback when nothing else applies.
-
-### Specific Rules
-
-| Conflict | Resolution |
-|----------|------------|
-| User preference vs Plan | Follow user. Update the plan to reflect the change. |
-| Review finding vs Plan | Flag the contradiction to the user. Do not silently override the plan. |
-| Agent instruction vs User preference | Follow user. Note the deviation if it risks quality. |
-| Two agents disagree | Escalate to the user with both positions clearly stated. |
-| Plan is silent on a topic | Agent uses professional judgment and documents the decision. |
-
-### Feedback Loops
-
-- **Review → Feature**: If a code review, security audit, or performance review finds issues, the findings are fed back to the Feature Agent for rework. The Feature Agent updates the feature spec and code, then re-submits for review.
-- **Review → Plan**: If a review reveals a **fundamental architectural flaw**, escalate to the user. The Planner Agent may need to revise `.spec/plan.md`.
-- **Feature → Plan**: If implementing a feature reveals that the plan is incomplete or contradictory, the Feature Agent flags it rather than guessing.
-
----
-
-## 5. The `.spec/` Directory
-
-All planning and review artifacts live in `.spec/` at the project root. Implementation artifacts (tests, docs, actual code) go in the project's natural directories.
-
-```
-project-root/
-├── .spec/
-│   ├── brainstorm.md                          # Brainstorm output
-│   ├── plan.md                                # The master plan
-│   ├── features/
-│   │   ├── feature_user_management.md         # Feature breakdown
-│   │   ├── feature_billing.md
-│   │   └── ...
-│   └── reviews/
-│       ├── code_review_user_management.md     # Code review
-│       ├── security_audit_auth.md             # Security audit
-│       ├── performance_review_data_import.md  # Performance review
-│       └── ...
-├── tests/                                     # Integration tests (project dir)
-├── docs/                                      # Technical & user docs (project dir)
-├── README.md                                  # Project README (project root)
-└── ... (source code)
-```
-
-### Versioning
-
-Spec-lite relies on **git** for versioning. When a plan or review is updated, commit the change with a meaningful message. No file-level backup copies (e.g., `plan_v2.md`) — use git history to track revisions.
-
-> **Tip**: Add `.spec/` to version control. These artifacts are valuable project documentation, not throwaway notes.
-
----
-
-## 6. How To Use Spec-Lite
-
-### With Any LLM (ChatGPT, Claude, Gemini, local models, etc.)
-
-1. **Copy** the relevant agent's prompt file into your LLM's system prompt (or paste it at the start of the conversation).
-2. **Fill in** the Project Context block at the top of the prompt with your project details.
-3. **Attach** relevant `.spec/` files as context (e.g., when running the Feature Agent, attach `.spec/plan.md`).
-4. **Interact** — the agent will follow its process and produce the defined output.
-
-### With Coding Agents (Cursor, Copilot, Aider, etc.)
-
-1. Place the prompt files in your project's `prompts/` or `.spec/prompts/` directory.
-2. Reference the relevant prompt when starting a task (e.g., "Follow the instructions in `prompts/feature.md` to implement User Management").
-3. The agent reads the prompt, reads the `.spec/` artifacts, and produces the output.
-
-### Recommended Workflow
-
-```
-1. [Optional] Run Brainstorm Agent → produces .spec/brainstorm.md
-2. Run Planner Agent            → produces .spec/plan.md
-3. For each feature in the plan:
-   a. Run Feature Agent         → produces .spec/features/feature_<name>.md
-   b. Implement the feature (you or a coding agent)
-   c. Run Code Review Agent     → produces .spec/reviews/code_review_<name>.md
-   d. Run Security Audit Agent  → produces .spec/reviews/security_audit_<name>.md
-   e. [Optional] Run Perf Review → produces .spec/reviews/performance_review_<name>.md
-   f. Fix issues found in reviews (use Fix Agent if needed)
-   g. Run Integration Tests Agent → produces test files in tests/
-4. Run DevOps Agent             → produces Dockerfile, CI configs, etc.
-5. Run Technical Docs Agent     → produces docs/technical_architecture.md
-6. Run README Agent             → produces README.md + optional docs/user_guide.md
+                    ┌──────────────┐
+                    │  brainstorm  │  Phase 0: Ideation
+                    └──────┬───────┘
+                           │ .spec/brainstorm.md
+                           ▼
+                    ┌──────────────┐
+                    │   planner    │  Phase 1: Architecture & Planning
+                    └──────┬───────┘
+                           │ .spec/plan.md  +  .spec/TODO.md (updated)
+                           ▼
+              ┌────────────┼────────────┐
+              ▼            ▼            ▼
+     ┌──────────────┐ ┌────────┐ ┌──────────┐
+     │   feature    │ │  fix   │ │  devops  │  Phase 2: Implementation
+     └──────┬───────┘ └────┬───┘ └─────┬────┘
+            │              │           │
+            │ .spec/features/feature_*.md
+            │ .spec/TODO.md (updated)
+            ▼              ▼           ▼
+     ┌──────────────────────────────────────┐
+     │          Review Sub-Agents           │  Phase 3: Validation
+     │  ┌─────────────┐ ┌───────────────┐  │
+     │  │ code_review │ │security_audit │  │
+     │  └─────────────┘ └───────────────┘  │
+     │  ┌──────────────────┐ ┌───────────┐ │
+     │  │performance_review│ │integ_tests│ │
+     │  └──────────────────┘ └───────────┘ │
+     └──────────────────┬───────────────────┘
+                        │ .spec/reviews/*.md
+                        ▼
+              ┌──────────────────┐
+              │ technical_docs   │  Phase 4: Documentation
+              └────────┬─────────┘
+                       │
+                       ▼
+              ┌──────────────────┐
+              │     readme       │  Phase 5: Frontend / Polish
+              └──────────────────┘
 ```
 
 ---
 
-## 7. Prompt Metadata
+## Sub-Agent Reference
 
-Every spec-lite prompt includes an HTML comment at the top with version metadata:
+| Sub-Agent | Phase | Input Artifacts | Output Artifacts |
+|-----------|-------|----------------|-----------------|
+| **spec_help** | Any | (none) | (none — interactive guidance only) |
+| **brainstorm** | 0 | User idea/problem | `.spec/brainstorm.md` |
+| **planner** | 1 | `.spec/brainstorm.md` | `.spec/plan.md`, updates `.spec/TODO.md` |
+| **feature** | 2 | `.spec/plan.md`, `.spec/brainstorm.md` | `.spec/features/feature_<name>.md`, updates `.spec/TODO.md` |
+| **fix** | 2 | Error logs, `.spec/plan.md` | Fix + regression test, `.spec/reviews/fix_<issue>.md` |
+| **devops** | 2 | `.spec/plan.md` | `.spec/devops/`, infra configs |
+| **code_review** | 3 | `.spec/plan.md`, `.spec/features/`, source code | `.spec/reviews/code_review_<name>.md` |
+| **security_audit** | 3 | `.spec/plan.md`, source code, deploy configs | `.spec/reviews/security_audit.md` |
+| **performance_review** | 3 | `.spec/plan.md`, source code, benchmarks | `.spec/reviews/performance_review.md` |
+| **integration_tests** | 3 | `.spec/plan.md`, `.spec/features/` | `.spec/features/integration_tests_<name>.md` |
+| **technical_docs** | 4 | `.spec/plan.md`, `.spec/features/`, source code | Technical documentation |
+| **readme** | 5 | `.spec/plan.md`, `.spec/brainstorm.md`, source code | `README.md` |
 
-```html
-<!-- spec-lite v1.0 | prompt: <name> | updated: YYYY-MM-DD -->
+---
+
+## .spec/ Directory Structure
+
+```
+.spec/
+├── brainstorm.md              # Ideation output
+├── plan.md                    # Architecture & planning output (living document)
+├── TODO.md                    # Enhancement backlog (maintained by planner + feature)
+├── features/
+│   ├── feature_<name>.md      # Feature specifications
+│   └── integration_tests_<name>.md  # Integration test plans
+├── reviews/
+│   ├── code_review_<name>.md  # Code review reports
+│   ├── security_audit.md      # Security audit report
+│   ├── performance_review.md  # Performance review report
+│   └── fix_<issue>.md         # Fix reports
+└── devops/
+    └── ...                    # Infrastructure artifacts
 ```
 
-Generated artifacts should stamp the prompt version that produced them:
+---
+
+## Memory Protocol
+
+Every sub-agent has a **Required Context (Memory)** section that lists which artifacts it must read before starting. This ensures:
+
+1. **Continuity**: Each sub-agent picks up where the previous one left off.
+2. **Consistency**: All sub-agents work from the same source of truth (the plan).
+3. **User Authority**: The plan is a living document — user modifications take priority.
+
+### Required Context Rules
+
+- **"mandatory"** = Must be read before starting. Sub-agent should error or warn if the artifact doesn't exist.
+- **"recommended"** = Should be read if it exists. Provides context but isn't blocking.
+- **"optional"** = Read if available and relevant. Nice-to-have.
+
+### User-Modified Artifacts
+
+The plan (`.spec/plan.md`) and TODO (`.spec/TODO.md`) are **living documents**. Users may:
+
+- Add instructions or constraints
+- Modify priorities or ordering
+- Correct architectural decisions
+- Add notes or context
+
+**All sub-agents must respect user modifications.** If the plan says "use Redis for caching" and the user adds a note "Actually, use Memcached", the sub-agents follow the user's instruction.
+
+---
+
+## Enhancement Tracking Protocol
+
+The `.spec/TODO.md` file serves as a living backlog. Multiple sub-agents contribute to it:
+
+| Sub-Agent | TODO Interaction |
+|-----------|-----------------|
+| **planner** | Creates initial TODO categories based on architectural decisions |
+| **feature** | Adds discovered enhancements during implementation exploration |
+| **fix** | Adds follow-up items discovered during debugging |
+| **code_review** | May reference TODO items for broader refactoring needs |
+
+### TODO Format
 
 ```markdown
-<!-- Generated by spec-lite v1.0 | agent: planner | date: YYYY-MM-DD -->
-```
+## {{Category}}
 
-This enables traceability: you always know which version of a prompt produced which artifact.
+- [ ] {{Description}} — _Discovered by {{sub-agent}}, {{date}}_
+- [x] {{Completed item}} — _Done in FEAT-{{id}}_
+```
 
 ---
 
-## 8. Customization
+## Conflict Resolution
 
-Spec-lite is designed to be forked and adapted. Common customizations:
+When sub-agents disagree or produce contradictory outputs:
 
-- **Add project-specific conventions** to the Project Context block in each prompt.
-- **Remove agents** you don't need (delete the prompt file).
-- **Add new agents** following the canonical template (see any existing prompt for the structure).
-- **Modify output paths** if your project has a different directory convention.
+### Priority Order (highest first)
 
-The only rule: **keep each agent focused on one concern**. A prompt that tries to do everything will do nothing well.
+1. **User-modified artifacts** — User edits to plan.md, TODO.md, or feature specs always win.
+2. **Plan constraints** — Architectural decisions in plan.md override individual sub-agent preferences.
+3. **Evidence-based findings** — A security vulnerability found by security_audit overrides a code_review "approve" if the code_review missed it.
+4. **Later-stage sub-agents** — Review sub-agents (Phase 3) can override implementation sub-agents (Phase 2) for quality concerns.
+
+### Common Conflicts
+
+| Conflict | Resolution |
+|----------|-----------|
+| code_review approves but security_audit finds vulnerability | Security wins — fix before merge. |
+| feature implementation deviates from plan | Flag the deviation. If intentional, update the plan. If accidental, fix the implementation. |
+| performance_review recommends optimization that reduces readability | Depends on severity. If it meets SLAs, prefer readability. If it doesn't, optimize. |
+| brainstorm suggests approach X but plan chose approach Y | Plan wins — brainstorm is exploration, plan is commitment. |
+
+---
+
+## Invocation Patterns
+
+### Full Pipeline (New Project)
+
+```
+brainstorm → planner → feature (×N) → [code_review, security_audit, performance_review, integration_tests] → technical_docs → readme
+```
+
+### Feature Addition (Existing Project)
+
+```
+brainstorm (optional) → feature → [code_review, integration_tests] → technical_docs (update)
+```
+
+### Bug Fix
+
+```
+fix → [code_review] → technical_docs (update if needed)
+```
+
+### Security Hardening
+
+```
+security_audit → fix (×N) → code_review → technical_docs (update)
+```
+
+### Performance Optimization
+
+```
+performance_review → feature (optimization tasks) → code_review → integration_tests
+```
+
+### Orientation / Help
+
+```
+spec_help (anytime — no prerequisites)
+```
+
+---
+
+## Conventions
+
+### Artifact Naming
+
+- Feature specs: `feature_<snake_case_name>.md`
+- Integration tests: `integration_tests_<snake_case_name>.md`
+- Code reviews: `code_review_<feature_name>.md`
+- Fix reports: `fix_<issue_description>.md`
+- IDs: FEAT-001, TASK-001.1, SEC-001, PERF-001
+
+### Sub-Agent Output Headers
+
+Every generated artifact should include:
+
+```markdown
+<!-- Generated by spec-lite v1.1 | sub-agent: {{name}} | date: {{date}} -->
+```
+
+### Plan References
+
+When a sub-agent references the plan, use:
+
+```markdown
+> Per plan.md: "{{quoted text from plan}}"
+```
+
+---
+
+**This document is the meta-layer. Individual sub-agent prompts contain their detailed instructions. Use spec_help for interactive guidance on which sub-agent to invoke.**

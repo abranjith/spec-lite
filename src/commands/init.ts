@@ -174,6 +174,32 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
   }
 
+  // 6b. Create .spec/TODO.md skeleton
+  const todoPath = path.join(cwd, ".spec", "TODO.md");
+  if (!(await fs.pathExists(todoPath))) {
+    const todoContent = [
+      "# TODO — Enhancements & Ideas",
+      "",
+      "> Discovered by sub-agents during planning and development.",
+      "> Items here are out-of-scope for their current task but worth tracking.",
+      "",
+      "## General",
+      "",
+      "## General / Caching",
+      "",
+      "## UI",
+      "",
+      "## Performance",
+      "",
+      "## Security",
+      "",
+      "## DX (Developer Experience)",
+      "",
+    ].join("\n");
+    await fs.writeFile(todoPath, todoContent, "utf-8");
+    console.log(chalk.green(`  ✓ .spec/TODO.md`));
+  }
+
   // 7. Write .spec-lite.json config
   const pkg = await loadPackageVersion();
   const config: SpecLiteConfig = {

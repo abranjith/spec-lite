@@ -55,10 +55,31 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   let updated = 0;
   let preserved = 0;
   let unchanged = 0;
+  let migrated = 0;
 
   for (const prompt of prompts) {
     const targetRelPath = provider.getTargetPath(prompt.name);
     const targetAbsPath = path.join(cwd, targetRelPath);
+
+    // Migration: if copilot provider, check for old-format .md files and rename to .prompt.md
+    if (provider.alias === "copilot") {
+      const oldRelPath = path.join(".github", "copilot", `${prompt.name}.md`);
+      const oldAbsPath = path.join(cwd, oldRelPath);
+      if (
+        targetRelPath !== oldRelPath &&
+        (await fs.pathExists(oldAbsPath)) &&
+        !(await fs.pathExists(targetAbsPath))
+      ) {
+        await fs.ensureDir(path.dirname(targetAbsPath));
+        await fs.rename(oldAbsPath, targetAbsPath);
+        console.log(
+          chalk.cyan(
+            `  ↗ ${oldRelPath} → ${targetRelPath} (migrated to .prompt.md)`
+          )
+        );
+        migrated++;
+      }
+    }
 
     // Transform the new prompt content
     const newContent = provider.transformPrompt(prompt.content, {
@@ -131,7 +152,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   // 5. Summary
   console.log(
     chalk.bold(
-      `\n  Done! ${updated} updated, ${unchanged} unchanged, ${preserved} with preserved edits.`
+      `\n  Done! ${updated} updated, ${unchanged} unchanged, ${preserved} with preserved edits${migrated > 0 ? `, ${migrated} migrated` : ""}.`
     )
   );
 }

@@ -67,12 +67,12 @@ export class ClaudeCodeProvider implements Provider {
       "",
       "📋 Claude Code setup complete!",
       "",
-      "  Your agent prompts are in .claude/prompts/",
-      "  A root CLAUDE.md has been created with references to the agents.",
+      "  Your sub-agent prompts are in .claude/prompts/",
+      "  A root CLAUDE.md has been created with references to the sub-agents.",
       "",
       "  How to use:",
       "  1. Claude Code automatically reads CLAUDE.md for project context",
-      '  2. Reference specific agents: "Use the planner agent from .claude/prompts/planner.md"',
+      '  2. Reference specific sub-agents: "Use the planner from .claude/prompts/planner.md"',
       "  3. Customize the Project Context block in each file for your project",
       "",
     ].join("\n");
@@ -80,7 +80,7 @@ export class ClaudeCodeProvider implements Provider {
 }
 
 /**
- * Generate the root CLAUDE.md content that references spec-lite agents.
+ * Generate the root CLAUDE.md content that references spec-lite sub-agents.
  */
 export function generateClaudeRootMd(
   installedPrompts: string[]
@@ -90,12 +90,12 @@ export function generateClaudeRootMd(
     "",
     "# Project Instructions",
     "",
-    "This project uses [spec-lite](https://github.com/ranjithab/spec-lite) agent prompts",
+    "This project uses [spec-lite](https://github.com/ranjithab/spec-lite) sub-agent prompts",
     "for structured software engineering workflows.",
     "",
-    "## Available Agents",
+    "## Available Sub-Agents",
     "",
-    "The following specialist agents are available in `.claude/prompts/`:",
+    "The following specialist sub-agents are available in `.claude/prompts/`:",
     "",
   ];
 
@@ -107,20 +107,21 @@ export function generateClaudeRootMd(
     "",
     "## Usage",
     "",
-    "To use an agent, reference its prompt file in your conversation:",
+    "To use a sub-agent, reference its prompt file in your conversation:",
     "",
     '```text',
-    "Use the planner agent from .claude/prompts/planner.md to create a technical plan for this project.",
+    "Use the planner from .claude/prompts/planner.md to create a technical plan for this project.",
     '```',
     "",
     "## Output Directory",
     "",
-    "Agent outputs are written to the `.spec/` directory:",
+    "Sub-agent outputs are written to the `.spec/` directory:",
     "",
     "```text",
     ".spec/",
     "├── brainstorm.md",
     "├── plan.md",
+    "├── TODO.md",
     "├── features/",
     "└── reviews/",
     "```",

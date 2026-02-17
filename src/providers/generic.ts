@@ -49,7 +49,7 @@ export class GenericProvider implements Provider {
       "",
       "📋 Generic setup complete!",
       "",
-      "  Your agent prompts are in .spec-lite/prompts/",
+      "  Your sub-agent prompts are in .spec-lite/prompts/",
       "",
       "  How to use:",
       "  1. Open any prompt file and copy its content",

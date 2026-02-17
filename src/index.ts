@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { initCommand } from "./commands/init.js";
 import { updateCommand } from "./commands/update.js";
+import { listCommand } from "./commands/list.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -11,13 +12,13 @@ const program = new Command();
 program
   .name("spec-lite")
   .description(
-    "Install structured AI agent prompts into your workspace for any AI coding assistant"
+    "Install structured AI sub-agent prompts into your workspace for any AI coding assistant"
   )
   .version(pkg.version);
 
 program
   .command("init")
-  .description("Initialize spec-lite prompts in your workspace")
+  .description("Initialize spec-lite sub-agent prompts in your workspace")
   .option(
     "--ai <provider>",
     "AI provider to configure for (copilot, claude-code, generic)"
@@ -36,5 +37,10 @@ program
   )
   .option("--force", "Overwrite all files including user-modified ones", false)
   .action(updateCommand);
+
+program
+  .command("list")
+  .description("List all available spec-lite sub-agents and their purpose")
+  .action(listCommand);
 
 program.parse();

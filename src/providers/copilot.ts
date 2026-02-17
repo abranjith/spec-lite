@@ -18,7 +18,7 @@ export class CopilotProvider implements Provider {
   description = "GitHub Copilot (VS Code, JetBrains, Neovim)";
 
   getTargetPath(promptName: string): string {
-    return path.join(".github", "copilot", `${promptName}.md`);
+    return path.join(".github", "copilot", `${promptName}.prompt.md`);
   }
 
   transformPrompt(content: string, meta: PromptMeta): string {
@@ -41,7 +41,7 @@ export class CopilotProvider implements Provider {
     if (await fs.pathExists(copilotDir)) {
       const files = await fs.readdir(copilotDir);
       for (const f of files) {
-        if (f.endsWith(".md")) {
+        if (f.endsWith(".prompt.md") || f.endsWith(".md")) {
           existing.push(path.join(".github", "copilot", f));
         }
       }
@@ -65,12 +65,13 @@ export class CopilotProvider implements Provider {
       "",
       "📋 GitHub Copilot setup complete!",
       "",
-      "  Your agent prompts are in .github/copilot/",
+      "  Your sub-agent prompts are in .github/copilot/",
       "",
       "  How to use:",
       "  1. Open GitHub Copilot Chat in VS Code",
-      "  2. The prompts are automatically available as custom instructions",
-      "  3. Reference them with #<filename> in Copilot Chat",
+      "  2. Sub-agents are available as slash commands — type /prompt_name",
+      "     (e.g., /brainstorm, /planner, /feature)",
+      "  3. Files ending in .prompt.md are natively recognized by Copilot",
       "  4. Customize the Project Context block in each file for your project",
       "",
     ].join("\n");

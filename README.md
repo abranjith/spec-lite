@@ -4,16 +4,17 @@
 
 ## What Is This?
 
-spec-lite is a set of **modular prompt files** — each defining a specialist AI agent for one phase of the software development lifecycle. Install once, and spec-lite configures your workspace for your AI coding assistant of choice.
+spec-lite is a set of **modular prompt files** — each defining a specialist AI sub-agent for one phase of the software development lifecycle. Install once, and spec-lite configures your workspace for your AI coding assistant of choice.
 
 **No frameworks. No lock-in. Just markdown prompts that work everywhere.**
 
 ### Design Principles
 
 - **Lightweight** — Plain markdown files. Minimal CLI.
-- **Modular** — Use one agent or all of them. Skip what you don't need.
+- **Modular** — Use one sub-agent or all of them. Skip what you don't need.
 - **Unopinionated** — Adapts to any project type (web, CLI, library, desktop, pipeline), any language, any stack.
-- **Finite-scoped** — Each agent has one job, clear inputs, and a concrete output artifact.
+- **Finite-scoped** — Each sub-agent has one job, clear inputs, and a concrete output artifact.
+- **Memory-aware** — Every sub-agent declares what artifacts it needs to read, ensuring continuity across the pipeline.
 - **Provider-agnostic** — Works with GitHub Copilot, Claude Code, or any LLM via generic mode.
 
 ---
@@ -66,108 +67,77 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 
 | Provider | Flag | Files Written To | Format |
 |----------|------|-----------------|--------|
-| GitHub Copilot | `--ai copilot` | `.github/copilot/*.md` | Markdown |
+| GitHub Copilot | `--ai copilot` | `.github/copilot/*.prompt.md` | Slash-command prompts |
 | Claude Code | `--ai claude-code` | `.claude/prompts/*.md` + `CLAUDE.md` | Markdown |
 | Generic | `--ai generic` | `.spec-lite/prompts/*.md` | Raw markdown (copy-paste) |
 
 More providers (Cursor, Windsurf, Cline, Zed) coming soon.
 
-## The Agent Pipeline
+## The Sub-Agent Pipeline
 
 ```
+spec_help (anytime)
+
 Brainstorm ─→ Planner ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
-                                          ├─ Code Review
-                                          ├─ Security Audit
-                                          └─ Performance Review
+                │                          ├─ Code Review
+                │                          ├─ Security Audit
+                ▼                          └─ Performance Review
+            TODO.md (living backlog)
 ```
 
-Not every project needs every agent. Start with the Planner if you already have requirements. Skip Performance Review for simple CRUD apps. Use what fits.
+Not every project needs every sub-agent. Start with the Planner if you already have requirements. Skip Performance Review for simple CRUD apps. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
 
-## Prompt Files
+## Sub-Agent Prompt Files
 
-| File | Agent | What It Does | Output |
-|------|-------|-------------|--------|
-| [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Refines a vague idea into a clear vision | `.spec/brainstorm.md` |
-| [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint | `.spec/plan.md` |
-| [feature.md](prompts/feature.md) | Feature | Breaks one feature into granular, verifiable tasks | `.spec/features/feature_<name>.md` |
+| File | Sub-Agent | What It Does | Output |
+|------|-----------|-------------|--------|
+| [spec_help.md](prompts/spec_help.md) | Spec Help | Navigator — explains which sub-agent to use and when | Interactive guidance |
+| [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Back-and-forth ideation partner that refines vague ideas | `.spec/brainstorm.md` |
+| [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec/plan.md` |
+| [feature.md](prompts/feature.md) | Feature | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec/features/feature_<name>.md` |
 | [code_review.md](prompts/code_review.md) | Code Review | Reviews code for correctness, architecture, readability | `.spec/reviews/code_review_<name>.md` |
-| [security_audit.md](prompts/security_audit.md) | Security Audit | Scans for vulnerabilities and security risks | `.spec/reviews/security_audit_<scope>.md` |
-| [performance_review.md](prompts/performance_review.md) | Performance Review | Identifies bottlenecks and optimization opportunities | `.spec/reviews/performance_review_<scope>.md` |
-| [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable test scenarios from feature specs | `tests/` |
-| [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | Project infrastructure files |
-| [fix.md](prompts/fix.md) | Fix & Refactor | Debugs issues or restructures code safely | Targeted fixes with verification |
-| [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture documentation for developers | `docs/technical_architecture.md` |
-| [readme.md](prompts/readme.md) | README | Writes the project README and optional user guide | `README.md` + `docs/user_guide.md` |
-| [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, workflow, conflict resolution | Reference only |
-
-## Quick Start (Manual)
-
-### 1. Pick an agent
-
-Choose the prompt file for your current task. Don't know where to start? Start with `planner.md`.
-
-### 2. Copy the prompt into your LLM
-
-Paste the full content of the prompt file into your LLM's system prompt (or at the start of a conversation).
-
-### 3. Fill in the Project Context block
-
-Every prompt has a `Project Context` section at the top. Fill it in with your project details:
-
-```markdown
-## Project Context (Customize per project)
-- **Project Type**: CLI tool
-- **Language(s)**: Python
-- **Conventions**: PEP 8
-- **Target Environment**: local-only
-- **Team Size**: solo developer
-```
-
-### 4. Attach relevant context
-
-If you're running the Feature Agent, attach `.spec/plan.md`. If you're running Code Review, attach the plan + feature spec + code. Each prompt lists its required inputs.
-
-### 5. Interact
-
-The agent follows its process and produces its defined output. Some agents (Brainstorm, Planner) are conversational — they'll ask questions. Others (Code Review, Security) analyze and produce a report.
+| [security_audit.md](prompts/security_audit.md) | Security Audit | Threat-models and scans for vulnerabilities | `.spec/reviews/security_audit.md` |
+| [performance_review.md](prompts/performance_review.md) | Performance Review | Identifies bottlenecks and optimization opportunities | `.spec/reviews/performance_review.md` |
+| [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable test scenarios from feature specs | `.spec/features/integration_tests_<name>.md` |
+| [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | `.spec/devops/` + infra files |
+| [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec/reviews/fix_<issue>.md` |
+| [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture docs, API references, setup guides | Technical documentation |
+| [readme.md](prompts/readme.md) | README | Writes the project README | `README.md` |
+| [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
 
 ## Output Directory Structure
 
-spec-lite agents produce artifacts in two locations:
-
-**Planning & review artifacts** → `.spec/` directory (version-controlled project metadata):
+spec-lite sub-agents produce artifacts in the `.spec/` directory (version-controlled project metadata):
 
 ```
 .spec/
 ├── brainstorm.md
-├── plan.md
+├── plan.md                    # Living document — user-modifiable
+├── TODO.md                    # Enhancement backlog — maintained by planner + feature
 ├── features/
 │   ├── feature_user_management.md
-│   └── feature_billing.md
-└── reviews/
-    ├── code_review_user_management.md
-    ├── security_audit_auth.md
-    └── performance_review_data_import.md
+│   ├── feature_billing.md
+│   └── integration_tests_user_management.md
+├── reviews/
+│   ├── code_review_user_management.md
+│   ├── security_audit.md
+│   ├── performance_review.md
+│   └── fix_create_order_null.md
+└── devops/
+    └── ...                    # Infrastructure artifacts
 ```
 
-**Implementation artifacts** → project directories (actual project files):
-
-```
-tests/            ← Integration test scenarios
-docs/             ← Technical docs + user guide
-README.md         ← Project README
-Dockerfile, CI configs, etc.  ← DevOps outputs
-```
+Implementation artifacts (tests, docs, infra configs) are written to standard project directories.
 
 ## Workflow & Conflict Resolution
 
 See [orchestrator.md](prompts/orchestrator.md) for the complete workflow documentation, including:
 
-- The full agent pipeline DAG
-- When to skip agents
-- Conflict resolution rules (user instruction > plan > agent expertise)
-- Feedback loops between review agents and feature agents
-- How to use spec-lite with different LLMs and coding agents
+- The full sub-agent pipeline DAG
+- Memory protocol — which artifacts each sub-agent reads
+- Conflict resolution rules (user instruction > plan > sub-agent expertise)
+- Enhancement tracking via `.spec/TODO.md`
+- Invocation patterns for different scenarios (new project, feature addition, bug fix)
 
 ## CLI Commands
 
@@ -191,22 +161,31 @@ Options:
   --force    Overwrite all files including user-modified ones
 ```
 
+### `spec-lite list`
+
+List all available sub-agents with their purpose and output artifacts.
+
+```bash
+spec-lite list
+```
+
 ---
 
 ## Versioning
 
-spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v1.0 | ... -->`) for traceability.
+spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v1.1 | ... -->`) for traceability.
 
 ## Adapting & Contributing
 
 spec-lite is designed to be forked and adapted:
 
 - **Add project-specific conventions** to the Project Context blocks.
-- **Remove agents** you don't need.
-- **Add new agents** following the same pattern (Objective → Inputs → Process → Output → Constraints).
+- **Remove sub-agents** you don't need.
+- **Add new sub-agents** following the same pattern (Persona → Required Context → Process → Output Template → Constraints).
 - **Modify output paths** to match your project's directory structure.
+- **Edit the plan** — `.spec/plan.md` is a living document. Your edits take priority over sub-agent defaults.
 
-Contributions welcome — especially for new agent types, improvements to existing prompts, and real-world usage feedback.
+Contributions welcome — especially for new sub-agent types, improvements to existing prompts, and real-world usage feedback.
 
 ## License
 
