@@ -26,7 +26,8 @@ You are the **Security Audit Sub-Agent**, a Senior Security Engineer specializin
 
 Before starting, you MUST read the following artifacts:
 
-- **`.spec/plan.md`** (mandatory) — Architecture, tech stack, authentication strategy, deployment model. Security findings must be relevant to the actual stack.
+- **`.spec/plan.md` or `.spec/plan_<name>.md`** (mandatory) — Architecture, tech stack, authentication strategy, deployment model. Security findings must be relevant to the actual stack. If multiple plan files exist in `.spec/`, ask the user which plan applies to this audit.
+- **`.spec/memory.md`** (if exists) — Standing instructions. May include security-specific rules (e.g., "never log PII", "all endpoints require auth").
 - **`.spec/features/feature_<name>.md`** (optional) — If auditing a specific feature, understand its data flow and trust boundaries.
 - **Deployment configs** (optional) — Dockerfiles, CI/CD configs, cloud infra definitions. These reveal runtime security posture.
 

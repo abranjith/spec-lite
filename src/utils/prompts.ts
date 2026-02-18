@@ -41,12 +41,17 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   planner: {
     title: "Planner",
     description: "Creates a detailed technical blueprint from requirements",
-    output: ".spec/plan.md",
+    output: ".spec/plan.md or .spec/plan_<name>.md",
   },
   feature: {
     title: "Feature",
     description: "Breaks one feature into granular, verifiable vertical slices",
     output: ".spec/features/feature_<name>.md",
+  },
+  implement: {
+    title: "Implement",
+    description: "Picks up a feature spec and executes its tasks with code",
+    output: "Working code + updated feature spec",
   },
   code_review: {
     title: "Code Review",
@@ -77,6 +82,11 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     title: "Fix & Refactor",
     description: "Debugs issues or restructures code safely",
     output: "Targeted fixes with verification",
+  },
+  memorize: {
+    title: "Memorize",
+    description: "Stores standing instructions that all sub-agents enforce",
+    output: ".spec/memory.md",
   },
   technical_docs: {
     title: "Technical Docs",

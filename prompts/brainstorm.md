@@ -123,6 +123,8 @@ When the user's idea has issues, address them constructively:
 
 Your final output is a markdown file at `.spec/brainstorm.md`. This is the **Source of Truth** for the Planner sub-agent.
 
+> **Note**: This brainstorm is **not** automatically fed into the Planner. When starting the Planner, the user must explicitly say "plan based on the brainstorm" or "use brainstorm.md" if they want the Planner to incorporate this document. This prevents confusion when the brainstorm was for a different idea than what's being planned.
+
 ### Output Template
 
 Fill in this template when producing your final output:

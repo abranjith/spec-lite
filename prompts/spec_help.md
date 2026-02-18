@@ -39,9 +39,11 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | Sub-Agent | Prompt File | Purpose | Input | Output |
 |-----------|-------------|---------|-------|--------|
 | **Spec Help** | `spec_help` | Navigate the sub-agent system (you are here) | Questions | Guidance |
+| **Memorize** | `memorize` | Store standing instructions enforced by all sub-agents | User instructions | `.spec/memory.md` |
 | **Brainstorm** | `brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec/brainstorm.md` |
-| **Planner** | `planner` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec/plan.md` |
+| **Planner** | `planner` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec/plan.md` or `.spec/plan_<name>.md` |
 | **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec/features/feature_<name>.md` |
+| **Implement** | `implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
 | **Code Review** | `code_review` | Review code for correctness, architecture, readability | Feature spec + code | `.spec/reviews/code_review_<name>.md` |
 | **Security Audit** | `security_audit` | Scan for vulnerabilities and security risks | Plan + code | `.spec/reviews/security_audit_<scope>.md` |
 | **Performance Review** | `performance_review` | Identify bottlenecks and optimization opportunities | Plan + code | `.spec/reviews/performance_review_<scope>.md` |
@@ -68,7 +70,13 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
                      ┌───────────┼───────────┐
                      ▼           ▼           ▼
                ┌──────────┐ ┌──────────┐ ┌──────────┐
-               │Feature A │ │Feature B │ │Feature N │  ← One per feature
+               │Feature A │ │Feature B │ │Feature N │  ← One spec per feature
+               └────┬─────┘ └────┬─────┘ └────┬─────┘
+                    │             │             │
+                    ▼             ▼             ▼
+               ┌──────────┐ ┌──────────┐ ┌──────────┐
+               │Implement │ │Implement │ │Implement │  ← Code each feature
+               │    A     │ │    B     │ │    N     │
                └────┬─────┘ └────┬─────┘ └────┬─────┘
                     │             │             │
                     ▼             ▼             ▼
@@ -104,7 +112,8 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 |---|---|
 | "I have a vague idea" | **Brainstorm** — refine it into a clear vision |
 | "I know what I want to build" | **Planner** — create the technical blueprint |
-| "I have a plan, time to code a feature" | **Feature** — break it into verifiable tasks |
+| "I have a plan, time to spec a feature" | **Feature** — break it into verifiable tasks |
+| "I have a feature spec, time to code" | **Implement** — execute the tasks from the spec |
 | "I finished coding, need a review" | **Code Review** — get structured feedback |
 | "Is my code secure?" | **Security Audit** — find vulnerabilities |
 | "Is my code fast enough?" | **Performance Review** — identify bottlenecks |
@@ -124,17 +133,64 @@ Sub-agents produce and consume artifacts in the `.spec/` directory:
 
 ```
 .spec/
-├── brainstorm.md          ← Brainstorm output → Planner input
-├── plan.md                ← Planner output → Everyone's input
+├── brainstorm.md          ← Brainstorm output (opt-in for Planner)
+├── plan.md                ← Default plan (simple projects)
+├── plan_<name>.md         ← Named plans (complex projects)
 ├── TODO.md                ← Enhancement tracking (Planner & Feature)
 ├── features/
-│   ├── feature_<name>.md  ← Feature output → Reviews & Tests input
+│   ├── feature_<name>.md  ← Feature output → Implement input → Reviews & Tests input
 │   └── ...
 └── reviews/
     ├── code_review_<name>.md
     ├── security_audit_<scope>.md
     └── performance_review_<scope>.md
 ```
+
+---
+
+## Working with Multiple Plans
+
+Complex repositories may have multiple independent areas (e.g., order management, catalog, user management). Each area can have its own plan:
+
+- `.spec/plan_order_management.md`
+- `.spec/plan_catalog.md`
+- `.spec/plan_user_management.md`
+
+**How this works:**
+
+1. **Create named plans**: Tell the Planner "create a plan for order management" — it outputs `.spec/plan_order_management.md`.
+2. **Spec features against a plan**: Tell the Feature agent "break down order processing from plan_order_management" — it reads the named plan.
+3. **Implement features**: Tell Implement "implement `.spec/features/feature_order_processing.md`" — it reads both the feature spec and the governing plan.
+4. **Agents ask when ambiguous**: If multiple plans exist and you don't specify which one, agents will list the available plans and ask you to pick.
+
+> **Simple projects**: Just use `.spec/plan.md` — everything works as before. Named plans are opt-in.
+
+---
+
+## Brainstorm Independence
+
+The brainstorm (`.spec/brainstorm.md`) is **not** automatically fed into the planner. This is intentional — you might brainstorm one idea but plan something different.
+
+- To use the brainstorm: Tell the Planner "plan based on the brainstorm" or "use brainstorm.md."
+- To skip it: Just describe your requirements directly to the Planner.
+
+---
+
+## Quick Reference: Common Workflows
+
+| Goal | What to invoke |
+|------|----------------|
+| Brainstorm an idea | Invoke **brainstorm**: *"I want to build a..."* |
+| Plan from scratch | Invoke **planner**: *"Create a plan for a task management API"* |
+| Plan using brainstorm | Invoke **planner**: *"Create a plan based on the brainstorm"* |
+| Plan a specific domain | Invoke **planner**: *"Create a plan for order management"* → outputs `plan_order_management.md` |
+| Spec a feature | Invoke **feature**: *"Break down user management from the plan"* |
+| Spec a feature (named plan) | Invoke **feature**: *"Break down order processing from plan_order_management"* |
+| Implement a feature | Invoke **implement**: *"Implement `.spec/features/feature_user_management.md`"* |
+| Implement (by name) | Invoke **implement**: *"Implement the user management feature"* |
+| Continue implementation | Invoke **implement**: *"Continue implementing user management"* |
+| Review code | Invoke **code_review**: *"Review the user management feature"* |
+| Fix a bug | Invoke **fix**: *"The test_create_order test is failing with..."* |
 
 ---
 
@@ -163,7 +219,7 @@ Sub-agents produce and consume artifacts in the `.spec/` directory:
 
 **User**: "I just finished the plan. What's next?"
 
-**Sub-agent**: "Great! Now pick a feature from your plan and use the **Feature** sub-agent to break it into granular, verifiable tasks. The Feature sub-agent will read your `.spec/plan.md` and create a task breakdown in `.spec/features/feature_<name>.md`. Work through features one at a time."
+**Sub-agent**: "Great! Now pick a feature from your plan and use the **Feature** sub-agent to break it into granular, verifiable tasks. Tell it something like: 'Break down user management from the plan.' It will create a task breakdown in `.spec/features/feature_<name>.md`. Once the spec is ready, use the **Implement** sub-agent to start coding: 'Implement `.spec/features/feature_user_management.md`'."
 
 **User**: "I have a bug in my code."
 

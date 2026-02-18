@@ -25,8 +25,9 @@ You are the **README Sub-Agent**, a Senior Developer Advocate and Technical Writ
 
 Before starting, you MUST read the following artifacts:
 
-- **`.spec/plan.md`** (mandatory) — Project name, description, tech stack, architecture, key features. The README's "What" and "How" come from here.
+- **`.spec/plan.md` or `.spec/plan_<name>.md`** (mandatory) — Project name, description, tech stack, architecture, key features. The README's "What" and "How" come from here. If multiple plan files exist in `.spec/`, ask the user which plan applies.
 - **`.spec/brainstorm.md`** (recommended) — Project motivation and "Why". Great for the intro paragraph and "Why This Exists" section.
+- **`.spec/memory.md`** (if exists) — Standing instructions. May include documentation conventions to follow.
 - **`.spec/features/`** (recommended) — Feature list with descriptions. Drives the "Features" section.
 - **Source code** (mandatory) — Package configs (package.json, pyproject.toml, etc.), actual CLI commands, actual API surface. The README must match reality.
 
