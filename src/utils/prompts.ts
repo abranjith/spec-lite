@@ -85,7 +85,8 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   memorize: {
     title: "Memorize",
-    description: "Stores standing instructions that all sub-agents enforce",
+    description:
+      "Stores standing instructions that all sub-agents enforce. Use `/memorize bootstrap` to auto-generate from project analysis.",
     output: ".spec/memory.md",
   },
   technical_docs: {

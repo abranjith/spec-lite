@@ -1,6 +1,6 @@
 {
   "name": "spec-lite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Lightweight, modular, LLM-agnostic prompt collection for structured software engineering — installable CLI",
   "type": "module",
   "main": "dist/index.js",

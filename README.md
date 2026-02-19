@@ -14,7 +14,7 @@ spec-lite is a set of **modular prompt files** — each defining a specialist AI
 - **Modular** — Use one sub-agent or all of them. Skip what you don't need.
 - **Unopinionated** — Adapts to any project type (web, CLI, library, desktop, pipeline), any language, any stack.
 - **Finite-scoped** — Each sub-agent has one job, clear inputs, and a concrete output artifact.
-- **Memory-aware** — Every sub-agent declares what artifacts it needs to read, ensuring continuity across the pipeline.
+- **Memory-first** — Cross-cutting standards (coding conventions, architecture, testing, security) live in `.spec/memory.md` — the single source of truth read by every sub-agent.
 - **Provider-agnostic** — Works with GitHub Copilot, Claude Code, or any LLM via generic mode.
 
 ---
@@ -42,16 +42,29 @@ spec-lite init --ai claude-code
 spec-lite init --ai generic
 ```
 
-This will:
+The CLI will walk you through a short **project profile questionnaire** (language, frameworks, test framework, architecture style, and coding conventions). Your answers are used to:
+
 1. Write agent prompt files to the correct location for your AI tool
-2. Create the `.spec/` directory structure for agent outputs
-3. Save a `.spec-lite.json` config to track your setup
+2. Inject your tech-stack context into every prompt's `<!-- project-context -->` block
+3. Copy a curated **best-practice snippet** for your stack into `.spec-lite/stacks/`
+4. Create the `.spec/` directory structure for agent outputs
+5. Save a `.spec-lite.json` config (including your project profile) to track your setup
+
+After init completes, run **`/memorize bootstrap`** (see below) to let the LLM auto-generate a comprehensive `memory.md` from your codebase.
 
 ### Exclude specific agents
 
 ```bash
 spec-lite init --ai copilot --exclude brainstorm,readme
 ```
+
+### Skip the profile questionnaire
+
+```bash
+spec-lite init --ai copilot --skip-profile
+```
+
+Use `--skip-profile` to skip the interactive questionnaire and install prompts without project-specific context.
 
 ### Update prompts to latest version
 
@@ -73,11 +86,41 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 
 More providers (Cursor, Windsurf, Cline, Zed) coming soon.
 
+## Memory-First Architecture
+
+spec-lite uses a **memory-first** approach: cross-cutting concerns that every sub-agent needs — coding standards, architecture patterns, testing conventions, security guidelines, logging strategy — live in a single file: **`.spec/memory.md`**.
+
+| Source | Purpose | Authority |
+|--------|---------|-----------|
+| `.spec/memory.md` | Cross-cutting standards & conventions | **Primary** — authoritative for all sub-agents |
+| `.spec/plan.md` | Project-specific blueprint & task breakdown | Overrides memory only with explicit justification |
+| User instruction | Ad-hoc guidance in chat | Highest priority (trumps both) |
+
+### Bootstrap Flow
+
+After running `spec-lite init`, bootstrap your memory in one step:
+
+```
+/memorize bootstrap
+```
+
+The memorize sub-agent will:
+1. Read your project profile from `.spec-lite.json`
+2. Scan your repository structure, configs, and existing code
+3. Load the curated best-practice snippet for your stack (from `.spec-lite/stacks/`)
+4. Optionally look up community standards via web search
+5. Synthesize everything into a comprehensive `memory.md`
+6. Present the draft for your confirmation before saving
+
+Once memory is bootstrapped, the **Planner** focuses on project-specific architecture and task breakdown — it no longer re-derives coding standards, testing conventions, or security guidelines.
+
 ## The Sub-Agent Pipeline
 
 ```
 spec_help (anytime)
 
+                  ┌─ /memorize bootstrap (one-time setup)
+                  ▼
 Brainstorm ─→ Planner ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
                 │                          ├─ Code Review
                 │                          ├─ Security Audit
@@ -85,7 +128,7 @@ Brainstorm ─→ Planner ─→ Feature (×N) ─→ Reviews ─→ Tests ─�
             TODO.md (living backlog)
 ```
 
-Not every project needs every sub-agent. Start with the Planner if you already have requirements. Skip Performance Review for simple CRUD apps. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
+All sub-agents read `.spec/memory.md` first for standing instructions, then `.spec/plan.md` for project-specific context. Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
 
 ## Sub-Agent Prompt Files
 
@@ -103,6 +146,7 @@ Not every project needs every sub-agent. Start with the Planner if you already h
 | [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec/reviews/fix_<issue>.md` |
 | [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture docs, API references, setup guides | Technical documentation |
 | [readme.md](prompts/readme.md) | README | Writes the project README | `README.md` |
+| [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec/memory.md` — standing instructions for all agents. Use `/memorize bootstrap` to auto-generate. | `.spec/memory.md` |
 | [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
 
 ## Output Directory Structure
@@ -111,6 +155,7 @@ spec-lite sub-agents produce artifacts in the `.spec/` directory (version-contro
 
 ```
 .spec/
+├── memory.md                  # Cross-cutting standards — authoritative source
 ├── brainstorm.md
 ├── plan.md                    # Living document — user-modifiable
 ├── TODO.md                    # Enhancement backlog — maintained by planner + feature
@@ -149,6 +194,7 @@ Initialize spec-lite prompts in your workspace.
 Options:
   --ai <provider>      AI provider: copilot, claude-code, generic
   --exclude <prompts>  Comma-separated prompts to skip (e.g., brainstorm,readme)
+  --skip-profile       Skip the interactive project profile questionnaire
   --force              Overwrite existing files without prompting
 ```
 
@@ -179,11 +225,14 @@ spec-lite relies on **git** for artifact versioning. When a plan or review is up
 
 spec-lite is designed to be forked and adapted:
 
-- **Add project-specific conventions** to the Project Context blocks.
+- **Bootstrap memory first** — run `/memorize bootstrap` after init to populate `.spec/memory.md` with your project's standards.
+- **Edit memory directly** — `.spec/memory.md` is the standing-instruction file. Your edits persist across all sub-agent invocations.
+- **Add project-specific conventions** to the Project Context blocks or directly to memory.
 - **Remove sub-agents** you don't need.
 - **Add new sub-agents** following the same pattern (Persona → Required Context → Process → Output Template → Constraints).
 - **Modify output paths** to match your project's directory structure.
 - **Edit the plan** — `.spec/plan.md` is a living document. Your edits take priority over sub-agent defaults.
+- **Add stack snippets** — drop a `<language>.md` file into `src/stacks/` to add best-practice snippets for additional languages.
 
 Contributions welcome — especially for new sub-agent types, improvements to existing prompts, and real-world usage feedback.
 

@@ -3,14 +3,135 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
-import type { SpecLiteConfig } from "../providers/base.js";
-import { loadPrompts } from "../utils/prompts.js";
+import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
+import { loadPrompts, replaceProjectContext } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
+import { getStackSnippet } from "../utils/stacks.js";
 
 interface InitOptions {
   ai?: string;
   exclude?: string;
   force?: boolean;
+  skipProfile?: boolean;
+}
+
+const LANGUAGE_CHOICES = [
+  { name: "TypeScript", value: "TypeScript" },
+  { name: "Python", value: "Python" },
+  { name: "Java", value: "Java" },
+  { name: "C# / .NET", value: "C#" },
+  { name: "Go", value: "Go" },
+  { name: "Rust", value: "Rust" },
+  { name: "Other (specify below)", value: "__other__" },
+];
+
+const ARCHITECTURE_CHOICES = [
+  { name: "Monolith", value: "Monolith" },
+  { name: "Microservices", value: "Microservices" },
+  { name: "Serverless", value: "Serverless" },
+  { name: "Monorepo", value: "Monorepo" },
+  { name: "Other (specify below)", value: "__other__" },
+];
+
+/**
+ * Collect project profile via interactive questionnaire.
+ * Returns a ProjectProfile with the user's answers.
+ */
+async function collectProjectProfile(): Promise<ProjectProfile> {
+  console.log(
+    chalk.cyan(
+      "\n  📋 Project Profile — a few questions to personalize your setup:\n"
+    )
+  );
+
+  const answers = await inquirer.prompt([
+    {
+      type: "list",
+      name: "language",
+      message: "Primary programming language?",
+      choices: LANGUAGE_CHOICES,
+    },
+    {
+      type: "input",
+      name: "languageOther",
+      message: "Specify your primary language:",
+      when: (prev: Record<string, string>) => prev.language === "__other__",
+      validate: (input: string) =>
+        input.trim() ? true : "Please enter a language.",
+    },
+    {
+      type: "input",
+      name: "frameworks",
+      message:
+        'Framework(s) in use? (e.g., "Express + React", "FastAPI", "ASP.NET Core")',
+      default: "None / not sure yet",
+    },
+    {
+      type: "input",
+      name: "testFramework",
+      message:
+        'Testing framework? (e.g., "Jest", "Vitest", "pytest", "xUnit")',
+      default: "Not decided yet",
+    },
+    {
+      type: "list",
+      name: "architecture",
+      message: "Architectural pattern?",
+      choices: ARCHITECTURE_CHOICES,
+    },
+    {
+      type: "input",
+      name: "architectureOther",
+      message: "Specify your architectural pattern:",
+      when: (prev: Record<string, string>) => prev.architecture === "__other__",
+      validate: (input: string) =>
+        input.trim() ? true : "Please enter a pattern.",
+    },
+    {
+      type: "input",
+      name: "conventions",
+      message:
+        'Any specific coding conventions? (e.g., "Airbnb style guide", "PEP 8") — leave blank if none',
+      default: "",
+    },
+  ]);
+
+  return {
+    language:
+      answers.language === "__other__"
+        ? answers.languageOther.trim()
+        : answers.language,
+    frameworks: answers.frameworks.trim(),
+    testFramework: answers.testFramework.trim(),
+    architecture:
+      answers.architecture === "__other__"
+        ? answers.architectureOther.trim()
+        : answers.architecture,
+    conventions: answers.conventions.trim(),
+  };
+}
+
+/**
+ * Build a Project Context block string from a ProjectProfile.
+ * This replaces the placeholder content inside <!-- project-context-start/end --> markers.
+ */
+function buildProjectContextBlock(profile: ProjectProfile): string {
+  const lines = [
+    "",
+    "## Project Context (Customize per project)",
+    "",
+    "> Auto-populated by spec-lite init. Edit these values as your project evolves.",
+    "",
+    `- **Language(s)**: ${profile.language}`,
+    `- **Framework(s)**: ${profile.frameworks}`,
+    `- **Test Framework**: ${profile.testFramework}`,
+    `- **Architecture**: ${profile.architecture}`,
+  ];
+  if (profile.conventions) {
+    lines.push(`- **Conventions**: ${profile.conventions}`);
+  }
+  lines.push("");
+  return lines.join("\n");
 }
 
 export async function initCommand(options: InitOptions): Promise<void> {
@@ -51,7 +172,16 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   console.log(chalk.cyan(`  Provider: ${provider.name}`));
 
-  // 2. Parse exclusions (split on commas or spaces to handle both bash and PowerShell)
+  // 2. Collect project profile (unless --skip-profile)
+  let projectProfile: ProjectProfile | undefined;
+  if (!options.skipProfile) {
+    projectProfile = await collectProjectProfile();
+    console.log(chalk.green("  ✓ Project profile collected"));
+  } else {
+    console.log(chalk.dim("  Skipping project profile questionnaire."));
+  }
+
+  // 3. Parse exclusions (split on commas or spaces to handle both bash and PowerShell)
   const exclude = options.exclude
     ? options.exclude.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
     : [];
@@ -60,7 +190,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.dim(`  Excluding: ${exclude.join(", ")}`));
   }
 
-  // 3. Check for existing files
+  // 4. Check for existing files
   const existingFiles = await provider.detectExisting(cwd);
   if (existingFiles.length > 0 && !options.force) {
     console.log(
@@ -103,7 +233,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
     // For "overwrite", we just proceed normally
   }
 
-  // 4. Load and write prompts
+  // 5. Build project context block (if profile was collected)
+  const contextBlock = projectProfile
+    ? buildProjectContextBlock(projectProfile)
+    : null;
+
+  // 6. Load and write prompts
   const prompts = await loadPrompts(exclude);
   let written = 0;
   let skipped = 0;
@@ -137,7 +272,13 @@ export async function initCommand(options: InitOptions): Promise<void> {
       }
     }
 
-    const transformed = provider.transformPrompt(prompt.content, {
+    // Inject project context into prompt if profile was collected
+    let content = prompt.content;
+    if (contextBlock) {
+      content = replaceProjectContext(content, contextBlock);
+    }
+
+    const transformed = provider.transformPrompt(content, {
       name: prompt.name,
       title: prompt.title,
       description: prompt.description,
@@ -151,7 +292,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green(`  ✓ ${targetRelPath}`));
   }
 
-  // 5. Provider-specific extras
+  // 7. Provider-specific extras
   if (provider.alias === "claude-code") {
     const claudeMdPath = path.join(cwd, "CLAUDE.md");
     const claudeMdContent = generateClaudeRootMd(installedPrompts);
@@ -160,7 +301,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     written++;
   }
 
-  // 6. Create .spec/ directory structure
+  // 8. Create .spec/ directory structure
   const specDirs = [
     ".spec",
     path.join(".spec", "features"),
@@ -174,7 +315,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
   }
 
-  // 6b. Create .spec/TODO.md skeleton
+  // 8b. Create .spec/TODO.md skeleton
   const todoPath = path.join(cwd, ".spec", "TODO.md");
   if (!(await fs.pathExists(todoPath))) {
     const todoContent = [
@@ -200,7 +341,33 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green(`  ✓ .spec/TODO.md`));
   }
 
-  // 7. Write .spec-lite.json config
+  // 9. Copy bundled stack snippet to .spec-lite/stacks/ (if profile was collected)
+  if (projectProfile) {
+    const snippet = getStackSnippet(projectProfile.language);
+    if (snippet) {
+      const stacksTargetDir = path.join(cwd, ".spec-lite", "stacks");
+      await fs.ensureDir(stacksTargetDir);
+      const snippetFileName = `${projectProfile.language.toLowerCase().replace(/[^a-z0-9]/g, "-")}.md`;
+      const snippetPath = path.join(stacksTargetDir, snippetFileName);
+
+      if (await fs.pathExists(snippetPath) && !options.force) {
+        console.log(
+          chalk.dim(`  – .spec-lite/stacks/${snippetFileName} already exists (kept your edits)`)
+        );
+      } else {
+        await fs.writeFile(snippetPath, snippet, "utf-8");
+        console.log(
+          chalk.green(`  ✓ .spec-lite/stacks/${snippetFileName}`)
+        );
+        console.log(
+          chalk.dim("     ↳ Edit this file to customize defaults before running /memorize bootstrap")
+        );
+        written++;
+      }
+    }
+  }
+
+  // 10. Write .spec-lite.json config
   const pkg = await loadPackageVersion();
   const config: SpecLiteConfig = {
     version: pkg,
@@ -208,18 +375,31 @@ export async function initCommand(options: InitOptions): Promise<void> {
     installedPrompts,
     installedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...(projectProfile ? { projectProfile } : {}),
   };
   const configPath = path.join(cwd, ".spec-lite.json");
   await fs.writeJson(configPath, config, { spaces: 2 });
   console.log(chalk.green(`  ✓ .spec-lite.json`));
 
-  // 8. Summary
+  // 11. Summary
   console.log(
     chalk.bold(
       `\n  Done! ${written} files written, ${skipped} skipped.`
     )
   );
   console.log(provider.getPostInitMessage());
+
+  // 12. Bootstrap next-step guidance
+  if (projectProfile) {
+    console.log(
+      chalk.cyan(
+        "\n  📌 Next step: Run ") +
+        chalk.bold("/memorize bootstrap") +
+        chalk.cyan(
+          " in your AI assistant to auto-generate\n     coding standards, architecture guidelines, and best practices\n     for your project based on the profile you just provided."
+        )
+    );
+  }
 }
 
 async function loadPackageVersion(): Promise<string> {

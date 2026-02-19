@@ -28,6 +28,10 @@ program
     "Comma-separated list of prompts to exclude (e.g., brainstorm,readme)"
   )
   .option("--force", "Overwrite existing files without prompting", false)
+  .option(
+    "--skip-profile",
+    "Skip the project profile questionnaire (for CI/scripting)"
+  )
   .action(initCommand);
 
 program

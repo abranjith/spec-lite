@@ -51,6 +51,27 @@ export interface PromptMeta {
 }
 
 /**
+ * Project profile collected during init questionnaire.
+ * Stored in .spec-lite.json and used by the memorize bootstrap agent.
+ */
+export interface ProjectProfile {
+  /** Primary programming language (e.g., "TypeScript", "Python", "C#") */
+  language: string;
+
+  /** Framework(s) in use (e.g., "Express + React", "FastAPI", "ASP.NET Core") */
+  frameworks: string;
+
+  /** Testing framework (e.g., "Jest", "Vitest", "pytest", "xUnit") */
+  testFramework: string;
+
+  /** Architectural pattern (e.g., "Monolith", "Microservices", "Serverless") */
+  architecture: string;
+
+  /** Additional coding conventions (e.g., "Airbnb style guide", "PEP 8") */
+  conventions: string;
+}
+
+/**
  * Config file written to the workspace root to track installed state.
  */
 export interface SpecLiteConfig {
@@ -59,4 +80,5 @@ export interface SpecLiteConfig {
   installedPrompts: string[];
   installedAt: string;
   updatedAt: string;
+  projectProfile?: ProjectProfile;
 }

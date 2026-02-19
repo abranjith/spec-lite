@@ -1,4 +1,4 @@
-<!-- spec-lite v1.1 | prompt: orchestrator | updated: 2026-02-16 -->
+<!-- spec-lite v1.3 | prompt: orchestrator | updated: 2026-02-18 -->
 
 # PERSONA: Orchestrator — Sub-Agent Pipeline Reference
 
@@ -115,8 +115,22 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 Every sub-agent has a **Required Context (Memory)** section that lists which artifacts it must read before starting. This ensures:
 
 1. **Continuity**: Each sub-agent picks up where the previous one left off.
-2. **Consistency**: All sub-agents work from the same source of truth (the plan).
-3. **User Authority**: The plan is a living document — user modifications take priority.
+2. **Consistency**: All sub-agents work from the same source of truth (memory + plan).
+3. **User Authority**: Memory and the plan are living documents — user modifications take priority.
+
+### Memory-First Architecture
+
+`.spec/memory.md` is the **authoritative source** for cross-cutting concerns that apply to every sub-agent invocation:
+
+- **Coding Standards** — naming, formatting, error handling, immutability
+- **Architecture & Design Principles** — Clean Architecture, SOLID, composition patterns
+- **Testing Conventions** — framework, organization, naming, mocking, coverage
+- **Logging Rules** — library, levels, format, what to log/not log
+- **Security Policies** — input validation, auth, secrets, PII handling
+- **Tech Stack** — language, framework, key dependencies
+- **Project Structure** — directory layout, file naming patterns
+
+Plans (`.spec/plan.md`) hold only **plan-specific** additions and overrides to these standing rules. Plans should NOT re-derive what memory already establishes.
 
 ### Required Context Rules
 
@@ -135,13 +149,22 @@ The plan (`.spec/plan.md`), memory (`.spec/memory.md`), and TODO (`.spec/TODO.md
 
 **All sub-agents must respect user modifications.** If the plan says "use Redis for caching" and the user adds a note "Actually, use Memcached", the sub-agents follow the user's instruction.
 
-### Memory Protocol
+### Memory Precedence
 
 The `.spec/memory.md` file (managed by the **memorize** sub-agent) contains standing instructions that apply to **all** sub-agents. Every sub-agent that has `.spec/memory.md` listed in its Required Context must:
 
 1. Read `.spec/memory.md` before starting work.
 2. Treat each entry as a hard requirement — equivalent to a user-added instruction in the plan.
 3. If a memory entry conflicts with the plan, the **memory entry wins** (it represents the user's most recent explicit preference).
+4. If a plan contains an explicit override with justification, the plan's override wins for that plan's scope only.
+
+### Bootstrap Flow
+
+For new projects, the recommended initialization flow is:
+
+1. `npx spec-lite init` — installs prompts, collects project profile, copies stack snippets.
+2. `/memorize bootstrap` — LLM-powered discovery that scans the project, reads the profile and stack snippets, and generates a comprehensive `memory.md`.
+3. `/planner` — creates a plan that references memory for cross-cutting standards, adding only plan-specific decisions.
 
 ---
 
