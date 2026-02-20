@@ -1,4 +1,4 @@
-<!-- spec-lite v1.3 | prompt: orchestrator | updated: 2026-02-18 -->
+<!-- spec-lite v1.4 | prompt: orchestrator | updated: 2026-02-19 -->
 
 # PERSONA: Orchestrator — Sub-Agent Pipeline Reference
 
@@ -51,6 +51,9 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
      │  ┌──────────────────┐ ┌───────────┐ │
      │  │performance_review│ │integ_tests│ │
      │  └──────────────────┘ └───────────┘ │
+     │  ┌──────────────────┐               │
+     │  │   unit_tests     │               │
+     │  └──────────────────┘               │
      └──────────────────┬───────────────────┘
                         │ .spec/reviews/*.md
                         ▼
@@ -82,6 +85,7 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 | **security_audit** | 3 | `.spec/plan.md` or `.spec/plan_<name>.md`, source code, deploy configs | `.spec/reviews/security_audit.md` |
 | **performance_review** | 3 | `.spec/plan.md` or `.spec/plan_<name>.md`, source code, benchmarks | `.spec/reviews/performance_review.md` |
 | **integration_tests** | 3 | `.spec/plan.md` or `.spec/plan_<name>.md`, `.spec/features/` | `.spec/features/integration_tests_<name>.md` |
+| **unit_tests** | 3 | `.spec/plan.md` or `.spec/plan_<name>.md`, `.spec/features/`, source code | `.spec/features/unit_tests_<name>.md` |
 | **technical_docs** | 4 | `.spec/plan.md` or `.spec/plan_<name>.md`, `.spec/features/`, source code | Technical documentation |
 | **readme** | 5 | `.spec/plan.md` or `.spec/plan_<name>.md`, `.spec/brainstorm.md`, source code | `README.md` |
 
@@ -98,7 +102,8 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 ├── TODO.md                    # Enhancement backlog (maintained by planner + feature)
 ├── features/
 │   ├── feature_<name>.md      # Feature specifications
-│   └── integration_tests_<name>.md  # Integration test plans
+│   ├── integration_tests_<name>.md  # Integration test plans
+│   └── unit_tests_<name>.md         # Unit test plans
 ├── reviews/
 │   ├── code_review_<name>.md  # Code review reports
 │   ├── security_audit.md      # Security audit report
@@ -130,7 +135,7 @@ Every sub-agent has a **Required Context (Memory)** section that lists which art
 - **Tech Stack** — language, framework, key dependencies
 - **Project Structure** — directory layout, file naming patterns
 
-Plans (`.spec/plan.md`) hold only **plan-specific** additions and overrides to these standing rules. Plans should NOT re-derive what memory already establishes.
+Plans (`.spec/plan.md` or `.spec/plan_<name>.md`) hold only **plan-specific** additions and overrides to these standing rules. Plans should NOT re-derive what memory already establishes.
 
 ### Required Context Rules
 
@@ -140,7 +145,7 @@ Plans (`.spec/plan.md`) hold only **plan-specific** additions and overrides to t
 
 ### User-Modified Artifacts
 
-The plan (`.spec/plan.md`), memory (`.spec/memory.md`), and TODO (`.spec/TODO.md`) are **living documents**. Users may:
+Plans (`.spec/plan.md` or `.spec/plan_<name>.md`), memory (`.spec/memory.md`), and TODO (`.spec/TODO.md`) are **living documents**. Users may:
 
 - Add instructions or constraints
 - Modify priorities or ordering
@@ -197,9 +202,9 @@ When sub-agents disagree or produce contradictory outputs:
 
 ### Priority Order (highest first)
 
-1. **User-modified artifacts** — User edits to plan.md, memory.md, TODO.md, or feature specs always win.
+1. **User-modified artifacts** — User edits to plans, memory.md, TODO.md, or feature specs always win.
 2. **Standing instructions (memory.md)** — Entries in `.spec/memory.md` represent the user's persistent preferences. They override plan defaults if there is a conflict.
-3. **Plan constraints** — Architectural decisions in plan.md override individual sub-agent preferences.
+3. **Plan constraints** — Architectural decisions in the relevant plan override individual sub-agent preferences.
 3. **Evidence-based findings** — A security vulnerability found by security_audit overrides a code_review "approve" if the code_review missed it.
 4. **Later-stage sub-agents** — Review sub-agents (Phase 3) can override implementation sub-agents (Phase 2) for quality concerns.
 
@@ -219,19 +224,19 @@ When sub-agents disagree or produce contradictory outputs:
 ### Full Pipeline (New Project)
 
 ```
-brainstorm → planner → feature (×N) → implement (×N) → [code_review, security_audit, performance_review, integration_tests] → technical_docs → readme
+brainstorm → planner → feature (×N) → implement (×N) → [code_review, security_audit, performance_review, unit_tests, integration_tests] → technical_docs → readme
 ```
 
 ### Feature Addition (Existing Project)
 
 ```
-brainstorm (optional) → feature → implement → [code_review, integration_tests] → technical_docs (update)
+brainstorm (optional) → feature → implement → [code_review, unit_tests, integration_tests] → technical_docs (update)
 ```
 
 ### Feature Implementation (Spec Already Exists)
 
 ```
-implement → [code_review, integration_tests]
+implement → [code_review, unit_tests, integration_tests]
 ```
 
 ### Bug Fix
@@ -266,6 +271,7 @@ spec_help (anytime — no prerequisites)
 
 - Feature specs: `feature_<snake_case_name>.md`
 - Integration tests: `integration_tests_<snake_case_name>.md`
+- Unit tests: `unit_tests_<snake_case_name>.md`
 - Code reviews: `code_review_<feature_name>.md`
 - Fix reports: `fix_<issue_description>.md`
 - IDs: FEAT-001, TASK-001.1, SEC-001, PERF-001
@@ -284,6 +290,7 @@ When a sub-agent references the plan, use:
 
 ```markdown
 > Per plan.md: "{{quoted text from plan}}"
+> Per plan_order_management.md: "{{quoted text from named plan}}"
 ```
 
 ---
@@ -320,6 +327,44 @@ In complex projects, users need clear ways to tell sub-agents which artifact to 
 ### General Rule
 
 When a user's reference is ambiguous (e.g., "use the plan" when multiple plans exist), agents should list the available options and ask the user to pick one. Never guess.
+
+---
+
+## What's Next? — Pipeline Continuity
+
+Every sub-agent includes a **"What's Next? (End-of-Task Output)"** section that instructs it to suggest the logical next step(s) when it finishes its work. This creates a guided flow through the pipeline — users can copy-paste the suggested command to continue without consulting this document.
+
+### Flow Summary
+
+| When this agent finishes... | It suggests... |
+|---|---|
+| **Brainstorm** | Planner (create a plan from the brainstorm); Memorize (if no memory.md) |
+| **Planner** | Feature (break down each feature individually); Memorize (if no memory.md) |
+| **Feature** | Implement (the feature spec); Feature (next feature from the plan) |
+| **Implement** | Unit Tests; Code Review; Implement (next feature); Integration Tests (when all done) |
+| **Unit Tests** | Code Review; Integration Tests; Unit Tests (next feature) |
+| **Code Review** | Fix (if issues found); Integration Tests; Security Audit; Technical Docs |
+| **Integration Tests** | Security Audit; Performance Review; Technical Docs |
+| **Performance Review** | Fix (if critical findings); Security Audit; Technical Docs |
+| **Security Audit** | Fix (if vulnerabilities found); Performance Review; Technical Docs; README |
+| **Fix** | Re-run originating review/test; Unit Tests; Continue implementation |
+| **Technical Docs** | README; DevOps; Security Audit |
+| **README** | DevOps; Security Audit; Done |
+| **DevOps** | Security Audit; README (update); Technical Docs |
+| **Memorize** | Planner (if new project); Feature (if plan exists) |
+
+### Format Convention
+
+All sub-agents use the same output format for consistency:
+
+```
+> **What's next?** {{context-specific message}}. Here are your suggested next steps:
+>
+> 1. **{{Step description}}**: *"{{copy-pasteable command}}"*
+> 2. **{{Step description}}**: *"{{copy-pasteable command}}"*
+```
+
+Commands are provider-agnostic natural language — the user copies the quoted text and pastes it into their chat. Sub-agents should use actual project/feature/plan names, not placeholders.
 
 ---
 

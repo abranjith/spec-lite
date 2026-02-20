@@ -70,8 +70,13 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   integration_tests: {
     title: "Integration Tests",
-    description: "Writes traceable test scenarios from feature specs",
+    description: "Writes traceable integration test scenarios from feature specs",
     output: "tests/",
+  },
+  unit_tests: {
+    title: "Unit Tests",
+    description: "Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions",
+    output: ".spec/features/unit_tests_<name>.md",
   },
   devops: {
     title: "DevOps",

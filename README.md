@@ -93,7 +93,7 @@ spec-lite uses a **memory-first** approach: cross-cutting concerns that every su
 | Source | Purpose | Authority |
 |--------|---------|-----------|
 | `.spec/memory.md` | Cross-cutting standards & conventions | **Primary** — authoritative for all sub-agents |
-| `.spec/plan.md` | Project-specific blueprint & task breakdown | Overrides memory only with explicit justification |
+| `.spec/plan.md` or `.spec/plan_<name>.md` | Project-specific blueprint(s) & task breakdown | Overrides memory only with explicit justification |
 | User instruction | Ad-hoc guidance in chat | Highest priority (trumps both) |
 
 ### Bootstrap Flow
@@ -128,7 +128,7 @@ Brainstorm ─→ Planner ─→ Feature (×N) ─→ Reviews ─→ Tests ─�
             TODO.md (living backlog)
 ```
 
-All sub-agents read `.spec/memory.md` first for standing instructions, then `.spec/plan.md` for project-specific context. Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
+All sub-agents read `.spec/memory.md` first for standing instructions, then the relevant plan (`.spec/plan.md` or `.spec/plan_<name>.md`) for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
 
 ## Sub-Agent Prompt Files
 
@@ -136,12 +136,13 @@ All sub-agents read `.spec/memory.md` first for standing instructions, then `.sp
 |------|-----------|-------------|--------|
 | [spec_help.md](prompts/spec_help.md) | Spec Help | Navigator — explains which sub-agent to use and when | Interactive guidance |
 | [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Back-and-forth ideation partner that refines vague ideas | `.spec/brainstorm.md` |
-| [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec/plan.md` |
+| [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec/plan.md` or `.spec/plan_<name>.md` |
 | [feature.md](prompts/feature.md) | Feature | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec/features/feature_<name>.md` |
 | [code_review.md](prompts/code_review.md) | Code Review | Reviews code for correctness, architecture, readability | `.spec/reviews/code_review_<name>.md` |
 | [security_audit.md](prompts/security_audit.md) | Security Audit | Threat-models and scans for vulnerabilities | `.spec/reviews/security_audit.md` |
 | [performance_review.md](prompts/performance_review.md) | Performance Review | Identifies bottlenecks and optimization opportunities | `.spec/reviews/performance_review.md` |
-| [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable test scenarios from feature specs | `.spec/features/integration_tests_<name>.md` |
+| [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable integration test scenarios from feature specs | `.spec/features/integration_tests_<name>.md` |
+| [unit_tests.md](prompts/unit_tests.md) | Unit Tests | Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions | `.spec/features/unit_tests_<name>.md` |
 | [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | `.spec/devops/` + infra files |
 | [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec/reviews/fix_<issue>.md` |
 | [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture docs, API references, setup guides | Technical documentation |
@@ -157,11 +158,13 @@ spec-lite sub-agents produce artifacts in the `.spec/` directory (version-contro
 .spec/
 ├── memory.md                  # Cross-cutting standards — authoritative source
 ├── brainstorm.md
-├── plan.md                    # Living document — user-modifiable
+├── plan.md                    # Default plan (simple projects) — user-modifiable
+├── plan_<name>.md             # Named plans (complex projects, e.g., plan_order_management.md)
 ├── TODO.md                    # Enhancement backlog — maintained by planner + feature
 ├── features/
 │   ├── feature_user_management.md
 │   ├── feature_billing.md
+│   ├── unit_tests_user_management.md
 │   └── integration_tests_user_management.md
 ├── reviews/
 │   ├── code_review_user_management.md
@@ -231,7 +234,7 @@ spec-lite is designed to be forked and adapted:
 - **Remove sub-agents** you don't need.
 - **Add new sub-agents** following the same pattern (Persona → Required Context → Process → Output Template → Constraints).
 - **Modify output paths** to match your project's directory structure.
-- **Edit the plan** — `.spec/plan.md` is a living document. Your edits take priority over sub-agent defaults.
+- **Edit the plan** — `.spec/plan.md` (or `.spec/plan_<name>.md` for named plans) is a living document. Your edits take priority over sub-agent defaults.
 - **Add stack snippets** — drop a `<language>.md` file into `src/stacks/` to add best-practice snippets for additional languages.
 
 Contributions welcome — especially for new sub-agent types, improvements to existing prompts, and real-world usage feedback.
