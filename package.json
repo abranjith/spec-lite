@@ -38,7 +38,7 @@
     "url": "https://github.com/abranjith/spec-lite"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "chalk": "^5.3.0",
