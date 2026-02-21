@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.2 | prompt: spec_help | updated: 2026-02-16 -->
+<!-- spec-lite v0.0.3 | prompt: spec_help | updated: 2026-02-16 -->
 
 # PERSONA: Spec Help — Navigator & Guide
 
@@ -42,6 +42,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Memorize** | `memorize` | Store standing instructions enforced by all sub-agents | User instructions | `.spec-lite/memory.md` |
 | **Brainstorm** | `brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec-lite/brainstorm.md` |
 | **Planner** | `planner` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
+| **Architect** | `architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
 | **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
 | **Implement** | `implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
 | **Code Review** | `code_review` | Review code for correctness, architecture, readability | Feature spec + code | `.spec-lite/reviews/code_review_<name>.md` |
@@ -118,6 +119,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | "Is my code secure?" | **Security Audit** — find vulnerabilities |
 | "Is my code fast enough?" | **Performance Review** — identify bottlenecks |
 | "I need test scenarios" | **Integration Tests** — traceable test specs |
+| "I need cloud/infra architecture" | **Architect** — design infrastructure, databases, and scaling |
 | "I need Docker/CI/CD setup" | **DevOps** — infrastructure as code |
 | "Something is broken" | **Fix & Refactor** — systematic debugging |
 | "I need to clean up messy code" | **Fix & Refactor** (Refactor Mode) |
@@ -136,6 +138,7 @@ Sub-agents produce and consume artifacts in the `.spec-lite/` directory:
 ├── brainstorm.md          ← Brainstorm output (opt-in for Planner)
 ├── plan.md                ← Default plan (simple projects)
 ├── plan_<name>.md         ← Named plans (complex projects)
+├── architect_<name>.md    ← Cloud & infrastructure architecture
 ├── TODO.md                ← Enhancement tracking (Planner & Feature)
 ├── features/
 │   ├── feature_<name>.md  ← Feature output → Implement input → Reviews & Tests input

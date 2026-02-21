@@ -499,6 +499,6 @@ async function loadPackageVersion(): Promise<string> {
     const pkg = require("../../package.json");
     return pkg.version;
   } catch {
-    return "0.0.2";
+    return "0.0.3";
   }
 }

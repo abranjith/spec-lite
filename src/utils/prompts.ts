@@ -104,6 +104,12 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     description: "Writes the project README and optional user guide",
     output: "README.md + docs/user_guide.md",
   },
+  architect: {
+    title: "Architect",
+    description:
+      "Designs cloud infrastructure, database strategy, and scaling architecture with Mermaid diagrams",
+    output: ".spec-lite/architect_<name>.md",
+  },
 };
 
 /** Non-agent files to skip */

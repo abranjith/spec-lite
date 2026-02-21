@@ -121,7 +121,7 @@ spec_help (anytime)
 
                   ┌─ /memorize bootstrap (one-time setup)
                   ▼
-Brainstorm ─→ Planner ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
+Brainstorm ─→ Planner ─→ Architect ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
                 │                          ├─ Code Review
                 │                          ├─ Security Audit
                 ▼                          └─ Performance Review
@@ -137,6 +137,7 @@ All sub-agents read `.spec-lite/memory.md` first for standing instructions, then
 | [spec_help.md](prompts/spec_help.md) | Spec Help | Navigator — explains which sub-agent to use and when | Interactive guidance |
 | [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Back-and-forth ideation partner that refines vague ideas | `.spec-lite/brainstorm.md` |
 | [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
+| [architect.md](prompts/architect.md) | Architect | Designs cloud infrastructure, database strategy, and scaling architecture | `.spec-lite/architect_<name>.md` |
 | [feature.md](prompts/feature.md) | Feature | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec-lite/features/feature_<name>.md` |
 | [code_review.md](prompts/code_review.md) | Code Review | Reviews code for correctness, architecture, readability | `.spec-lite/reviews/code_review_<name>.md` |
 | [security_audit.md](prompts/security_audit.md) | Security Audit | Threat-models and scans for vulnerabilities | `.spec-lite/reviews/security_audit.md` |
@@ -160,6 +161,7 @@ spec-lite sub-agents produce artifacts in the `.spec-lite/` directory (version-c
 ├── brainstorm.md
 ├── plan.md                    # Default plan (simple projects) — user-modifiable
 ├── plan_<name>.md             # Named plans (complex projects, e.g., plan_order_management.md)
+├── architect_<name>.md        # Cloud & infrastructure architecture (e.g., architect_fintech_platform.md)
 ├── TODO.md                    # Enhancement backlog — maintained by planner + feature
 ├── features/
 │   ├── feature_user_management.md
