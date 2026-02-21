@@ -60,6 +60,16 @@ export class CopilotProvider implements Provider {
     return existing;
   }
 
+  async getMemorySeedSource(
+    workspaceRoot: string
+  ): Promise<{ path: string; label: string } | null> {
+    const p = path.join(workspaceRoot, ".github", "copilot-instructions.md");
+    if (await fs.pathExists(p)) {
+      return { path: ".github/copilot-instructions.md", label: "GitHub Copilot global instructions" };
+    }
+    return null;
+  }
+
   getPostInitMessage(): string {
     return [
       "",
@@ -76,4 +86,67 @@ export class CopilotProvider implements Provider {
       "",
     ].join("\n");
   }
+}
+
+const SPEC_LITE_MARKER_START = "<!-- spec-lite:start -->";
+const SPEC_LITE_MARKER_END = "<!-- spec-lite:end -->";
+
+/**
+ * Generate the spec-lite block to inject into (or create as) copilot-instructions.md.
+ */
+export function generateSpecLiteBlock(installedPrompts: string[]): string {
+  const lines = [
+    SPEC_LITE_MARKER_START,
+    "## spec-lite Sub-Agents",
+    "",
+    "This project uses [spec-lite](https://github.com/ranjithab/spec-lite) sub-agent prompts",
+    "for structured software engineering workflows.",
+    "",
+    "The following specialist sub-agents are available in `.github/copilot/`:",
+    "",
+  ];
+
+  for (const name of installedPrompts) {
+    lines.push(`- [${name}](.github/copilot/${name}.prompt.md)`);
+  }
+
+  lines.push(
+    "",
+    "To invoke a sub-agent in Copilot Chat, use the `#` file reference or type `/` to browse prompt files.",
+    SPEC_LITE_MARKER_END
+  );
+
+  return lines.join("\n");
+}
+
+/**
+ * Merge the spec-lite block into an existing copilot-instructions.md, or create fresh content.
+ * If the file already has spec-lite markers, the block between them is replaced.
+ * Otherwise the block is appended.
+ */
+export function mergeCopilotInstructions(
+  existingContent: string | null,
+  installedPrompts: string[]
+): string {
+  const block = generateSpecLiteBlock(installedPrompts);
+
+  if (!existingContent) {
+    return block + "\n";
+  }
+
+  // Replace existing spec-lite block if markers are present
+  const startIdx = existingContent.indexOf(SPEC_LITE_MARKER_START);
+  const endIdx = existingContent.indexOf(SPEC_LITE_MARKER_END);
+
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    return (
+      existingContent.slice(0, startIdx) +
+      block +
+      existingContent.slice(endIdx + SPEC_LITE_MARKER_END.length)
+    );
+  }
+
+  // Append the block to existing content (preserving user content)
+  const separator = existingContent.endsWith("\n") ? "\n" : "\n\n";
+  return existingContent + separator + block + "\n";
 }

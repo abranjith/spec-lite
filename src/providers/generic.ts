@@ -44,6 +44,13 @@ export class GenericProvider implements Provider {
     return existing;
   }
 
+  async getMemorySeedSource(
+    _workspaceRoot: string
+  ): Promise<{ path: string; label: string } | null> {
+    // Generic provider has no canonical instruction file to seed from
+    return null;
+  }
+
   getPostInitMessage(): string {
     return [
       "",

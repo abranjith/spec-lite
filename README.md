@@ -14,7 +14,7 @@ spec-lite is a set of **modular prompt files** — each defining a specialist AI
 - **Modular** — Use one sub-agent or all of them. Skip what you don't need.
 - **Unopinionated** — Adapts to any project type (web, CLI, library, desktop, pipeline), any language, any stack.
 - **Finite-scoped** — Each sub-agent has one job, clear inputs, and a concrete output artifact.
-- **Memory-first** — Cross-cutting standards (coding conventions, architecture, testing, security) live in `.spec/memory.md` — the single source of truth read by every sub-agent.
+- **Memory-first** — Cross-cutting standards (coding conventions, architecture, testing, security) live in `.spec-lite/memory.md` — the single source of truth read by every sub-agent.
 - **Provider-agnostic** — Works with GitHub Copilot, Claude Code, or any LLM via generic mode.
 
 ---
@@ -22,7 +22,7 @@ spec-lite is a set of **modular prompt files** — each defining a specialist AI
 ## Installation
 
 ```bash
-npm install -g spec-lite
+npm install -g @abranjith/spec-lite
 ```
 
 Requires Node.js 18+.
@@ -47,7 +47,7 @@ The CLI will walk you through a short **project profile questionnaire** (languag
 1. Write agent prompt files to the correct location for your AI tool
 2. Inject your tech-stack context into every prompt's `<!-- project-context -->` block
 3. Copy a curated **best-practice snippet** for your stack into `.spec-lite/stacks/`
-4. Create the `.spec/` directory structure for agent outputs
+4. Create the `.spec-lite/` directory structure for agent outputs
 5. Save a `.spec-lite.json` config (including your project profile) to track your setup
 
 After init completes, run **`/memorize bootstrap`** (see below) to let the LLM auto-generate a comprehensive `memory.md` from your codebase.
@@ -88,12 +88,12 @@ More providers (Cursor, Windsurf, Cline, Zed) coming soon.
 
 ## Memory-First Architecture
 
-spec-lite uses a **memory-first** approach: cross-cutting concerns that every sub-agent needs — coding standards, architecture patterns, testing conventions, security guidelines, logging strategy — live in a single file: **`.spec/memory.md`**.
+spec-lite uses a **memory-first** approach: cross-cutting concerns that every sub-agent needs — coding standards, architecture patterns, testing conventions, security guidelines, logging strategy — live in a single file: **`.spec-lite/memory.md`**.
 
 | Source | Purpose | Authority |
 |--------|---------|-----------|
-| `.spec/memory.md` | Cross-cutting standards & conventions | **Primary** — authoritative for all sub-agents |
-| `.spec/plan.md` or `.spec/plan_<name>.md` | Project-specific blueprint(s) & task breakdown | Overrides memory only with explicit justification |
+| `.spec-lite/memory.md` | Cross-cutting standards & conventions | **Primary** — authoritative for all sub-agents |
+| `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Project-specific blueprint(s) & task breakdown | Overrides memory only with explicit justification |
 | User instruction | Ad-hoc guidance in chat | Highest priority (trumps both) |
 
 ### Bootstrap Flow
@@ -128,34 +128,34 @@ Brainstorm ─→ Planner ─→ Feature (×N) ─→ Reviews ─→ Tests ─�
             TODO.md (living backlog)
 ```
 
-All sub-agents read `.spec/memory.md` first for standing instructions, then the relevant plan (`.spec/plan.md` or `.spec/plan_<name>.md`) for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
+All sub-agents read `.spec-lite/memory.md` first for standing instructions, then the relevant plan (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
 
 ## Sub-Agent Prompt Files
 
 | File | Sub-Agent | What It Does | Output |
 |------|-----------|-------------|--------|
 | [spec_help.md](prompts/spec_help.md) | Spec Help | Navigator — explains which sub-agent to use and when | Interactive guidance |
-| [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Back-and-forth ideation partner that refines vague ideas | `.spec/brainstorm.md` |
-| [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec/plan.md` or `.spec/plan_<name>.md` |
-| [feature.md](prompts/feature.md) | Feature | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec/features/feature_<name>.md` |
-| [code_review.md](prompts/code_review.md) | Code Review | Reviews code for correctness, architecture, readability | `.spec/reviews/code_review_<name>.md` |
-| [security_audit.md](prompts/security_audit.md) | Security Audit | Threat-models and scans for vulnerabilities | `.spec/reviews/security_audit.md` |
-| [performance_review.md](prompts/performance_review.md) | Performance Review | Identifies bottlenecks and optimization opportunities | `.spec/reviews/performance_review.md` |
-| [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable integration test scenarios from feature specs | `.spec/features/integration_tests_<name>.md` |
-| [unit_tests.md](prompts/unit_tests.md) | Unit Tests | Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions | `.spec/features/unit_tests_<name>.md` |
-| [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | `.spec/devops/` + infra files |
-| [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec/reviews/fix_<issue>.md` |
+| [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Back-and-forth ideation partner that refines vague ideas | `.spec-lite/brainstorm.md` |
+| [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
+| [feature.md](prompts/feature.md) | Feature | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec-lite/features/feature_<name>.md` |
+| [code_review.md](prompts/code_review.md) | Code Review | Reviews code for correctness, architecture, readability | `.spec-lite/reviews/code_review_<name>.md` |
+| [security_audit.md](prompts/security_audit.md) | Security Audit | Threat-models and scans for vulnerabilities | `.spec-lite/reviews/security_audit.md` |
+| [performance_review.md](prompts/performance_review.md) | Performance Review | Identifies bottlenecks and optimization opportunities | `.spec-lite/reviews/performance_review.md` |
+| [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable integration test scenarios from feature specs | `.spec-lite/features/integration_tests_<name>.md` |
+| [unit_tests.md](prompts/unit_tests.md) | Unit Tests | Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions | `.spec-lite/features/unit_tests_<name>.md` |
+| [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | `.spec-lite/devops/` + infra files |
+| [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec-lite/reviews/fix_<issue>.md` |
 | [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture docs, API references, setup guides | Technical documentation |
 | [readme.md](prompts/readme.md) | README | Writes the project README | `README.md` |
-| [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec/memory.md` — standing instructions for all agents. Use `/memorize bootstrap` to auto-generate. | `.spec/memory.md` |
+| [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec-lite/memory.md` — standing instructions for all agents. Use `/memorize bootstrap` to auto-generate. | `.spec-lite/memory.md` |
 | [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
 
 ## Output Directory Structure
 
-spec-lite sub-agents produce artifacts in the `.spec/` directory (version-controlled project metadata):
+spec-lite sub-agents produce artifacts in the `.spec-lite/` directory (version-controlled project metadata):
 
 ```
-.spec/
+.spec-lite/
 ├── memory.md                  # Cross-cutting standards — authoritative source
 ├── brainstorm.md
 ├── plan.md                    # Default plan (simple projects) — user-modifiable
@@ -184,7 +184,7 @@ See [orchestrator.md](prompts/orchestrator.md) for the complete workflow documen
 - The full sub-agent pipeline DAG
 - Memory protocol — which artifacts each sub-agent reads
 - Conflict resolution rules (user instruction > plan > sub-agent expertise)
-- Enhancement tracking via `.spec/TODO.md`
+- Enhancement tracking via `.spec-lite/TODO.md`
 - Invocation patterns for different scenarios (new project, feature addition, bug fix)
 
 ## CLI Commands
@@ -228,13 +228,13 @@ spec-lite relies on **git** for artifact versioning. When a plan or review is up
 
 spec-lite is designed to be forked and adapted:
 
-- **Bootstrap memory first** — run `/memorize bootstrap` after init to populate `.spec/memory.md` with your project's standards.
-- **Edit memory directly** — `.spec/memory.md` is the standing-instruction file. Your edits persist across all sub-agent invocations.
+- **Bootstrap memory first** — run `/memorize bootstrap` after init to populate `.spec-lite/memory.md` with your project's standards.
+- **Edit memory directly** — `.spec-lite/memory.md` is the standing-instruction file. Your edits persist across all sub-agent invocations.
 - **Add project-specific conventions** to the Project Context blocks or directly to memory.
 - **Remove sub-agents** you don't need.
 - **Add new sub-agents** following the same pattern (Persona → Required Context → Process → Output Template → Constraints).
 - **Modify output paths** to match your project's directory structure.
-- **Edit the plan** — `.spec/plan.md` (or `.spec/plan_<name>.md` for named plans) is a living document. Your edits take priority over sub-agent defaults.
+- **Edit the plan** — `.spec-lite/plan.md` (or `.spec-lite/plan_<name>.md` for named plans) is a living document. Your edits take priority over sub-agent defaults.
 - **Add stack snippets** — drop a `<language>.md` file into `src/stacks/` to add best-practice snippets for additional languages.
 
 Contributions welcome — especially for new sub-agent types, improvements to existing prompts, and real-world usage feedback.

@@ -37,6 +37,13 @@ export interface Provider {
    * Any post-init instructions to display to the user.
    */
   getPostInitMessage(): string;
+
+  /**
+   * Return the path (relative to workspace root) to an existing file that can
+   * be used to seed `.spec-lite/memory.md`, along with a human-readable label.
+   * Returns null if no seed source applies for this provider.
+   */
+  getMemorySeedSource(workspaceRoot: string): Promise<{ path: string; label: string } | null>;
 }
 
 export interface PromptMeta {

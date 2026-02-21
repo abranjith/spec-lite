@@ -9,6 +9,7 @@ import {
   replaceProjectContext,
 } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
+import { mergeCopilotInstructions } from "../providers/copilot.js";
 
 interface UpdateOptions {
   force?: boolean;
@@ -135,6 +136,17 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     const claudeMdContent = generateClaudeRootMd(config.installedPrompts);
     await fs.writeFile(claudeMdPath, claudeMdContent, "utf-8");
     console.log(chalk.green(`  ✓ CLAUDE.md (regenerated)`));
+  }
+
+  if (provider.alias === "copilot") {
+    const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
+    await fs.ensureDir(path.join(cwd, ".github"));
+    const existingContent = (await fs.pathExists(copilotInstructionsPath))
+      ? await fs.readFile(copilotInstructionsPath, "utf-8")
+      : null;
+    const merged = mergeCopilotInstructions(existingContent, config.installedPrompts);
+    await fs.writeFile(copilotInstructionsPath, merged, "utf-8");
+    console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated)`));
   }
 
   // 4. Update config timestamp

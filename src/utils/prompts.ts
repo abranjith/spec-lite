@@ -36,17 +36,17 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   brainstorm: {
     title: "Brainstorm",
     description: "Refines a vague idea into a clear, actionable vision",
-    output: ".spec/brainstorm.md",
+    output: ".spec-lite/brainstorm.md",
   },
   planner: {
     title: "Planner",
     description: "Creates a detailed technical blueprint from requirements",
-    output: ".spec/plan.md or .spec/plan_<name>.md",
+    output: ".spec-lite/plan.md or .spec-lite/plan_<name>.md",
   },
   feature: {
     title: "Feature",
     description: "Breaks one feature into granular, verifiable vertical slices",
-    output: ".spec/features/feature_<name>.md",
+    output: ".spec-lite/features/feature_<name>.md",
   },
   implement: {
     title: "Implement",
@@ -56,17 +56,17 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   code_review: {
     title: "Code Review",
     description: "Reviews code for correctness, architecture, and readability",
-    output: ".spec/reviews/code_review_<name>.md",
+    output: ".spec-lite/reviews/code_review_<name>.md",
   },
   security_audit: {
     title: "Security Audit",
     description: "Scans for vulnerabilities, misconfigurations, and security risks",
-    output: ".spec/reviews/security_audit_<scope>.md",
+    output: ".spec-lite/reviews/security_audit_<scope>.md",
   },
   performance_review: {
     title: "Performance Review",
     description: "Identifies bottlenecks and optimization opportunities",
-    output: ".spec/reviews/performance_review_<scope>.md",
+    output: ".spec-lite/reviews/performance_review_<scope>.md",
   },
   integration_tests: {
     title: "Integration Tests",
@@ -76,7 +76,7 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   unit_tests: {
     title: "Unit Tests",
     description: "Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions",
-    output: ".spec/features/unit_tests_<name>.md",
+    output: ".spec-lite/features/unit_tests_<name>.md",
   },
   devops: {
     title: "DevOps",
@@ -92,7 +92,7 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     title: "Memorize",
     description:
       "Stores standing instructions that all sub-agents enforce. Use `/memorize bootstrap` to auto-generate from project analysis.",
-    output: ".spec/memory.md",
+    output: ".spec-lite/memory.md",
   },
   technical_docs: {
     title: "Technical Docs",

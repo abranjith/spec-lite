@@ -6,6 +6,6 @@ node_modules/
 .github/
 .vscode/
 .claude/
-.spec/
+.spec-lite/
 *.md
 !README.md

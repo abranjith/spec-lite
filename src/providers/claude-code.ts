@@ -62,6 +62,16 @@ export class ClaudeCodeProvider implements Provider {
     return existing;
   }
 
+  async getMemorySeedSource(
+    workspaceRoot: string
+  ): Promise<{ path: string; label: string } | null> {
+    const p = path.join(workspaceRoot, "CLAUDE.md");
+    if (await fs.pathExists(p)) {
+      return { path: "CLAUDE.md", label: "Claude root instructions (CLAUDE.md)" };
+    }
+    return null;
+  }
+
   getPostInitMessage(): string {
     return [
       "",
@@ -115,10 +125,10 @@ export function generateClaudeRootMd(
     "",
     "## Output Directory",
     "",
-    "Sub-agent outputs are written to the `.spec/` directory:",
+    "Sub-agent outputs are written to the `.spec-lite/` directory:",
     "",
     "```text",
-    ".spec/",
+    ".spec-lite/",
     "├── brainstorm.md",
     "├── plan.md                    # Default plan (simple projects)",
     "├── plan_<name>.md              # Named plans (complex projects)",
