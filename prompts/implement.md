@@ -1,4 +1,4 @@
-<!-- spec-lite v1.4 | prompt: implement | updated: 2026-02-19 -->
+<!-- spec-lite v0.0.1 | prompt: implement | updated: 2026-02-19 -->
 
 # PERSONA: Implement Sub-Agent
 

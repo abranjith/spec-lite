@@ -222,7 +222,7 @@ spec-lite list
 
 ## Versioning
 
-spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v1.1 | ... -->`) for traceability.
+spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v0.0.1 | ... -->`) for traceability.
 
 ## Adapting & Contributing
 
