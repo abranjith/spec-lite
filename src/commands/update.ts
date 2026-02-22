@@ -9,7 +9,7 @@ import {
   replaceProjectContext,
 } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
-import { mergeCopilotInstructions } from "../providers/copilot.js";
+import { CopilotProvider, mergeCopilotInstructions } from "../providers/copilot.js";
 
 interface UpdateOptions {
   force?: boolean;
@@ -56,31 +56,10 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   let updated = 0;
   let preserved = 0;
   let unchanged = 0;
-  let migrated = 0;
 
   for (const prompt of prompts) {
     const targetRelPath = provider.getTargetPath(prompt.name);
     const targetAbsPath = path.join(cwd, targetRelPath);
-
-    // Migration: if copilot provider, check for old-format .md files and rename to .prompt.md
-    if (provider.alias === "copilot") {
-      const oldRelPath = path.join(".github", "copilot", `${prompt.name}.md`);
-      const oldAbsPath = path.join(cwd, oldRelPath);
-      if (
-        targetRelPath !== oldRelPath &&
-        (await fs.pathExists(oldAbsPath)) &&
-        !(await fs.pathExists(targetAbsPath))
-      ) {
-        await fs.ensureDir(path.dirname(targetAbsPath));
-        await fs.rename(oldAbsPath, targetAbsPath);
-        console.log(
-          chalk.cyan(
-            `  ↗ ${oldRelPath} → ${targetRelPath} (migrated to .prompt.md)`
-          )
-        );
-        migrated++;
-      }
-    }
 
     // Transform the new prompt content
     const newContent = provider.transformPrompt(prompt.content, {
@@ -139,6 +118,54 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   }
 
   if (provider.alias === "copilot") {
+    const copilotProvider = provider as CopilotProvider;
+
+    // Update .github/prompts/<name>.prompt.md (plain prompt files, no agent frontmatter)
+    for (const prompt of prompts) {
+      const promptRelPath = copilotProvider.getPromptFilePath(prompt.name);
+      const promptAbsPath = path.join(cwd, promptRelPath);
+
+      const newContent = copilotProvider.transformPromptFile(prompt.content, {
+        name: prompt.name,
+        title: prompt.title,
+        description: prompt.description,
+      });
+
+      if (!(await fs.pathExists(promptAbsPath))) {
+        // File was deleted by user — re-create it
+        await fs.ensureDir(path.dirname(promptAbsPath));
+        await fs.writeFile(promptAbsPath, newContent, "utf-8");
+        console.log(chalk.green(`  ✓ ${promptRelPath} (restored)`));
+        updated++;
+        continue;
+      }
+
+      const currentContent = await fs.readFile(promptAbsPath, "utf-8");
+
+      if (currentContent === newContent) {
+        unchanged++;
+        continue;
+      }
+
+      // Preserve user's Project Context edits
+      if (!options.force) {
+        const userContext = extractProjectContext(currentContent);
+        if (userContext) {
+          const mergedContent = replaceProjectContext(newContent, userContext);
+          await fs.writeFile(promptAbsPath, mergedContent, "utf-8");
+          console.log(chalk.green(`  ✓ ${promptRelPath} (updated, Project Context preserved)`));
+          preserved++;
+          updated++;
+          continue;
+        }
+      }
+
+      await fs.writeFile(promptAbsPath, newContent, "utf-8");
+      console.log(chalk.green(`  ✓ ${promptRelPath} (updated)`));
+      updated++;
+    }
+
+    // Update .github/copilot-instructions.md
     const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
     await fs.ensureDir(path.join(cwd, ".github"));
     const existingContent = (await fs.pathExists(copilotInstructionsPath))
@@ -164,7 +191,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   // 5. Summary
   console.log(
     chalk.bold(
-      `\n  Done! ${updated} updated, ${unchanged} unchanged, ${preserved} with preserved edits${migrated > 0 ? `, ${migrated} migrated` : ""}.`
+      `\n  Done! ${updated} updated, ${unchanged} unchanged, ${preserved} with preserved edits.`
     )
   );
 }

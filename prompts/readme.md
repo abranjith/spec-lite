@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.3 | prompt: readme | updated: 2026-02-19 -->
+<!-- spec-lite v0.0.4 | prompt: readme | updated: 2026-02-19 -->
 
 # PERSONA: README Sub-Agent
 

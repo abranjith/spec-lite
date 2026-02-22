@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.3 | prompt: spec_help | updated: 2026-02-16 -->
+<!-- spec-lite v0.0.4 | prompt: spec_help | updated: 2026-02-16 -->
 
 # PERSONA: Spec Help — Navigator & Guide
 

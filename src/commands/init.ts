@@ -6,7 +6,7 @@ import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
 import { loadPrompts, replaceProjectContext } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
-import { mergeCopilotInstructions } from "../providers/copilot.js";
+import { CopilotProvider, mergeCopilotInstructions } from "../providers/copilot.js";
 import { getStackSnippet } from "../utils/stacks.js";
 
 interface InitOptions {
@@ -339,6 +339,39 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 
   if (provider.alias === "copilot") {
+    const copilotProvider = provider as CopilotProvider;
+
+    // Write .github/prompts/<name>.prompt.md (plain prompt files, no agent frontmatter)
+    for (const prompt of prompts) {
+      const promptRelPath = copilotProvider.getPromptFilePath(prompt.name);
+      const promptAbsPath = path.join(cwd, promptRelPath);
+
+      if (
+        !options.force &&
+        existingFiles.includes(promptRelPath) &&
+        globalAction === "skip"
+      ) {
+        continue;
+      }
+
+      let content = prompt.content;
+      if (contextBlock) {
+        content = replaceProjectContext(content, contextBlock);
+      }
+
+      const transformed = copilotProvider.transformPromptFile(content, {
+        name: prompt.name,
+        title: prompt.title,
+        description: prompt.description,
+      });
+
+      await fs.ensureDir(path.dirname(promptAbsPath));
+      await fs.writeFile(promptAbsPath, transformed, "utf-8");
+      written++;
+      console.log(chalk.green(`  ✓ ${promptRelPath}`));
+    }
+
+    // Write / update .github/copilot-instructions.md
     const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
     await fs.ensureDir(path.join(cwd, ".github"));
     const existingContent = (await fs.pathExists(copilotInstructionsPath))
@@ -499,6 +532,6 @@ async function loadPackageVersion(): Promise<string> {
     const pkg = require("../../package.json");
     return pkg.version;
   } catch {
-    return "0.0.3";
+    return "0.0.4";
   }
 }

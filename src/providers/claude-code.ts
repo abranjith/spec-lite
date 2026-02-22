@@ -100,7 +100,7 @@ export function generateClaudeRootMd(
     "",
     "# Project Instructions",
     "",
-    "This project uses [spec-lite](https://github.com/ranjithab/spec-lite) sub-agent prompts",
+    "This project uses [spec-lite](https://github.com/abranjith/spec-lite) sub-agent prompts",
     "for structured software engineering workflows.",
     "",
     "## Available Sub-Agents",
