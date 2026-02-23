@@ -80,7 +80,7 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 
 | Provider | Flag | Files Written To | Format |
 |----------|------|-----------------|--------|
-| GitHub Copilot | `--ai copilot` | `.github/copilot/*.prompt.md` | Slash-command prompts |
+| GitHub Copilot | `--ai copilot` | `.github/prompts/*.prompt.md` | Slash-command prompts |
 | Claude Code | `--ai claude-code` | `.claude/prompts/*.md` + `CLAUDE.md` | Markdown |
 | Generic | `--ai generic` | `.spec-lite/prompts/*.md` | Raw markdown (copy-paste) |
 
