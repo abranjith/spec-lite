@@ -110,6 +110,12 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
       "Designs cloud infrastructure, database strategy, and scaling architecture with Mermaid diagrams",
     output: ".spec-lite/architect_<name>.md",
   },
+  yolo: {
+    title: "YOLO",
+    description:
+      "Autonomous end-to-end pipeline: plans → features → implement → reviews → integration tests → docs. WARNING: consumes many requests.",
+    output: "Working app + .spec-lite/yolo_state.md",
+  },
 };
 
 /** Non-agent files to skip */

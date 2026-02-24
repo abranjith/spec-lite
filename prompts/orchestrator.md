@@ -283,6 +283,15 @@ spec_help (anytime — no prerequisites)
 - Fix reports: `fix_<issue_description>.md`
 - IDs: FEAT-001, TASK-001.1, SEC-001, PERF-001
 
+### Plan ↔ Feature Cross-Reference
+
+Plans and feature specs maintain bidirectional linkage:
+
+- **`plan.md` → feature specs** (`## 2. High-Level Features` table): The planner pre-assigns FEAT-IDs and records the expected spec filename. The Feature sub-agent updates the `Status` column as specs are produced (`[ ] Not started` → `[/] In progress` → `[x] Complete`).
+- **`feature_*.md` → plan** (`## 1. Feature Goal` → `**Source Plan**` field): Every feature spec records which plan file it was derived from.
+
+This round-trip reference ensures that given a plan you can enumerate all derived feature specs, and given a feature spec you can trace it back to its originating plan.
+
 ### Sub-Agent Output Headers
 
 Every generated artifact should include:

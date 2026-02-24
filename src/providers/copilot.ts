@@ -232,6 +232,18 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Update the technical documentation to include the DevOps setup.",
     },
   ],
+  yolo: [
+    {
+      label: "Resume YOLO",
+      agent: "spec.yolo",
+      prompt: "Resume YOLO from where we left off.",
+    },
+    {
+      label: "Check Pipeline Status",
+      agent: "spec.spec_help",
+      prompt: "Show me the current spec-lite pipeline status and available sub-agents.",
+    },
+  ],
 };
 
 /**

@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+.spec-lite/
+.github/
+.spec-lite.json

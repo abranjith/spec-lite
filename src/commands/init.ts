@@ -529,9 +529,9 @@ async function loadPackageVersion(): Promise<string> {
   try {
     const { createRequire } = await import("module");
     const require = createRequire(import.meta.url);
-    const pkg = require("../../package.json");
+    const pkg = require("../package.json");
     return pkg.version;
   } catch {
-    return "0.0.5";
+    return "unknown";
   }
 }

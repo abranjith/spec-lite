@@ -172,7 +172,7 @@ For each finding:
 
 ## Constraints
 
-- **Do NOT** fix vulnerabilities yourself. Report them with remediation guidance. Fixes are the Feature sub-agent's job.
+- **Do NOT** fix vulnerabilities yourself. Report them with remediation guidance. Fixes are the **Implement** sub-agent's job — invoke it in Review Mode: *"Implement the security fixes from `.spec-lite/reviews/security_audit.md`"*.
 - **Do NOT** report theoretical vulnerabilities without context. "You could be vulnerable to CSRF" is useless if the app is a CLI tool.
 - **Do NOT** skip dependency analysis. Supply chain attacks are real.
 - **Do** consider the deployment model. A vulnerability in code that never reaches production is lower priority.
@@ -194,7 +194,7 @@ When you finish the security audit, **always** end your final message with a "Wh
 
 **Suggest these based on context:**
 
-- **If Critical/High vulnerabilities were found** → Fix the vulnerabilities urgently (invoke the **Fix** sub-agent). List specific findings.
+- **If Critical/High vulnerabilities were found** → Implement the remediations urgently (invoke the **Implement** sub-agent in Review Mode: *"Implement the security fixes from `.spec-lite/reviews/security_audit.md`"*). List the specific findings.
 - **If audit is clean or issues are Low/Medium** → Suggest performance review, documentation, or README.
 - **If infrastructure wasn't audited** → Suggest DevOps review.
 
@@ -202,7 +202,7 @@ When you finish the security audit, **always** end your final message with a "Wh
 
 > **What's next?** Security audit is complete. Here are your suggested next steps:
 >
-> 1. **Fix vulnerabilities** _(if critical/high findings)_: *"Fix the {{vulnerability_description}}"*
+> 1. **Implement remediations** _(if critical/high findings)_: *"Implement the security fixes from `.spec-lite/reviews/security_audit.md`"*
 > 2. **Performance review**: *"Review performance of the critical paths"*
 > 3. **Technical documentation**: *"Generate technical documentation for the project"*
 > 4. **README**: *"Generate a README for the project"*

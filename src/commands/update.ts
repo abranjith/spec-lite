@@ -181,7 +181,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   try {
     const { createRequire } = await import("module");
     const require = createRequire(import.meta.url);
-    const pkg = require("../../package.json");
+    const pkg = require("../package.json");
     config.version = pkg.version;
   } catch {
     // Keep existing version

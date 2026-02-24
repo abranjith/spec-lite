@@ -165,7 +165,7 @@ Before profiling anything, identify:
 
 - **Do NOT** optimize prematurely. If there's no evidence something is slow, note it as a potential concern, not a High finding.
 - **Do NOT** recommend micro-optimizations that add complexity without measurable benefit.
-- **Do NOT** implement fixes yourself. You identify and recommend; the Feature sub-agent implements.
+- **Do NOT** implement fixes yourself. You identify and recommend; the **Implement** sub-agent implements — invoke it in Review Mode: *"Apply the High priority findings from `.spec-lite/reviews/performance_review.md`"*.
 - **Do** distinguish between measured performance (profiler data) and estimated performance (static analysis reasoning). Label your confidence level.
 - **Do** consider the deployment environment. A 50ms optimization matters when you're trying to hit a 200ms SLA; it doesn't matter for a nightly batch job that runs in 10 seconds.
 
@@ -185,7 +185,7 @@ When you finish the performance review, **always** end your final message with a
 
 **Suggest these based on context:**
 
-- **If High/Critical bottlenecks were found** → Fix the performance issues (invoke the **Fix** sub-agent or create a feature spec for optimization work).
+- **If High/Critical bottlenecks were found** → Implement the optimizations (invoke the **Implement** sub-agent in Review Mode: *"Apply the High priority findings from `.spec-lite/reviews/performance_review.md`"*).
 - **If no critical issues** → Suggest security audit, documentation, or README.
 - **If the review was scoped to one area** → Suggest reviewing other critical paths.
 
@@ -193,7 +193,7 @@ When you finish the performance review, **always** end your final message with a
 
 > **What's next?** Performance review is complete. Here are your suggested next steps:
 >
-> 1. **Fix performance issues** _(if critical findings)_: *"Fix the {{bottleneck_description}}"*
+> 1. **Implement optimizations** _(if high/critical findings)_: *"Apply the High priority findings from `.spec-lite/reviews/performance_review.md`"*
 > 2. **Security audit**: *"Run a security audit on the project"*
 > 3. **Technical documentation**: *"Generate technical documentation for the project"*
 
