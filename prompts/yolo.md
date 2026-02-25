@@ -44,11 +44,11 @@ For each plan (1 or more, depending on scope):
                a. Write the feature spec (.spec-lite/features/feature_<name>.md)
                b. Implement every task in the spec (code + unit tests + docs)
                c. Checkpoint — offer to pause before continuing
-  Phase 3  — Code Review (always)
-  Phase 4  — Performance Review (if app has data-intensive or API paths)
-  Phase 5  — Security Audit (if app has auth, user data, or external integrations)
-  Phase 6  — Implement all Critical/High findings from any reviews
-  Phase 7  — Integration Tests
+  Phase 3  — Code Review (optional)
+  Phase 4  — Performance Review (optional; only if data-intensive or API paths)
+  Phase 5  — Security Audit (optional; only if auth, user data, or external integrations)
+  Phase 6  — Implement Critical/High findings (automatic if reviews ran and findings exist)
+  Phase 7  — Integration Tests (optional)
   Phase 8  — README + Technical Documentation
 ```
 
@@ -163,6 +163,26 @@ Reply "YES proceed" to confirm this breakdown, or tell me how you'd like to adju
 
 Wait for the user to confirm the scope before creating any plan files.
 
+**Step 3b: Configure Optional Phases**
+
+After scope is confirmed, ask which optional phases to run:
+
+```
+Which optional phases would you like to include?
+
+  [1] Code Review (Phase 3)       — flags bugs, anti-patterns, and architectural issues
+  [2] Performance Review (Phase 4) — identifies bottlenecks and slow paths (if applicable)
+  [3] Security Audit (Phase 5)     — finds vulnerabilities in auth, inputs, and secrets (if applicable)
+  [4] Integration Tests (Phase 7)  — end-to-end tests across feature boundaries
+
+Phases 2 and 3 also require relevant technology to be present (auto-skipped otherwise).
+If any reviews run and produce Critical/High findings, Phase 6 will implement those fixes automatically.
+
+Reply "all" to include everything, "none" to skip all, or a list like "1, 4".
+```
+
+Wait for the user's reply. Record each phase as `yes` or `no` in the state file's `## Optional Phases` table. If the user replies "all" or gives no clear preference, default to `yes` for all.
+
 **Step 4: Initialize State File**
 
 Once scope is confirmed, create `.spec-lite/yolo_state.md`:
@@ -188,6 +208,15 @@ Once scope is confirmed, create `.spec-lite/yolo_state.md`:
 |-----------|--------|-------|
 | `.spec-lite/plan_<name>.md` | [ ] Not started | |
 | `.spec-lite/plan_<name>.md` | [ ] Not started | |
+
+## Optional Phases
+
+| Phase | Name | Enabled |
+|-------|------|---------|
+| 3 | Code Review | yes \| no |
+| 4 | Performance Review | yes \| no |
+| 5 | Security Audit | yes \| no |
+| 7 | Integration Tests | yes \| no |
 
 ## Progress: plan_<name>.md
 
@@ -243,7 +272,6 @@ Follow [feature.md](feature.md) to produce `.spec-lite/features/feature_<name>.m
 Key orchestration points:
 - Input to the Feature sub-agent: the relevant feature section from the current plan + `.spec-lite/memory.md`.
 - The spec must include all three sub-items per task (Implementation, Unit Tests, Documentation Update) as required by [feature.md](feature.md).
-- Update the plan's `Status` column: `[ ] Not started` → `[/] In progress` when starting; `[x] Complete` when the spec is written.
 - Update `.spec-lite/yolo_state.md`: mark this feature's `spec` column as `[x]`.
 
 #### Step 4: Implement
@@ -256,7 +284,6 @@ Key orchestration points:
 - Input: the feature spec just created + the current plan + `.spec-lite/memory.md`. Re-read these fresh — do not carry context from the spec phase.
 - All three sub-items per task (code, unit tests, docs) must be completed as required by [implement.md](implement.md).
 - After all tasks are complete, run the full test suite.
-- Update the plan's `Status` column: `[/] In progress` → `[x] Complete`.
 - Update `.spec-lite/yolo_state.md`: mark this feature's `impl` column as `[x]`.
 
 #### Step 5: Checkpoint
@@ -279,9 +306,11 @@ Once all features for this plan are complete, proceed to Phase 3 for this plan.
 
 ---
 
-### Phase 3 — Code Review (always, per plan)
+### Phase 3 — Code Review (optional, per plan)
 
 > **Delegate to**: [code_review.md](code_review.md) — follow its full process, output format, and quality criteria.
+
+**Optional phase gate**: If Code Review is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 3 (Code Review) — disabled by user preference."* Update state: mark `code-review` as `N/A` for all features in this plan. Move to Phase 4.
 
 1. Announce: *"All features in `plan_<name>.md` implemented. Starting Phase 3 — Code Review ([code_review.md](code_review.md))..."*
 2. Follow [code_review.md](code_review.md).
@@ -291,11 +320,13 @@ Once all features for this plan are complete, proceed to Phase 3 for this plan.
 
 ---
 
-### Phase 4 — Performance Review (conditional, per plan)
+### Phase 4 — Performance Review (optional, per plan)
 
 > **Delegate to**: [performance_review.md](performance_review.md) — follow its full process, output format, and severity classification.
 
-**Applicability criteria** — run if the plan includes **any** of:
+**Optional phase gate**: If Performance Review is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 4 (Performance Review) — disabled by user preference."* Update state: mark `perf-review` as `N/A`. Move to Phase 5.
+
+**Applicability criteria** — if enabled, only run if the plan includes **any** of:
 - Database queries, ORM usage, or data persistence layers
 - REST or GraphQL API endpoints expected to serve concurrent requests
 - Loops, batch processing, or data transformation pipelines
@@ -312,11 +343,13 @@ If **applicable**:
 
 ---
 
-### Phase 5 — Security Audit (conditional, per plan)
+### Phase 5 — Security Audit (optional, per plan)
 
 > **Delegate to**: [security_audit.md](security_audit.md) — follow its full process, output format, and severity classification.
 
-**Applicability criteria** — run if the plan includes **any** of:
+**Optional phase gate**: If Security Audit is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 5 (Security Audit) — disabled by user preference."* Update state: mark `sec-review` as `N/A`. Move to Phase 6.
+
+**Applicability criteria** — if enabled, only run if the plan includes **any** of:
 - Authentication or authorization flows
 - User data, PII, or sensitive information handling
 - External API calls or third-party service integrations
@@ -353,9 +386,11 @@ If Critical or High findings exist:
 
 ---
 
-### Phase 7 — Integration Tests (per plan)
+### Phase 7 — Integration Tests (optional, per plan)
 
 > **Delegate to**: [integration_tests.md](integration_tests.md) — follow its full process, scenario format, and traceability requirements.
+
+**Optional phase gate**: If Integration Tests is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 7 (Integration Tests) — disabled by user preference."* Update state: mark `integ-tests` as `N/A` for all features in this plan. Move to Phase 8.
 
 1. Announce: *"Starting Phase 7 — Integration Tests ([integration_tests.md](integration_tests.md)) for `plan_<name>.md`..."*
 2. Follow [integration_tests.md](integration_tests.md).
@@ -499,6 +534,15 @@ When the user says "resume YOLO" (or "continue YOLO"):
 |-----------|--------|
 | `.spec-lite/plan_<name>.md` | [ ] Not started \| [/] In progress \| [x] Complete |
 
+## Optional Phases
+
+| Phase | Name | Enabled |
+|-------|------|---------|
+| 3 | Code Review | yes |
+| 4 | Performance Review | yes |
+| 5 | Security Audit | yes |
+| 7 | Integration Tests | yes |
+
 ## Progress: plan_<name>.md
 
 | FEAT-ID | Feature | spec | impl | code-review | perf-review | sec-review | fix | integ-tests | tech-docs |
@@ -566,7 +610,20 @@ Reply 'YES proceed'  to confirm this breakdown, or tell me how you'd like to adj
 
 **User**: "YES proceed"
 
-**YOLO**: "Initializing `.spec-lite/yolo_state.md`... created.
+**YOLO**: "Which optional phases would you like to include?
+
+  [1] Code Review (Phase 3)
+  [2] Performance Review (Phase 4)
+  [3] Security Audit (Phase 5)
+  [4] Integration Tests (Phase 7)
+
+Reply 'all', 'none', or a list like '1, 4'."
+
+---
+
+**User**: "all"
+
+**YOLO**: "Initializing `.spec-lite/yolo_state.md`... created. All optional phases enabled.
 Starting Phase 1 — creating `plan_api.md`..."
 
 *[Creates plan_api.md following the Planner sub-agent format. Updates state. Then creates plan_frontend.md. Then moves to Phase 2.]*

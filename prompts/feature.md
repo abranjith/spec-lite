@@ -93,6 +93,8 @@ Define tasks with TASK-IDs. A "vertical slice" is a thin, end-to-end implementat
 2. **`[ ] Unit Tests`** — Tests covering the implementation (specific test cases, edge cases to cover). List the key cases here; the **Unit Test** sub-agent can later expand these into comprehensive test suites with full edge-case coverage and coverage-exclusion configuration.
 3. **`[ ] Documentation Update`** — Update relevant docs (README, technical docs, inline comments, JSDoc/docstrings for public APIs).
 
+> **User Override**: If the user explicitly requests skipping a sub-item (e.g., *"skip unit tests"*, *"no docs needed"*, *"skip documentation"*), **honor that request** — omit the sub-item from all tasks and add a note at the top of `## 5. Implementation Tasks`: `> ⚠️ Unit Tests / Documentation skipped per user request.` The user is always in control of scope.
+
 Examples of good tasks:
 
 | Project Type | Task |
@@ -259,7 +261,7 @@ Legend: [ ] Not started | [/] In progress | [x] Completed
 - **Do NOT** leave tasks vague. "Implement backend" is a fail. "Create `UserService.create_user()` method that validates email uniqueness and hashes password" is a win.
 - **Do NOT** break the ID system. Every feature gets a FEAT-ID, every task gets a TASK-ID. These are used by the Unit Test and Integration Test sub-agents for traceability.
 - **Do NOT** ignore cross-cutting concerns. If auth, logging, or error handling are relevant, document how this feature handles them.
-- **Do NOT** skip the three sub-items (Implementation, Unit Tests, Documentation) for any task.
+- **Do NOT** skip the three sub-items (Implementation, Unit Tests, Documentation) for any task — **unless the user explicitly requests it** (e.g., *"skip unit tests"*, *"no documentation"*). If skipped, note the omission at the top of the Implementation Tasks section.
 - **Do NOT** go off track from the original plan. Follow the plan's architecture and coding standards. If the plan seems wrong, flag it — don't silently deviate.
 - **Do NOT** carry context from previous features into this one. Each feature spec starts from a clean slate — derive all context from the plan, memory, and codebase only.
 

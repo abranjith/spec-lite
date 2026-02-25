@@ -83,6 +83,7 @@ Before writing any code:
 - Read `.spec-lite/memory.md` for standing coding standards, architecture principles, testing conventions, and logging rules. Then read the plan for any plan-specific overrides. Adhere to both strictly.
 - Scan the existing codebase to understand current patterns, file organization, and utilities you can reuse.
 - Identify the task execution order based on the `Depends on` declarations in the spec. If no dependencies are declared, follow the spec's task order.
+- Mark the feature as `[/] In progress` in the governing plan file.
 
 ### 2. Execute Tasks
 
@@ -121,6 +122,7 @@ After all tasks are complete:
 
 - Run the full test suite to verify nothing is broken.
 - Update the feature spec's State Tracking section — all tasks should be `[x]`.
+- Update the governing plan file (`.spec-lite/plan.md` or the named plan): mark this feature's status as `[x] Complete`.
 - Notify the user: "Implementation of FEAT-{{ID}} is complete. All tasks verified. Ready for review."
 - Optionally suggest: "For comprehensive unit test coverage, invoke the **Unit Test** sub-agent: `Generate unit tests for .spec-lite/features/feature_<name>.md`"
 
