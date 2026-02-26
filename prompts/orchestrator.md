@@ -29,11 +29,15 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
                            │ .spec-lite/plan.md or .spec-lite/plan_<name>.md
                            │ .spec-lite/TODO.md (updated)
                            ▼
-                    ┌──────────────┐
-                    │  architect   │  Phase 1.5: Cloud & Infrastructure Design
-                    └──────┬───────┘
-                           │ .spec-lite/architect_<name>.md
-                           ▼
+              ┌────────────────────────────────┐
+              │        Phase 1.5: Design       │
+              │  ┌────────────┐ ┌────────────┐ │
+              │  │  architect │ │data_modeller│ │
+              │  └────────────┘ └────────────┘ │
+              └──────────────┬─────────────────┘
+                             │ .spec-lite/architect_<name>.md
+                             │ .spec-lite/data_model.md
+                             ▼
               ┌────────────┼────────────┐
               ▼            ▼            ▼
      ┌──────────────┐ ┌────────┐ ┌──────────┐
@@ -83,7 +87,8 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 | **brainstorm** | 0 | User idea/problem | `.spec-lite/brainstorm.md` |
 | **planner** | 1 | User requirements (optionally `.spec-lite/brainstorm.md`) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, updates `.spec-lite/TODO.md` |
 | **architect** | 1.5 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, user requirements | `.spec-lite/architect_<name>.md`, updates `.spec-lite/TODO.md` |
-| **feature** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
+| **data_modeller** | 1.5 | User description, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/memory.md` | `.spec-lite/data_model.md` |
+| **feature** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/data_model.md` (if exists) | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
 | **implement** | 2.5 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Working code, updated feature spec (task states) |
 | **fix** | 2 | Error logs, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Fix + regression test, `.spec-lite/reviews/fix_<issue>.md` |
 | **devops** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | `.spec-lite/devops/`, infra configs |
@@ -105,6 +110,7 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 ├── plan.md                    # Default plan (simple projects)
 ├── plan_<name>.md             # Named plans (complex projects, e.g., plan_order_management.md)
 ├── architect_<name>.md        # Cloud & infrastructure architecture (e.g., architect_fintech_platform.md)
+├── data_model.md              # Relational data model (maintained by data_modeller sub-agent)
 ├── memory.md                  # Standing instructions (maintained by memorize sub-agent)
 ├── TODO.md                    # Enhancement backlog (maintained by planner + feature)
 ├── features/
@@ -175,8 +181,9 @@ The `.spec-lite/memory.md` file (managed by the **memorize** sub-agent) contains
 For new projects, the recommended initialization flow is:
 
 1. `npx @abranjith/spec-lite init` — installs prompts, collects project profile, copies stack snippets.
-2. `/memorize bootstrap` — LLM-powered discovery that scans the project, reads the profile and stack snippets, and generates a comprehensive `memory.md`.
-3. `/planner` — creates a plan that references memory for cross-cutting standards, adding only plan-specific decisions.
+2. `/memorize bootstrap` — reads the project profile, config files, and stack snippets to generate a *prescriptive* `memory.md` (conventions based on best practices for the stack). Does NOT scan source code.
+3. `/explore all` *(optional but recommended for existing codebases)* — deep codebase analysis that discovers actual patterns, conventions, and architecture from source code. Merges *descriptive* findings into `memory.md` alongside the bootstrap baseline. Can be expensive on large codebases.
+4. `/planner` — creates a plan that references memory for cross-cutting standards, adding only plan-specific decisions.
 
 ---
 
@@ -231,13 +238,19 @@ When sub-agents disagree or produce contradictory outputs:
 ### Full Pipeline (New Project)
 
 ```
-brainstorm → planner → feature (×N) → implement (×N) → [code_review, security_audit, performance_review, unit_tests, integration_tests] → technical_docs → readme
+brainstorm → planner → data_modeller (if data-driven) → feature (×N) → implement (×N) → [code_review, security_audit, performance_review, unit_tests, integration_tests] → technical_docs → readme
 ```
 
 ### Feature Addition (Existing Project)
 
 ```
 brainstorm (optional) → feature → implement → [code_review, unit_tests, integration_tests] → technical_docs (update)
+```
+
+### Data Modelling (Standalone or from Plan)
+
+```
+data_modeller → feature (×N) → implement (×N)
 ```
 
 ### Feature Implementation (Spec Already Exists)
@@ -281,6 +294,7 @@ spec_help (anytime — no prerequisites)
 - Unit tests: `unit_tests_<snake_case_name>.md`
 - Code reviews: `code_review_<feature_name>.md`
 - Fix reports: `fix_<issue_description>.md`
+- Data model: `data_model.md`
 - IDs: FEAT-001, TASK-001.1, SEC-001, PERF-001
 
 ### Plan ↔ Feature Cross-Reference
@@ -340,6 +354,13 @@ In complex projects, users need clear ways to tell sub-agents which artifact to 
   - By glob: "Implement all features" → agent lists `.spec-lite/features/feature_*.md` and works through them
   - By ID: "Continue from FEAT-003" → agent finds the feature spec containing FEAT-003
 
+### Data Model
+
+- **File**: `.spec-lite/data_model.md` (singular — one per project, like `memory.md`).
+- **Created by**: **data_modeller** sub-agent.
+- **How users reference it**: "Design a data model" or "Update the data model for orders".
+- **Default behavior**: Downstream agents (feature, implement, code_review, etc.) read `data_model.md` if it exists. It is not mandatory — projects without persistent data don't need it.
+
 ### General Rule
 
 When a user's reference is ambiguous (e.g., "use the plan" when multiple plans exist), agents should list the available options and ask the user to pick one. Never guess.
@@ -355,7 +376,8 @@ Every sub-agent includes a **"What's Next? (End-of-Task Output)"** section that 
 | When this agent finishes... | It suggests... |
 |---|---|
 | **Brainstorm** | Planner (create a plan from the brainstorm); Memorize (if no memory.md) |
-| **Planner** | Feature (break down each feature individually); Memorize (if no memory.md) |
+| **Planner** | Data Modeller (if plan has data model); Feature (break down each feature individually); Memorize (if no memory.md) |
+| **Data Modeller** | Feature (break down features); Implement (data layer); Memorize (capture conventions) |
 | **Feature** | Implement (the feature spec); Feature (next feature from the plan) |
 | **Implement** | Unit Tests; Code Review; Implement (next feature); Integration Tests (when all done) |
 | **Unit Tests** | Code Review; Integration Tests; Unit Tests (next feature) |
@@ -367,7 +389,7 @@ Every sub-agent includes a **"What's Next? (End-of-Task Output)"** section that 
 | **Technical Docs** | README; DevOps; Security Audit |
 | **README** | DevOps; Security Audit; Done |
 | **DevOps** | Security Audit; README (update); Technical Docs |
-| **Memorize** | Planner (if new project); Feature (if plan exists) |
+| **Memorize** | Planner (if new project); Data Modeller (if data-driven); Feature (if plan exists) |
 
 ### Format Convention
 

@@ -43,6 +43,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Brainstorm** | `brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec-lite/brainstorm.md` |
 | **Planner** | `planner` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
 | **Architect** | `architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
+| **Data Modeller** | `data_modeller` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
 | **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
 | **Implement** | `implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
 | **Code Review** | `code_review` | Review code for correctness, architecture, readability | Feature spec + code | `.spec-lite/reviews/code_review_<name>.md` |
@@ -53,6 +54,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Fix & Refactor** | `fix` | Debug issues or restructure code safely | Bug report or code smells | Targeted fixes |
 | **Technical Docs** | `technical_docs` | Create deep architecture documentation | Plan + features + code | `docs/technical_architecture.md` |
 | **README** | `readme` | Write the project README and optional user guide | Plan + features | `README.md` |
+| **Explore** | `explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `README.md` + `TECH_SPECS.md` + `.spec-lite/memory.md` |
 
 ---
 
@@ -68,6 +70,14 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
                           │   Planner    │ ← Core (every project needs a plan)
                           └──────┬───────┘
                                  │
+                     ┌───────────┼─────────────┐
+                     ▼                         ▼
+               ┌──────────┐       ┌──────────────┐
+               │Architect │       │Data Modeller │ ← Optional (only if data-driven)
+               └────┬─────┘       └──────┬───────┘
+                    │                    │
+                    └────────┬─────────┘
+                             ▼
                      ┌───────────┼───────────┐
                      ▼           ▼           ▼
                ┌──────────┐ ┌──────────┐ ┌──────────┐
@@ -120,12 +130,15 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | "Is my code fast enough?" | **Performance Review** — identify bottlenecks |
 | "I need test scenarios" | **Integration Tests** — traceable test specs |
 | "I need cloud/infra architecture" | **Architect** — design infrastructure, databases, and scaling |
+| "I need to design database tables" | **Data Modeller** — design relational data models with tables, indexes, constraints |
 | "I need Docker/CI/CD setup" | **DevOps** — infrastructure as code |
 | "Something is broken" | **Fix & Refactor** — systematic debugging |
 | "I need to clean up messy code" | **Fix & Refactor** (Refactor Mode) |
 | "I need architecture docs" | **Technical Docs** — deep technical docs |
 | "I need a README" | **README** — user-facing documentation |
 | "I don't know where to start" | Start with **Brainstorm** or **Planner** |
+| "I need to understand an existing codebase" | **Explore** — systematically discover architecture, patterns, and features |
+| "I joined a new project and need to onboard" | **Explore** — generates README, TECH_SPECS, and captures conventions in memory |
 
 ---
 
@@ -139,6 +152,7 @@ Sub-agents produce and consume artifacts in the `.spec-lite/` directory:
 ├── plan.md                ← Default plan (simple projects)
 ├── plan_<name>.md         ← Named plans (complex projects)
 ├── architect_<name>.md    ← Cloud & infrastructure architecture
+├── data_model.md          ← Relational data model (tables, relationships, indexes)
 ├── TODO.md                ← Enhancement tracking (Planner & Feature)
 ├── features/
 │   ├── feature_<name>.md  ← Feature output → Implement input → Reviews & Tests input
@@ -187,6 +201,8 @@ The brainstorm (`.spec-lite/brainstorm.md`) is **not** automatically fed into th
 | Plan from scratch | Invoke **planner**: *"Create a plan for a task management API"* |
 | Plan using brainstorm | Invoke **planner**: *"Create a plan based on the brainstorm"* |
 | Plan a specific domain | Invoke **planner**: *"Create a plan for order management"* → outputs `plan_order_management.md` |
+| Design a data model | Invoke **data_modeller**: *"Design a data model for the order management domain"* |
+| Design from plan | Invoke **data_modeller**: *"Design a detailed data model based on the plan"* |
 | Spec a feature | Invoke **feature**: *"Break down user management from the plan"* |
 | Spec a feature (named plan) | Invoke **feature**: *"Break down order processing from plan_order_management"* |
 | Implement a feature | Invoke **implement**: *"Implement `.spec-lite/features/feature_user_management.md`"* |

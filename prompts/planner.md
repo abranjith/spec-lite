@@ -160,7 +160,9 @@ Fill in this template when producing your final output:
 ## 4. Data Model (High-Level)
 
 > Skip if the project doesn't persist data.
-> **Note**: This section captures the *conceptual* data model — the key domain entities and how they relate at a high level. Granular schema design (table definitions, column types, indexes, constraints, detailed relationships) is the responsibility of the **Feature sub-agent** and will be defined in each feature spec during implementation.
+> **Note**: This section captures the *conceptual* data model — the key domain entities and how they relate at a high level. Granular schema design (table definitions, column types, indexes, constraints, detailed relationships) is the responsibility of the **Data Modeller sub-agent** (see [data_modeller.md](data_modeller.md)). After the plan is finalized, invoke the Data Modeller to produce `.spec-lite/data_model.md` with the complete relational schema.
+>
+> If the project doesn't need a formal data model (e.g., simple CLI, static site), skip this section entirely.
 
 ### Domain Concepts
 
@@ -241,7 +243,7 @@ Fill in this template when producing your final output:
 - **Do NOT** over-complicate. If a monolith works, propose a monolith. If a single file works, propose a single file.
 - **Do NOT** assume web app. Read the Project Context and brainstorm to understand what shape this project takes.
 - **Do NOT** hardcode technology choices that aren't justified. Every choice needs a "why."
-- **Do NOT** define granular data models (table schemas, column types, indexes). Keep the data model conceptual. The Feature sub-agent owns the detailed schema design.
+- **Do NOT** define granular data models (table schemas, column types, indexes). Keep the data model conceptual. The **Data Modeller sub-agent** owns the detailed schema design (see [data_modeller.md](data_modeller.md)).
 - **Do NOT** re-derive coding standards, architecture principles, testing conventions, logging rules, or security policies that are already established in `.spec-lite/memory.md`. Reference memory as the baseline and only add plan-specific overrides.
 - **Do NOT** produce the entire plan without user checkpoints. Pause for confirmation after proposing the tech stack/architecture and again after the feature breakdown.
 - **Do NOT** produce the entire plan without user checkpoints. Pause for confirmation after proposing the tech stack/architecture and again after the feature breakdown.
@@ -291,6 +293,7 @@ When you finish writing the plan, **always** end your final message with a "What
 **Suggest these based on context:**
 
 - **If `.spec-lite/memory.md` does NOT exist** → Suggest bootstrapping project memory first (invoke the **Memorize** sub-agent).
+- **If the plan includes a data model section** → Suggest designing the detailed data model (invoke the **Data Modeller** sub-agent) before breaking down features.
 - **For each feature in the plan** → Break it down into a feature spec (invoke the **Feature** sub-agent). List every feature individually with its name.
 
 **Format your output like this** (use actual feature names from the plan):
@@ -298,11 +301,12 @@ When you finish writing the plan, **always** end your final message with a "What
 > **What's next?** The plan is ready at `.spec-lite/plan.md`. Here are your suggested next steps:
 >
 > 1. **Set up project memory** _(if `.spec-lite/memory.md` doesn't exist yet)_: *"Bootstrap project memory"*
-> 2. **Break down Feature 1**: *"Break down {{feature_1_name}} from the plan"*
-> 3. **Break down Feature 2**: *"Break down {{feature_2_name}} from the plan"*
-> 4. **Break down Feature N**: *"Break down {{feature_N_name}} from the plan"*
+> 2. **Design the data model** _(if the plan includes data persistence)_: *"Design a detailed data model based on the plan"*
+> 3. **Break down Feature 1**: *"Break down {{feature_1_name}} from the plan"*
+> 4. **Break down Feature 2**: *"Break down {{feature_2_name}} from the plan"*
+> 5. **Break down Feature N**: *"Break down {{feature_N_name}} from the plan"*
 >
-> Start with the feature that has the fewest dependencies.
+> Start with the data model (if applicable), then the feature with the fewest dependencies.
 
 ---
 

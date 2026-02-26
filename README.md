@@ -149,6 +149,7 @@ All sub-agents read `.spec-lite/memory.md` first for standing instructions, then
 | [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture docs, API references, setup guides | Technical documentation |
 | [readme.md](prompts/readme.md) | README | Writes the project README | `README.md` |
 | [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec-lite/memory.md` — standing instructions for all agents. Use `/memorize bootstrap` to auto-generate. | `.spec-lite/memory.md` |
+| [explore.md](prompts/explore.md) | Explore | Explores an unfamiliar codebase and documents architecture, patterns, and improvement areas. ⚠️ May consume many requests. | `README.md` + `TECH_SPECS.md` + `.spec-lite/memory.md` |
 | [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
 
 ## Output Directory Structure

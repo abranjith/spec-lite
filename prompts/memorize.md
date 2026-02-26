@@ -108,6 +108,7 @@ Use these standard sections. Only create a new section if an instruction truly d
 | **Dependencies** | Key library choices and their roles, upgrade policies, audit requirements (e.g., "Use Zod for all validation", "Run npm audit weekly") |
 | **Documentation** | Doc conventions (e.g., "All public APIs must have JSDoc with @example", "Update CHANGELOG for every feature") |
 | **Performance** | Performance preferences (e.g., "Paginate all list endpoints", "Use lazy loading for collections") |
+| **Data Model** | Reference to the project's data model if one exists (e.g., "Data model: see `.spec-lite/data_model.md`", "Table naming: singular snake_case", "Primary keys: BIGINT GENERATED ALWAYS AS IDENTITY"). Only needed if the project has persistent data and a data model has been designed by the Data Modeller sub-agent. |
 
 > **Rule of thumb**: If you're about to create a section with only one entry, check if it fits under **General** first.
 > **Section limit**: Do not exceed 15 sections. If approaching the limit, merge related sections.
@@ -182,6 +183,11 @@ Use these standard sections. Only create a new section if an instruction truly d
 ## Performance
 
 - {{instruction}}
+
+## Data Model
+
+- Data model: see `.spec-lite/data_model.md` _(include only if `.spec-lite/data_model.md` exists)_
+- {{data-related conventions, e.g., "Table naming: singular snake_case"}}
 ```
 
 > **Empty sections**: If a section has no entries, omit it entirely from the file. Only include sections that have at least one instruction.
@@ -221,17 +227,17 @@ When the user invokes `/memorize bootstrap`, you switch to **project-discovery m
 - Read **`.spec-lite.json`** to get the project profile: language, frameworks, test framework, architecture, and any stated conventions.
 - If `.spec-lite.json` doesn't exist or has no `projectProfile`, ask the user for: primary language, framework(s), test framework, architecture pattern, and any specific conventions.
 
-#### Step 2: Discover Project Structure (Tool-Guided)
+#### Step 2: Read Project Manifest & Config (Lightweight)
 
-Use **file system navigation tools** to scan the project:
+Read **only** root-level manifest and configuration files — do NOT scan source code or traverse the dependency graph:
 
-- Read the root directory listing to identify key files: `package.json`, `pyproject.toml`, `*.csproj`, `go.mod`, `Cargo.toml`, `pom.xml`, etc.
-- Read the project manifest (e.g., `package.json`, `pyproject.toml`) to extract dependencies, scripts, and configuration.
-- Scan for configuration files: `tsconfig.json`, `.eslintrc.*`, `jest.config.*`, `vitest.config.*`, `pytest.ini`, `.prettierrc`, `Dockerfile`, `docker-compose.yml`, `.github/workflows/`, etc.
-- Map the top-level directory structure (e.g., `src/`, `tests/`, `lib/`, `docs/`, `infra/`).
-- Identify existing patterns: Are there existing tests? What naming convention do they follow? Is there a `src/` vs flat structure?
+- Read the project manifest (e.g., `package.json`, `pyproject.toml`, `*.csproj`, `go.mod`, `Cargo.toml`, `pom.xml`) to extract language, framework, dependencies, scripts, and build configuration.
+- Read tooling configs if present: `tsconfig.json`, `.eslintrc.*`, `jest.config.*`, `vitest.config.*`, `pytest.ini`, `.prettierrc`, etc.
+- Note the top-level directory names (e.g., `src/`, `tests/`, `lib/`) from a single directory listing — do NOT recurse into them.
 
-> **Goal**: Build a concrete understanding of the project's current shape — don't guess what the user *might* have, look at what they *actually* have.
+> **Goal**: Extract tech stack, tooling, and dependency information from config files only. This is a lightweight scan — NOT a codebase exploration. For deep codebase analysis (architecture, patterns, conventions discovered from actual code), the user should invoke the **Explore** sub-agent (`/explore all` or `/explore patterns`).
+
+> **What Bootstrap does NOT do**: It does not read source files, trace import graphs, analyze design patterns from code, or catalog conventions by examining implementation files. That is the Explore sub-agent's responsibility.
 
 #### Step 3: Read Bundled Stack Snippet
 
@@ -253,24 +259,26 @@ If web tools are not available, rely on the bundled snippet + your training know
 
 #### Step 5: Synthesize & Generate
 
-Combine all inputs (profile, discovered structure, bundled snippet, web findings) to generate a rich `memory.md`:
+Combine all inputs (profile, manifest data, bundled snippet, web findings) to generate an initial `memory.md`. Base conventions on the **project profile, config files, and stack snippet** — not on source code analysis:
 
 1. **Tech Stack**: List the actual language, framework, runtime, and major dependencies with versions (from the project manifest).
-2. **Project Structure**: Describe the actual directory layout and file naming patterns you observed.
-3. **Coding Standards**: Generate language-idiomatic conventions. Include naming, formatting, error handling, immutability preferences. Adapt the bundled snippet to the project's actual linter/formatter config.
-4. **Architecture**: Identify the actual patterns in use (or recommend appropriate ones based on the framework). E.g., if you see `src/services/` + `src/repositories/`, call out the layered architecture.
+2. **Project Structure**: Note the top-level directory layout observed from the directory listing. Do NOT describe internal module organization — that requires codebase exploration.
+3. **Coding Standards**: Generate language-idiomatic conventions based on the stack snippet and any detected linter/formatter configs (e.g., ESLint rules, Prettier settings, `tsconfig.json` strict mode). Include naming, formatting, immutability preferences appropriate to the language.
+4. **Architecture**: Recommend appropriate architectural patterns based on the framework and project type (e.g., "Layered architecture recommended for Express APIs"). Do NOT claim to have identified actual patterns from code — that is the Explore sub-agent's job.
 5. **Design Patterns**: List specific patterns appropriate for the tech stack and project type.
 6. **Error Handling**: Generate error handling conventions appropriate to the language and framework.
 7. **Logging**: Recommend a logging library and conventions appropriate to the stack.
-8. **Testing**: Generate testing conventions based on the detected test framework and existing test patterns.
+8. **Testing**: Generate testing conventions based on the detected test framework (from config/manifest).
 9. **Security**: Generate security conventions appropriate to the project type (API, web app, CLI, etc.).
-10. **Dependencies**: Note key library choices and any detected package management patterns.
+10. **Dependencies**: Note key library choices from the manifest.
 11. **Other sections**: Populate General, Documentation, Performance as appropriate.
 
 **Quality bar**: Each instruction should be:
 - **Specific** — "Use `camelCase` for variables and `PascalCase` for classes" not "follow naming conventions."
 - **Actionable** — a developer (or LLM sub-agent) can follow it without ambiguity.
-- **Grounded** — based on what you actually discovered about the project, not generic advice.
+- **Grounded** — based on the project profile, config files, and stack best practices. For conventions grounded in actual codebase patterns, use the Explore sub-agent.
+
+> **Important**: Bootstrap generates **prescriptive** conventions ("this is how we *should* write code") based on the stack and config. The Explore sub-agent generates **descriptive** conventions ("this is how the code *actually* works") based on codebase analysis. Both are valuable — bootstrap sets the baseline, explore refines it with reality.
 
 **Default Instructions**: In addition to the project-specific conventions discovered above, **always** include the following baseline instructions in every bootstrapped memory. Place them in the appropriate sections:
 
@@ -353,24 +361,26 @@ This overrides any conflicting pagination rules."
 
 **User**: `/memorize bootstrap`
 
-**Sub-agent**: "Starting project bootstrap — let me analyze your project.
+**Sub-agent**: "Starting project bootstrap — let me analyze your project config.
 
 **Reading profile**: Found `.spec-lite.json` — TypeScript, Express + React, Vitest, Monorepo.
 
-**Scanning project**:
+**Reading manifest & config**:
 - `package.json` → Node 20, Express 4.19, React 18.3, TypeScript 5.4
 - `tsconfig.json` → strict mode enabled, paths configured
 - `vitest.config.ts` → found, workspace mode
-- Directory structure: `packages/api/src/`, `packages/web/src/`, `packages/shared/`
-- Existing tests in `packages/api/tests/` — using AAA pattern, factories for test data
+- `.eslintrc.js` → Airbnb base with custom overrides
+- Top-level dirs: `packages/api/`, `packages/web/`, `packages/shared/`
 
-**Reading stack snippet**: Found `.spec-lite/stacks/typescript.md` — adapting to your project structure.
+**Reading stack snippet**: Found `.spec-lite/stacks/typescript.md` — adapting to your project config.
 
-Here's the generated memory — 11 sections, 47 standing instructions:
+Here's the generated memory — 11 sections, 42 standing instructions:
 
 *(shows full memory.md preview)*
 
-Does this look right? I can adjust anything before writing to `.spec-lite/memory.md`."
+Does this look right? I can adjust anything before writing to `.spec-lite/memory.md`.
+
+> **Tip**: For conventions based on actual codebase patterns (naming conventions in use, architectural patterns discovered from code, etc.), run `/explore all` or `/explore patterns` — the Explore sub-agent will analyze your source code and merge its findings into memory."
 
 ---
 
@@ -380,7 +390,9 @@ When you finish writing or updating `.spec-lite/memory.md`, **always** end your 
 
 **Suggest these based on context:**
 
+- **If this was a bootstrap** → Explore the codebase to discover conventions from actual code (invoke the **Explore** sub-agent). This is especially valuable for existing projects where conventions are already established in the code.
 - **If no plan exists yet** → Create a plan (invoke the **Planner** sub-agent).
+- **If a plan exists and data persistence is involved but no data model exists** → Design the data model (invoke the **Data Modeller** sub-agent).
 - **If a plan exists but features aren't spec'd** → Break down features (invoke the **Feature** sub-agent).
 - **If this was a mid-project update** → Remind the user that all future sub-agent invocations will now respect the updated memory.
 
@@ -388,8 +400,10 @@ When you finish writing or updating `.spec-lite/memory.md`, **always** end your 
 
 > **What's next?** Memory is saved to `.spec-lite/memory.md`. Here are your suggested next steps:
 >
-> 1. **Create a plan**: *"Create a plan for {{project_description}}"*
-> 2. **Or, if a plan already exists** — *"Break down {{feature_name}} from the plan"*
+> 1. **Explore the codebase** _(recommended for existing projects)_: *"Explore this codebase"* — the Explore sub-agent will analyze your source code and merge discovered conventions into memory.
+> 2. **Create a plan**: *"Create a plan for {{project_description}}"*
+> 3. **Design the data model** _(if data persistence is involved)_: *"Design a detailed data model based on the plan"*
+> 4. **Or, if a plan already exists** — *"Break down {{feature_name}} from the plan"*
 >
 > All sub-agents will now enforce the standards in memory.
 

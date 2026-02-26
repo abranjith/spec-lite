@@ -29,6 +29,7 @@ Before starting, you MUST read the following artifacts:
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for testing conventions, coding standards, and security rules. These may include test naming patterns, framework choices, fixture strategies, and coverage requirements.
 - **`.spec-lite/features/feature_<name>.md`** (mandatory) — The feature spec defines what to test. Test cases should map to FEAT-IDs and TASK-IDs.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — Architecture and component boundaries define where integration tests are needed. Contains plan-specific test requirements. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
+- **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model. Reference this for integration test scenarios that validate data flow across tables, foreign key integrity, and cross-entity operations.
 - **Existing test files** (recommended) — Understand the project's existing test patterns, fixtures, and helpers before generating new tests.
 
 > **Note**: The plan may contain user-defined testing conventions (naming patterns, fixture strategies, test organization). Follow those conventions.

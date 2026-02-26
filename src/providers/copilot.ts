@@ -41,6 +41,11 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Create a detailed cloud and infrastructure architecture for the plan.",
     },
     {
+      label: "Design Data Model",
+      agent: "spec.data_modeller",
+      prompt: "Design a detailed data model based on the plan.",
+    },
+    {
       label: "Capture Conventions",
       agent: "spec.memorize",
       prompt: "Bootstrap memory from the plan's tech stack and conventions.",
@@ -51,6 +56,11 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       label: "Break Down Features",
       agent: "spec.feature",
       prompt: "Break the plan into individual feature specification files.",
+    },
+    {
+      label: "Design Data Model",
+      agent: "spec.data_modeller",
+      prompt: "Design a detailed data model based on the architecture.",
     },
     {
       label: "Set Up Infrastructure",
@@ -186,9 +196,19 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Create a technical plan for the project using the conventions captured in memory.",
     },
     {
+      label: "Design Data Model",
+      agent: "spec.data_modeller",
+      prompt: "Design a data model using the conventions captured in memory.",
+    },
+    {
       label: "Add Feature",
       agent: "spec.feature",
       prompt: "Define a feature specification using the conventions captured in memory.",
+    },
+    {
+      label: "Explore Codebase",
+      agent: "spec.explore",
+      prompt: "Explore the codebase to discover conventions and document the architecture.",
     },
   ],
   technical_docs: [
@@ -232,6 +252,23 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Update the technical documentation to include the DevOps setup.",
     },
   ],
+  data_modeller: [
+    {
+      label: "Break Down Features",
+      agent: "spec.feature",
+      prompt: "Break down features using the data model as the authoritative schema reference.",
+    },
+    {
+      label: "Implement Data Layer",
+      agent: "spec.implement",
+      prompt: "Implement the data layer (migrations, models, repositories) from the data model.",
+    },
+    {
+      label: "Capture Conventions",
+      agent: "spec.memorize",
+      prompt: "Capture data modelling conventions in project memory.",
+    },
+  ],
   yolo: [
     {
       label: "Resume YOLO",
@@ -242,6 +279,28 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       label: "Check Pipeline Status",
       agent: "spec.spec_help",
       prompt: "Show me the current spec-lite pipeline status and available sub-agents.",
+    },
+  ],
+  explore: [
+    {
+      label: "Capture Conventions",
+      agent: "spec.memorize",
+      prompt: "Refine the conventions discovered during exploration.",
+    },
+    {
+      label: "Create Plan",
+      agent: "spec.planner",
+      prompt: "Create a technical plan based on the explored codebase.",
+    },
+    {
+      label: "Code Review",
+      agent: "spec.code_review",
+      prompt: "Review the improvement areas identified during exploration.",
+    },
+    {
+      label: "Security Audit",
+      agent: "spec.security_audit",
+      prompt: "Audit the security risks identified during exploration.",
     },
   ],
 };

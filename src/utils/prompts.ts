@@ -110,11 +110,23 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
       "Designs cloud infrastructure, database strategy, and scaling architecture with Mermaid diagrams",
     output: ".spec-lite/architect_<name>.md",
   },
+  data_modeller: {
+    title: "Data Modeller",
+    description:
+      "Designs optimized relational data models with tables, relationships, indexes, and constraints",
+    output: ".spec-lite/data_model.md",
+  },
   yolo: {
     title: "YOLO",
     description:
       "Autonomous end-to-end pipeline: plans → features → implement → reviews → integration tests → docs. WARNING: consumes many requests.",
     output: "Working app + .spec-lite/yolo_state.md",
+  },
+  explore: {
+    title: "Explore",
+    description:
+      "Explores an unfamiliar codebase and documents architecture, patterns, data model, features, and improvement areas. WARNING: may consume many requests on large codebases.",
+    output: "README.md + TECH_SPECS.md + .spec-lite/memory.md",
   },
 };
 

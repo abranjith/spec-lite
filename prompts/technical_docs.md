@@ -27,6 +27,7 @@ Before starting, you MUST read the following artifacts:
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — Architecture, tech stack, design decisions. This is the source of truth for "how the system works" documentation. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **`.spec-lite/features/`** (mandatory for feature docs) — Feature specs define what each component does. Documentation should reflect the implemented spec.
 - **`.spec-lite/memory.md`** (if exists) — Standing instructions. May include documentation standards or required sections.
+- **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model. Include data model documentation (entity-relationship overview, table descriptions, key design decisions) in the architecture docs.
 - **Source code** (mandatory) — The actual implementation. Documentation must match reality, not aspirations.
 - **`.spec-lite/brainstorm.md`** (optional) — Background reasoning and discarded alternatives. Useful for ADRs and context sections.
 

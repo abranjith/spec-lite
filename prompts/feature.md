@@ -28,6 +28,7 @@ Before starting, you MUST read the following artifacts and incorporate their dec
 
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, logging rules, and security policies. Treat every entry as a hard requirement during feature design and task breakdown.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory. All implementation decisions must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan this feature belongs to.
+- **`.spec-lite/data_model.md`** (if exists) — **The authoritative relational data model** produced by the Data Modeller sub-agent. Contains concrete table definitions, column types, constraints, indexes, and relationships. If this file exists, use it as the definitive schema source for this feature — do NOT re-design the data model from scratch. If it does not exist, design the granular data model yourself as described in the Objective section.
 - **`.spec-lite/brainstorm.md`** (optional) — Business goals and vision context. Only read this if the user explicitly asks you to incorporate the brainstorm (e.g., "use the brainstorm for context"). The brainstorm may have been for a different idea than this plan.
 - **Existing codebase** (if adding to an existing project) — Understand current patterns and conventions.
 
@@ -41,7 +42,9 @@ If no plan file exists in `.spec-lite/`, inform the user and ask them to run the
 
 Take **one** high-level feature from the plan (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) and produce a detailed feature specification with granular tasks that can be implemented independently, each producing a verifiable outcome tied to a defined business goal.
 
-**Data Modeling Ownership**: The plan provides a *conceptual* data model (domain concepts and high-level relationships). It is **your responsibility** to design the granular data model for this feature: define the concrete entities, their attributes/columns, types, constraints, indexes, and detailed relationships (foreign keys, join tables, cardinality). This ensures the data model is shaped by the feature's actual implementation needs, not abstract planning.
+**Data Modeling Ownership**: If `.spec-lite/data_model.md` exists (produced by the **Data Modeller sub-agent** — see [data_modeller.md](data_modeller.md)), it is the **authoritative source** for table definitions, column types, constraints, indexes, and relationships. Reference it directly in your feature spec rather than re-designing the schema. Only add feature-specific extensions (new columns, additional indexes for feature-specific queries) with justification.
+
+If `.spec-lite/data_model.md` does **not** exist, the plan provides a *conceptual* data model (domain concepts and high-level relationships). It is then **your responsibility** to design the granular data model for this feature: define the concrete entities, their attributes/columns, types, constraints, indexes, and detailed relationships (foreign keys, join tables, cardinality). This ensures the data model is shaped by the feature's actual implementation needs, not abstract planning.
 
 ## Inputs
 
@@ -75,7 +78,7 @@ Before writing any tasks, explore and understand the full scope:
 - Understand the **business goal** — what value does this feature deliver to the end user?
 - Identify dependencies on other features (e.g., "User Management must exist before we can implement Role-Based Access"). Note them, but don't implement them.
 - **Scan the existing codebase** (if any) to understand current patterns, utilities, and conventions.
-- **Design the granular data model** for this feature: translate the plan's conceptual domain concepts into concrete entities with attributes, types, constraints, relationships, and storage details (e.g., table definitions, indexes, foreign keys). Document these in the feature spec.
+- **Design the granular data model** for this feature: If `.spec-lite/data_model.md` exists, reference it as the authoritative schema — extract the relevant tables, columns, and relationships for this feature and document them in the feature spec. Only add feature-specific extensions (additional columns, indexes) with justification. If `data_model.md` does not exist, translate the plan's conceptual domain concepts into concrete entities with attributes, types, constraints, relationships, and storage details (e.g., table definitions, indexes, foreign keys). Document these in the feature spec.
 - Identify what files need to be created or modified.
 - Map out the vertical slices — end-to-end behaviors that can be implemented and tested independently.
 - **Record the source plan**: Note the exact plan filename (e.g., `plan.md` or `plan_order_management.md`) — it goes in the `Source Plan` field of `## 1. Feature Goal`. Then **update the plan file directly**: in `## 2. High-Level Features`, find the row matching this feature's FEAT-ID and change its `Status` from `[ ] Not started` to `[/] In progress`. When the feature spec is fully written, update it again to `[x] Complete`.
@@ -180,7 +183,7 @@ Fill in this template when producing your final output:
 
 ## 2. Data Model (Granular)
 
-> Derived from the conceptual data model in the plan. This section defines the concrete schema for this feature.
+> If `.spec-lite/data_model.md` exists, reference it as the authoritative schema. Only list the tables and columns relevant to this feature, plus any feature-specific extensions. If `data_model.md` does not exist, design the granular model here from the plan's conceptual data model.
 
 ### Entities & Attributes
 

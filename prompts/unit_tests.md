@@ -29,6 +29,7 @@ Before starting, you MUST read the following artifacts:
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for testing conventions, coding standards, coverage requirements, and naming patterns. These may include test naming patterns, framework choices, fixture strategies, and minimum coverage thresholds.
 - **`.spec-lite/features/feature_<name>.md`** (mandatory) — The feature spec defines which units to test. Test cases should map to FEAT-IDs and TASK-IDs. The task-level "Unit Tests" sub-items describe expected test cases — use those as a starting point and expand with additional edge cases and coverage.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — Architecture and design patterns help identify testable units and mocking boundaries. Contains plan-specific test requirements. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
+- **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model. Reference this for test data setup, fixture design, and verifying data-layer unit tests match the defined schema.
 - **Existing test files** (recommended) — Understand the project's existing test patterns, fixtures, helpers, and conventions before generating new tests.
 - **Source code under test** (mandatory) — Read the implementation files to understand the actual behavior, branching logic, error paths, and edge cases to cover.
 
