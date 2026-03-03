@@ -49,7 +49,7 @@ For each plan (1 or more, depending on scope):
   Phase 5  — Security Audit (optional; only if auth, user data, or external integrations)
   Phase 6  — Implement Critical/High findings (automatic if reviews ran and findings exist)
   Phase 7  — Integration Tests (optional)
-  Phase 8  — README + Technical Documentation
+  Phase 8  — Technical Documentation + README (optional)
 ```
 
 **For a medium-complexity full-stack app (e.g., 3-5 features across 2 plans), expect 30–80+ individual AI requests.**
@@ -174,6 +174,7 @@ Which optional phases would you like to include?
   [2] Performance Review (Phase 4) — identifies bottlenecks and slow paths (if applicable)
   [3] Security Audit (Phase 5)     — finds vulnerabilities in auth, inputs, and secrets (if applicable)
   [4] Integration Tests (Phase 7)  — end-to-end tests across feature boundaries
+  [5] Technical Docs & README (Phase 8) — generates technical architecture docs and project README
 
 Phases 2 and 3 also require relevant technology to be present (auto-skipped otherwise).
 If any reviews run and produce Critical/High findings, Phase 6 will implement those fixes automatically.
@@ -217,6 +218,7 @@ Once scope is confirmed, create `.spec-lite/yolo_state.md`:
 | 4 | Performance Review | yes \| no |
 | 5 | Security Audit | yes \| no |
 | 7 | Integration Tests | yes \| no |
+| 8 | Technical Docs & README | yes \| no |
 
 ## Progress: plan_<name>.md
 
@@ -401,7 +403,9 @@ If Critical or High findings exist:
 
 ---
 
-### Phase 8 — Technical Docs & README
+### Phase 8 — Technical Docs & README (optional)
+
+**Optional phase gate**: If Technical Docs & README is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 8 (Technical Docs & README) — disabled by user preference."* Update state: mark `tech-docs` as `N/A` for all features in this plan and mark `README` as `N/A`. Move to Between Plans (or Run Complete if this is the last plan).
 
 **Phase 8a — Technical Documentation** (run for every plan):
 
@@ -427,7 +431,7 @@ If Critical or High findings exist:
 
 ### Between Plans
 
-After Phase 8 for one plan:
+After the last active phase for one plan (Phase 8 if enabled, otherwise the last preceding phase):
 - Mark the plan as `[x] Complete` in `.spec-lite/yolo_state.md`.
 - Announce: *"Plan `plan_<name>.md` complete. Moving to next plan: `plan_<next>.md`..."*
 - Clear all context from the completed plan.
@@ -542,6 +546,7 @@ When the user says "resume YOLO" (or "continue YOLO"):
 | 4 | Performance Review | yes |
 | 5 | Security Audit | yes |
 | 7 | Integration Tests | yes |
+| 8 | Technical Docs & README | yes |
 
 ## Progress: plan_<name>.md
 
@@ -550,7 +555,7 @@ When the user says "resume YOLO" (or "continue YOLO"):
 | FEAT-001 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 | FEAT-002 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 
-**README**: [ ] Not started \| [x] Complete
+**README**: [ ] Not started \| [x] Complete \| N/A
 
 ## Unresolved Findings
 
@@ -616,6 +621,7 @@ Reply 'YES proceed'  to confirm this breakdown, or tell me how you'd like to adj
   [2] Performance Review (Phase 4)
   [3] Security Audit (Phase 5)
   [4] Integration Tests (Phase 7)
+  [5] Technical Docs & README (Phase 8)
 
 Reply 'all', 'none', or a list like '1, 4'."
 
@@ -675,8 +681,8 @@ Summary:
 - Features implemented: [N total]
 - Reviews run: [code review ✅] [perf review ✅/skipped] [security audit ✅/skipped]
 - Critical/High findings resolved: [N]
-- Integration tests written: ✅
-- README and technical docs: ✅
+- Integration tests written: ✅/skipped
+- README and technical docs: ✅/skipped
 
 Unresolved Medium/Low findings (address manually):
 [list from state file, or "none"]

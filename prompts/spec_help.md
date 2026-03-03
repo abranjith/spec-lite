@@ -52,7 +52,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Integration Tests** | `integration_tests` | Write traceable test scenarios from feature specs | Feature spec + plan | `tests/` |
 | **DevOps** | `devops` | Set up Docker, CI/CD, environments, and deployment | Plan + codebase | Infrastructure files |
 | **Fix & Refactor** | `fix` | Debug issues or restructure code safely | Bug report or code smells | Targeted fixes |
-| **Technical Docs** | `technical_docs` | Create deep architecture documentation | Plan + features + code | `docs/technical_architecture.md` |
+| **Technical Docs** | `technical_docs` | Create scope-calibrated architecture documentation | Plan + features + code | `docs/technical_architecture.md` |
 | **README** | `readme` | Write the project README and optional user guide | Plan + features | `README.md` |
 | **Explore** | `explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `README.md` + `TECH_SPECS.md` + `.spec-lite/memory.md` |
 
