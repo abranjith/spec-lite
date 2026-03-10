@@ -120,7 +120,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   if (provider.alias === "copilot") {
     const copilotProvider = provider as CopilotProvider;
 
-    // Update .github/prompts/<name>.prompt.md (plain prompt files, no agent frontmatter)
+    // Update .github/prompts/spec.<name>.prompt.md (plain prompt files, no agent frontmatter)
     for (const prompt of prompts) {
       const promptRelPath = copilotProvider.getPromptFilePath(prompt.name);
       const promptAbsPath = path.join(cwd, promptRelPath);

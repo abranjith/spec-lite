@@ -2,6 +2,12 @@ import path from "path";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
 
+function toOutputName(promptName: string): string {
+  return promptName.startsWith("spec_")
+    ? promptName.slice("spec_".length)
+    : promptName;
+}
+
 /**
  * Generic provider — for manual usage or unsupported AI tools.
  *
@@ -14,7 +20,11 @@ export class GenericProvider implements Provider {
   description = "Raw prompts in .spec-lite/prompts/ (copy-paste into any LLM)";
 
   getTargetPath(promptName: string): string {
-    return path.join(".spec-lite", "prompts", `${promptName}.md`);
+    return path.join(
+      ".spec-lite",
+      "prompts",
+      `spec.${toOutputName(promptName)}.md`
+    );
   }
 
   transformPrompt(content: string, meta: PromptMeta): string {
@@ -35,7 +45,7 @@ export class GenericProvider implements Provider {
     if (await fs.pathExists(dir)) {
       const files = await fs.readdir(dir);
       for (const f of files) {
-        if (f.endsWith(".md")) {
+        if (f.startsWith("spec.") && f.endsWith(".md")) {
           existing.push(path.join(".spec-lite", "prompts", f));
         }
       }

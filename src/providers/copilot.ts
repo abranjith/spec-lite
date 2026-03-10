@@ -15,8 +15,16 @@ interface Handoff {
   prompt: string;
 }
 
+/**
+ * Maps internal prompt names to the output file name suffix.
+ * Prompts with a "spec_" prefix have that stripped (e.g. spec_help → help).
+ */
+function toOutputName(promptName: string): string {
+  return promptName.startsWith("spec_") ? promptName.slice("spec_".length) : promptName;
+}
+
 const AGENT_HANDOFFS: Record<string, Handoff[]> = {
-  spec_help: [],
+  help: [],
   brainstorm: [
     {
       label: "Create Plan",
@@ -277,7 +285,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Check Pipeline Status",
-      agent: "spec.spec_help",
+      agent: "spec.help",
       prompt: "Show me the current spec-lite pipeline status and available sub-agents.",
     },
   ],
@@ -309,7 +317,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
  * Build the YAML frontmatter block for a .agent.md file.
  */
 function buildAgentFrontmatter(meta: PromptMeta): string {
-  const handoffs = AGENT_HANDOFFS[meta.name] ?? [];
+  const handoffs = AGENT_HANDOFFS[toOutputName(meta.name)] ?? [];
   const lines: string[] = ["---", `description: ${meta.description}`];
 
   if (handoffs.length > 0) {
@@ -330,7 +338,7 @@ function buildAgentFrontmatter(meta: PromptMeta): string {
  *
  * Writes two sets of files per prompt:
  *  - `.github/agents/spec.<name>.agent.md`  — custom agent files (with frontmatter + handoffs)
- *  - `.github/prompts/<name>.prompt.md`     — prompt files (plain markdown, for slash-command use)
+ *  - `.github/prompts/spec.<name>.prompt.md` — prompt files (plain markdown, for slash-command use)
  *
  * Plus a `.github/copilot-instructions.md` that references the prompt files.
  */
@@ -341,7 +349,7 @@ export class CopilotProvider implements Provider {
 
   /** Primary target: the .agent.md file in .github/agents/ */
   getTargetPath(promptName: string): string {
-    return path.join(".github", "agents", `spec.${promptName}.agent.md`);
+    return path.join(".github", "agents", `spec.${toOutputName(promptName)}.agent.md`);
   }
 
   /** Transform content into an agent file: YAML frontmatter + prompt body. */
@@ -364,7 +372,7 @@ export class CopilotProvider implements Provider {
 
   /** Returns the path for the companion .prompt.md file */
   getPromptFilePath(promptName: string): string {
-    return path.join(".github", "prompts", `${promptName}.prompt.md`);
+    return path.join(".github", "prompts", `spec.${toOutputName(promptName)}.prompt.md`);
   }
 
   async detectExisting(workspaceRoot: string): Promise<string[]> {
@@ -386,7 +394,7 @@ export class CopilotProvider implements Provider {
     if (await fs.pathExists(promptsDir)) {
       const files = await fs.readdir(promptsDir);
       for (const f of files) {
-        if (f.endsWith(".prompt.md")) {
+        if (f.startsWith("spec.") && f.endsWith(".prompt.md")) {
           existing.push(path.join(".github", "prompts", f));
         }
       }
@@ -417,7 +425,7 @@ export class CopilotProvider implements Provider {
       "📋 GitHub Copilot setup complete!",
       "",
       "  Agent files  : .github/agents/spec.<name>.agent.md",
-      "  Prompt files : .github/prompts/<name>.prompt.md",
+      "  Prompt files : .github/prompts/spec.<name>.prompt.md",
       "",
       "  How to use:",
       "  1. Open GitHub Copilot Chat in VS Code",
@@ -452,7 +460,8 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
   ];
 
   for (const name of installedPrompts) {
-    lines.push(`- [spec.${name}](.github/agents/spec.${name}.agent.md)`);
+    const outName = toOutputName(name);
+    lines.push(`- [spec.${outName}](.github/agents/spec.${outName}.agent.md)`);
   }
 
   lines.push(
@@ -462,7 +471,8 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
   );
 
   for (const name of installedPrompts) {
-    lines.push(`- [${name}](.github/prompts/${name}.prompt.md)`);
+    const outName = toOutputName(name);
+    lines.push(`- [spec.${outName}](.github/prompts/spec.${outName}.prompt.md)`);
   }
 
   lines.push(

@@ -20,9 +20,9 @@ You are the **Spec Help** sub-agent, a knowledgeable guide to the spec-lite syst
 ## Required Context (Memory)
 
 Before responding, scan for available prompt files in the workspace:
-- `.github/prompts/*.prompt.md` (Copilot)
-- `.claude/prompts/*.md` (Claude Code)
-- `.spec-lite/prompts/*.md` (Generic)
+- `.github/prompts/spec.*.prompt.md` (Copilot)
+- `.claude/prompts/spec.*.md` (Claude Code)
+- `.spec-lite/prompts/spec.*.md` (Generic)
 
 If no prompt files are found, use the full catalog below.
 

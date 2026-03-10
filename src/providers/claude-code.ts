@@ -2,6 +2,12 @@ import path from "path";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
 
+function toOutputName(promptName: string): string {
+  return promptName.startsWith("spec_")
+    ? promptName.slice("spec_".length)
+    : promptName;
+}
+
 /**
  * Claude Code (Anthropic) provider.
  *
@@ -11,7 +17,7 @@ import type { Provider, PromptMeta } from "./base.js";
  * - Nested `CLAUDE.md` files in subdirectories for scoped instructions
  *
  * Strategy:
- * - Write individual agent files to `.claude/prompts/<name>.md`
+ * - Write individual agent files to `.claude/prompts/spec.<name>.md`
  * - Create/update a root `CLAUDE.md` that references the spec-lite agent collection
  *   and provides a high-level overview
  */
@@ -21,7 +27,11 @@ export class ClaudeCodeProvider implements Provider {
   description = "Claude Code (Anthropic's coding agent)";
 
   getTargetPath(promptName: string): string {
-    return path.join(".claude", "prompts", `${promptName}.md`);
+    return path.join(
+      ".claude",
+      "prompts",
+      `spec.${toOutputName(promptName)}.md`
+    );
   }
 
   transformPrompt(content: string, meta: PromptMeta): string {
@@ -47,7 +57,7 @@ export class ClaudeCodeProvider implements Provider {
     if (await fs.pathExists(claudePromptsDir)) {
       const files = await fs.readdir(claudePromptsDir);
       for (const f of files) {
-        if (f.endsWith(".md")) {
+        if (f.startsWith("spec.") && f.endsWith(".md")) {
           existing.push(path.join(".claude", "prompts", f));
         }
       }
@@ -82,7 +92,7 @@ export class ClaudeCodeProvider implements Provider {
       "",
       "  How to use:",
       "  1. Claude Code automatically reads CLAUDE.md for project context",
-      '  2. Reference specific sub-agents: "Use the planner from .claude/prompts/planner.md"',
+      '  2. Reference specific sub-agents: "Use the planner from .claude/prompts/spec.planner.md"',
       "  3. Customize the Project Context block in each file for your project",
       "",
     ].join("\n");
@@ -110,7 +120,8 @@ export function generateClaudeRootMd(
   ];
 
   for (const name of installedPrompts) {
-    lines.push(`- [${name}](.claude/prompts/${name}.md)`);
+    const outName = toOutputName(name);
+    lines.push(`- [spec.${outName}](.claude/prompts/spec.${outName}.md)`);
   }
 
   lines.push(
@@ -120,7 +131,7 @@ export function generateClaudeRootMd(
     "To use a sub-agent, reference its prompt file in your conversation:",
     "",
     '```text',
-    "Use the planner from .claude/prompts/planner.md to create a technical plan for this project.",
+    "Use the planner from .claude/prompts/spec.planner.md to create a technical plan for this project.",
     '```',
     "",
     "## Output Directory",
