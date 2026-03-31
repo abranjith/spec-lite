@@ -9,10 +9,48 @@ import {
   replaceProjectContext,
 } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
-import { CopilotProvider, mergeCopilotInstructions } from "../providers/copilot.js";
+import { mergeCopilotInstructions } from "../providers/copilot.js";
 
 interface UpdateOptions {
   force?: boolean;
+}
+
+/**
+ * Update a single output file: preserve project-context edits if possible,
+ * otherwise overwrite.  Returns { updated, preserved, unchanged } deltas.
+ */
+async function updateFile(
+  absPath: string,
+  relPath: string,
+  newContent: string,
+  force: boolean
+): Promise<{ updated: number; preserved: number; unchanged: number }> {
+  if (!(await fs.pathExists(absPath))) {
+    await fs.ensureDir(path.dirname(absPath));
+    await fs.writeFile(absPath, newContent, "utf-8");
+    console.log(chalk.green(`  ✓ ${relPath} (restored)`));
+    return { updated: 1, preserved: 0, unchanged: 0 };
+  }
+
+  const currentContent = await fs.readFile(absPath, "utf-8");
+
+  if (currentContent === newContent) {
+    return { updated: 0, preserved: 0, unchanged: 1 };
+  }
+
+  if (!force) {
+    const userContext = extractProjectContext(currentContent);
+    if (userContext) {
+      const mergedContent = replaceProjectContext(newContent, userContext);
+      await fs.writeFile(absPath, mergedContent, "utf-8");
+      console.log(chalk.green(`  ✓ ${relPath} (updated, Project Context preserved)`));
+      return { updated: 1, preserved: 1, unchanged: 0 };
+    }
+  }
+
+  await fs.writeFile(absPath, newContent, "utf-8");
+  console.log(chalk.green(`  ✓ ${relPath} (updated)`));
+  return { updated: 1, preserved: 0, unchanged: 0 };
 }
 
 export async function updateCommand(options: UpdateOptions): Promise<void> {
@@ -58,55 +96,38 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   let unchanged = 0;
 
   for (const prompt of prompts) {
-    const targetRelPath = provider.getTargetPath(prompt.name);
-    const targetAbsPath = path.join(cwd, targetRelPath);
-
-    // Transform the new prompt content
-    const newContent = provider.transformPrompt(prompt.content, {
+    const meta = {
       name: prompt.name,
       title: prompt.title,
       description: prompt.description,
-    });
+    };
+    const paths = provider.getOutputPaths(prompt.name);
 
-    if (!(await fs.pathExists(targetAbsPath))) {
-      // File was deleted by user — re-create it
-      await fs.ensureDir(path.dirname(targetAbsPath));
-      await fs.writeFile(targetAbsPath, newContent, "utf-8");
-      console.log(chalk.green(`  ✓ ${targetRelPath} (restored)`));
-      updated++;
-      continue;
+    // --- Agent file ---
+    if (paths.agent && provider.supportsAgents && provider.transformAgent) {
+      const newContent = provider.transformAgent(prompt.content, meta);
+      const result = await updateFile(
+        path.join(cwd, paths.agent),
+        paths.agent,
+        newContent,
+        !!options.force
+      );
+      updated += result.updated;
+      preserved += result.preserved;
+      unchanged += result.unchanged;
     }
 
-    // Read current installed version
-    const currentContent = await fs.readFile(targetAbsPath, "utf-8");
-
-    // Check if content is identical (no update needed)
-    if (currentContent === newContent) {
-      unchanged++;
-      continue;
-    }
-
-    // Try to preserve user's Project Context edits
-    if (!options.force) {
-      const userContext = extractProjectContext(currentContent);
-      if (userContext) {
-        const mergedContent = replaceProjectContext(newContent, userContext);
-        await fs.writeFile(targetAbsPath, mergedContent, "utf-8");
-        console.log(
-          chalk.green(
-            `  ✓ ${targetRelPath} (updated, Project Context preserved)`
-          )
-        );
-        preserved++;
-        updated++;
-        continue;
-      }
-    }
-
-    // No context block found or --force — full overwrite
-    await fs.writeFile(targetAbsPath, newContent, "utf-8");
-    console.log(chalk.green(`  ✓ ${targetRelPath} (updated)`));
-    updated++;
+    // --- Prompt file ---
+    const newPromptContent = provider.transformPrompt(prompt.content, meta);
+    const result = await updateFile(
+      path.join(cwd, paths.prompt),
+      paths.prompt,
+      newPromptContent,
+      !!options.force
+    );
+    updated += result.updated;
+    preserved += result.preserved;
+    unchanged += result.unchanged;
   }
 
   // 3. Update provider-specific extras
@@ -118,54 +139,6 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   }
 
   if (provider.alias === "copilot") {
-    const copilotProvider = provider as CopilotProvider;
-
-    // Update .github/prompts/spec.<name>.prompt.md (plain prompt files, no agent frontmatter)
-    for (const prompt of prompts) {
-      const promptRelPath = copilotProvider.getPromptFilePath(prompt.name);
-      const promptAbsPath = path.join(cwd, promptRelPath);
-
-      const newContent = copilotProvider.transformPromptFile(prompt.content, {
-        name: prompt.name,
-        title: prompt.title,
-        description: prompt.description,
-      });
-
-      if (!(await fs.pathExists(promptAbsPath))) {
-        // File was deleted by user — re-create it
-        await fs.ensureDir(path.dirname(promptAbsPath));
-        await fs.writeFile(promptAbsPath, newContent, "utf-8");
-        console.log(chalk.green(`  ✓ ${promptRelPath} (restored)`));
-        updated++;
-        continue;
-      }
-
-      const currentContent = await fs.readFile(promptAbsPath, "utf-8");
-
-      if (currentContent === newContent) {
-        unchanged++;
-        continue;
-      }
-
-      // Preserve user's Project Context edits
-      if (!options.force) {
-        const userContext = extractProjectContext(currentContent);
-        if (userContext) {
-          const mergedContent = replaceProjectContext(newContent, userContext);
-          await fs.writeFile(promptAbsPath, mergedContent, "utf-8");
-          console.log(chalk.green(`  ✓ ${promptRelPath} (updated, Project Context preserved)`));
-          preserved++;
-          updated++;
-          continue;
-        }
-      }
-
-      await fs.writeFile(promptAbsPath, newContent, "utf-8");
-      console.log(chalk.green(`  ✓ ${promptRelPath} (updated)`));
-      updated++;
-    }
-
-    // Update .github/copilot-instructions.md
     const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
     await fs.ensureDir(path.join(cwd, ".github"));
     const existingContent = (await fs.pathExists(copilotInstructionsPath))

@@ -47,8 +47,12 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
             │ .spec-lite/features/feature_*.md
             │ .spec-lite/TODO.md (updated)
             ▼
-     ┌──────────────┐
-     │  implement   │  Phase 2.5: Implementation
+     ┌──────────────┐     ┌──────────────┐
+     │  implement   │     │  quick_spec  │  Shortcut: idea → feature spec → implement
+     └──────┬───────┘     └──────┬───────┘
+            │                    │ .spec-lite/features/feature_*.md
+            │◄───────────────────┘
+            │  Phase 2.5: Implementation
      └──────┬───────┘
             │ Working code + updated feature spec
             ▼              ▼           ▼
@@ -89,6 +93,7 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 | **architect** | 1.5 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, user requirements | `.spec-lite/architect_<name>.md`, updates `.spec-lite/TODO.md` |
 | **data_modeller** | 1.5 | User description, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/memory.md` | `.spec-lite/data_model.md` |
 | **feature** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/data_model.md` (if exists) | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
+| **quick_spec** | 1→2 | User description, `.spec-lite/memory.md`, `.spec-lite/data_model.md` (if exists) | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
 | **implement** | 2.5 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Working code, updated feature spec (task states) |
 | **fix** | 2 | Error logs, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Fix + regression test, `.spec-lite/reviews/fix_<issue>.md` |
 | **devops** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | `.spec-lite/devops/`, infra configs |

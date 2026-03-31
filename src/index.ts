@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { initCommand } from "./commands/init.js";
 import { updateCommand } from "./commands/update.js";
 import { listCommand } from "./commands/list.js";
+import { installCommand } from "./commands/install.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -21,7 +22,7 @@ program
   .description("Initialize spec-lite sub-agent prompts in your workspace")
   .option(
     "--ai <provider>",
-    "AI provider to configure for (copilot, claude-code, generic)"
+    "AI provider to configure for (copilot, claude-code, pi, generic)"
   )
   .option(
     "--exclude <prompts>",
@@ -41,6 +42,21 @@ program
   )
   .option("--force", "Overwrite all files including user-modified ones", false)
   .action(updateCommand);
+
+program
+  .command("install")
+  .description("Install spec-lite prompts globally for use across all workspaces")
+  .option(
+    "--ai <provider>",
+    "AI provider to install for (copilot, claude-code, pi)"
+  )
+  .option("--global", "Install prompts globally", false)
+  .option(
+    "--exclude <prompts>",
+    "Comma-separated list of prompts to exclude"
+  )
+  .option("--force", "Overwrite existing global files without prompting", false)
+  .action(installCommand);
 
 program
   .command("list")

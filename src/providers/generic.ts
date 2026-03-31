@@ -1,40 +1,34 @@
 import path from "path";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-
-function toOutputName(promptName: string): string {
-  return promptName.startsWith("spec_")
-    ? promptName.slice("spec_".length)
-    : promptName;
-}
+import { getPromptOutputName } from "../utils/prompts.js";
 
 /**
  * Generic provider — for manual usage or unsupported AI tools.
  *
- * Writes prompts to `.spec-lite/prompts/` as raw markdown.
+ * Writes prompts to `.spec-lite/prompts/` as raw markdown using verb-form names.
  * Users can copy-paste these into any LLM chat.
  */
 export class GenericProvider implements Provider {
   name = "Generic";
   alias = "generic";
   description = "Raw prompts in .spec-lite/prompts/ (copy-paste into any LLM)";
+  supportsAgents = false;
+  supportsGlobal = false;
 
-  getTargetPath(promptName: string): string {
-    return path.join(
-      ".spec-lite",
-      "prompts",
-      `spec.${toOutputName(promptName)}.md`
-    );
+  getOutputPaths(promptName: string): { prompt: string } {
+    const outName = getPromptOutputName(promptName);
+    return {
+      prompt: path.join(".spec-lite", "prompts", `spec.${outName}.md`),
+    };
   }
 
   transformPrompt(content: string, meta: PromptMeta): string {
-    // No transformation — copy as-is with a light header
     const header = [
       `<!-- spec-lite | ${meta.name} | managed by spec-lite -->`,
       `<!-- To update: run "spec-lite update" -->`,
       "",
     ].join("\n");
-
     return header + content;
   }
 
@@ -57,7 +51,6 @@ export class GenericProvider implements Provider {
   async getMemorySeedSource(
     _workspaceRoot: string
   ): Promise<{ path: string; label: string } | null> {
-    // Generic provider has no canonical instruction file to seed from
     return null;
   }
 

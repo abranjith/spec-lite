@@ -27,6 +27,7 @@ Before starting, read the following artifacts and incorporate their decisions:
 
 - **`.spec-lite/brainstorm.md`** (optional) — Only read this if the user explicitly asks you to incorporate the brainstorm (e.g., "plan based on the brainstorm", "use brainstorm.md"). Do NOT auto-include brainstorm output — the user may have brainstormed a different idea than what they want planned. If the user doesn't mention the brainstorm, work from their direct description instead.
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, logging rules, security policies, tech stack, and project structure. Treat every entry as a hard requirement. **Do NOT re-derive or re-generate** standards that are already established in memory — reference them as the baseline and only add plan-specific overrides or additions in your output.
+- **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. If this file exists, it represents **what has already been built and how it behaves right now**. Use it to understand the existing feature landscape when planning new work — avoid re-planning features that already exist, identify integration points with existing behavior, and ensure new features don't conflict with current functionality.
 
 If a required file is missing, ask the user for the equivalent information before proceeding.
 
@@ -98,7 +99,7 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 
 - Create a clean, detailed implementation plan following the output format below.
 - Every section must be specific enough that an unfamiliar developer could implement it.
-- **Pre-assign FEAT-IDs** to every feature in `## 2. High-Level Features` using sequential numbering (FEAT-001, FEAT-002, …). These IDs are the authoritative identifiers used by all downstream sub-agents. The Feature sub-agent will fill in the `Spec File` column and update the `Status` column as work progresses.
+- **Pre-assign FEAT-IDs** to every feature in `## 2. High-Level Features` using sequential numbering (FEAT-001, FEAT-002, …). These IDs are the authoritative identifiers used by all downstream sub-agents. The Feature sub-agent will fill in the `Spec File` column when it creates the spec. The `Status` column is owned by the **Implement sub-agent** — do not instruct the Feature sub-agent to update it.
 - **Before finalizing**, present the draft plan to the user for review. Ask: "Here's the complete plan. Review it and let me know if anything needs adjustment — I'll revise before we lock it in."
 
 ---
@@ -146,7 +147,7 @@ Fill in this template when producing your final output:
 | FEAT-002 | {{feature_2}} | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
 | FEAT-003 | {{feature_3}} | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
 
-> **Note**: The `Spec File` and `Status` columns are updated by the **Feature sub-agent** as each spec is produced. Update status to `[/] In progress` when breakdown begins, and `[x] Complete` when the spec is finalized.
+> **Note**: The `Spec File` column is populated by the **Feature sub-agent** when it creates each feature spec. The `Status` column is owned exclusively by the **Implement sub-agent** — it marks `[/] In progress` when implementation begins and `[x] Complete` when all tasks are verified. This ensures consistent, deterministic state transitions across the workflow.
 
 ## 3. Tech Stack Additions
 

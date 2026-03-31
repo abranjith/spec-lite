@@ -28,6 +28,7 @@ Before starting, you SHOULD read the following artifacts:
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, and security rules. Fixes must comply with these standing rules (e.g., "all fixes must include regression tests", naming conventions, error handling patterns).
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (recommended) — Architecture and design patterns. Contains plan-specific decisions. Fixes should not violate architectural constraints. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **`.spec-lite/features/feature_<name>.md`** (recommended) — If the bug relates to a specific feature, understand what the correct behavior should be.
+- **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features. Read this to understand what the feature is supposed to do. If your fix changes observable behavior, you will **update this file** — see step 5 (Document).
 - **Failing tests / error logs** (mandatory) — The actual error output. You need to see the symptom before diagnosing the cause.
 
 > **Note**: The plan may contain user-defined constraints that affect how fixes should be implemented (e.g., "no ORM changes without migration", "all fixes must include regression tests").
@@ -91,6 +92,10 @@ Follow the signal, not the noise:
 ### 5. Document
 
 Add a brief entry to `.spec-lite/TODO.md` or the relevant feature spec if the bug reveals a broader issue that should be tracked.
+
+**Update `.spec-lite/feature-summary.md`** if the fix changes **observable feature behavior** (e.g., altered validation rules, changed API response format, modified business logic, fixed a behavioral bug). If the fix is purely internal (refactor, performance tweak, test-only fix) with no user-visible change, skip this step.
+
+When updating, find the affected feature's entry under its category, **replace** the description with the current behavior (not append), and update the `*(updated: {{date}} by fix)*` annotation. If the feature appears in multiple categories, update all of them. See the Feature Summary Maintenance section in [implement.md](implement.md) for the full format and rules.
 
 ---
 

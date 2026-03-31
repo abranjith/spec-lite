@@ -2,7 +2,7 @@
  * Base interface for AI provider adapters.
  *
  * Each provider knows:
- * - Where to write prompt files in the user's workspace
+ * - Where to write prompt/agent files in the user's workspace (and optionally globally)
  * - How to transform raw markdown prompts into the provider's expected format
  * - How to detect existing instruction files
  */
@@ -16,16 +16,36 @@ export interface Provider {
   /** Short description shown in interactive picker */
   description: string;
 
-  /**
-   * Get the target file path for a given prompt.
-   * Path is relative to the workspace root.
-   */
-  getTargetPath(promptName: string): string;
+  /** Whether this provider supports separate agent files (e.g., Copilot, Claude Code) */
+  supportsAgents: boolean;
+
+  /** Whether this provider supports global (user-level) installation */
+  supportsGlobal: boolean;
 
   /**
-   * Transform the raw markdown prompt content into the provider's expected format.
+   * Get the output file paths for a given prompt.
+   * Paths are relative to the workspace root.
+   * Returns an agent path (if the provider supports agents and the prompt isn't prompt-only)
+   * and a prompt path.
+   */
+  getOutputPaths(promptName: string): { agent?: string; prompt: string };
+
+  /**
+   * Get the global (user-level) output file paths for a given prompt.
+   * Returns absolute paths. Only available when supportsGlobal is true.
+   */
+  getGlobalOutputPaths?(promptName: string): { agent?: string; prompt?: string };
+
+  /**
+   * Transform the raw markdown prompt content into the provider's prompt file format.
    */
   transformPrompt(content: string, meta: PromptMeta): string;
+
+  /**
+   * Transform the raw markdown prompt content into the provider's agent file format.
+   * Only required when supportsAgents is true.
+   */
+  transformAgent?(content: string, meta: PromptMeta): string;
 
   /**
    * Detect existing instruction files in the workspace.
@@ -37,6 +57,11 @@ export interface Provider {
    * Any post-init instructions to display to the user.
    */
   getPostInitMessage(): string;
+
+  /**
+   * Any post-global-install instructions to display to the user.
+   */
+  getGlobalPostInstallMessage?(): string;
 
   /**
    * Return the path (relative to workspace root) to an existing file that can
@@ -88,4 +113,15 @@ export interface SpecLiteConfig {
   installedAt: string;
   updatedAt: string;
   projectProfile?: ProjectProfile;
+}
+
+/**
+ * Config file written to ~/.spec-lite/global-config.json to track global install state.
+ */
+export interface SpecLiteGlobalConfig {
+  version: string;
+  provider: string;
+  installedPrompts: string[];
+  installedAt: string;
+  updatedAt: string;
 }

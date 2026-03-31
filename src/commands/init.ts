@@ -6,7 +6,7 @@ import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
 import { loadPrompts, replaceProjectContext } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
-import { CopilotProvider, mergeCopilotInstructions } from "../providers/copilot.js";
+import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { getStackSnippet } from "../utils/stacks.js";
 
 interface InitOptions {
@@ -295,38 +295,60 @@ export async function initCommand(options: InitOptions): Promise<void> {
   const installedPrompts: string[] = [];
 
   for (const prompt of prompts) {
-    const targetRelPath = provider.getTargetPath(prompt.name);
-    const targetAbsPath = path.join(cwd, targetRelPath);
-
-    // Skip if file exists and user chose "skip" globally
-    if (
-      !options.force &&
-      existingFiles.includes(targetRelPath) &&
-      globalAction === "skip"
-    ) {
-      skipped++;
-      installedPrompts.push(prompt.name);
-      continue;
-    }
-
-    // Inject project context into prompt if profile was collected
-    let content = prompt.content;
-    if (contextBlock) {
-      content = replaceProjectContext(content, contextBlock);
-    }
-
-    const transformed = provider.transformPrompt(content, {
+    const meta = {
       name: prompt.name,
       title: prompt.title,
       description: prompt.description,
-    });
+    };
+    const paths = provider.getOutputPaths(prompt.name);
 
-    await fs.ensureDir(path.dirname(targetAbsPath));
-    await fs.writeFile(targetAbsPath, transformed, "utf-8");
-    written++;
+    // --- Agent file (if provider supports agents and path is present) ---
+    if (paths.agent && provider.supportsAgents && provider.transformAgent) {
+      const agentAbsPath = path.join(cwd, paths.agent);
+
+      const shouldSkipAgent =
+        !options.force &&
+        existingFiles.includes(paths.agent) &&
+        globalAction === "skip";
+
+      if (!shouldSkipAgent) {
+        let content = prompt.content;
+        if (contextBlock) {
+          content = replaceProjectContext(content, contextBlock);
+        }
+        const transformed = provider.transformAgent(content, meta);
+        await fs.ensureDir(path.dirname(agentAbsPath));
+        await fs.writeFile(agentAbsPath, transformed, "utf-8");
+        written++;
+        console.log(chalk.green(`  ✓ ${paths.agent}`));
+      } else {
+        skipped++;
+      }
+    }
+
+    // --- Prompt file ---
+    const promptAbsPath = path.join(cwd, paths.prompt);
+
+    const shouldSkipPrompt =
+      !options.force &&
+      existingFiles.includes(paths.prompt) &&
+      globalAction === "skip";
+
+    if (!shouldSkipPrompt) {
+      let content = prompt.content;
+      if (contextBlock) {
+        content = replaceProjectContext(content, contextBlock);
+      }
+      const transformed = provider.transformPrompt(content, meta);
+      await fs.ensureDir(path.dirname(promptAbsPath));
+      await fs.writeFile(promptAbsPath, transformed, "utf-8");
+      written++;
+      console.log(chalk.green(`  ✓ ${paths.prompt}`));
+    } else {
+      skipped++;
+    }
+
     installedPrompts.push(prompt.name);
-
-    console.log(chalk.green(`  ✓ ${targetRelPath}`));
   }
 
   // 7. Provider-specific extras
@@ -339,38 +361,6 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 
   if (provider.alias === "copilot") {
-    const copilotProvider = provider as CopilotProvider;
-
-    // Write .github/prompts/spec.<name>.prompt.md (plain prompt files, no agent frontmatter)
-    for (const prompt of prompts) {
-      const promptRelPath = copilotProvider.getPromptFilePath(prompt.name);
-      const promptAbsPath = path.join(cwd, promptRelPath);
-
-      if (
-        !options.force &&
-        existingFiles.includes(promptRelPath) &&
-        globalAction === "skip"
-      ) {
-        continue;
-      }
-
-      let content = prompt.content;
-      if (contextBlock) {
-        content = replaceProjectContext(content, contextBlock);
-      }
-
-      const transformed = copilotProvider.transformPromptFile(content, {
-        name: prompt.name,
-        title: prompt.title,
-        description: prompt.description,
-      });
-
-      await fs.ensureDir(path.dirname(promptAbsPath));
-      await fs.writeFile(promptAbsPath, transformed, "utf-8");
-      written++;
-      console.log(chalk.green(`  ✓ ${promptRelPath}`));
-    }
-
     // Write / update .github/copilot-instructions.md
     const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
     await fs.ensureDir(path.join(cwd, ".github"));

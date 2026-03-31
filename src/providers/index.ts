@@ -2,6 +2,7 @@ import type { Provider } from "./base.js";
 import { CopilotProvider } from "./copilot.js";
 import { ClaudeCodeProvider } from "./claude-code.js";
 import { GenericProvider } from "./generic.js";
+import { PiProvider } from "./pi.js";
 
 /**
  * Registry of all supported AI provider adapters.
@@ -9,6 +10,7 @@ import { GenericProvider } from "./generic.js";
 const providers: Provider[] = [
   new CopilotProvider(),
   new ClaudeCodeProvider(),
+  new PiProvider(),
   new GenericProvider(),
 ];
 

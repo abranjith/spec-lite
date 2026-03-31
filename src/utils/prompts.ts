@@ -26,6 +26,66 @@ export interface PromptFile {
   description: string;
 }
 
+// ---------------------------------------------------------------------------
+// Prompt/Agent naming map
+// ---------------------------------------------------------------------------
+
+export interface PromptNameEntry {
+  /** Verb-form name used for prompt files (e.g., "plan", "review_code") */
+  promptName: string;
+  /** Noun-form name used for agent files (e.g., "planner", "code_reviewer"). Same as promptName for prompt-only items. */
+  agentName: string;
+  /** If true, this item is a prompt only — no dedicated agent file (except Copilot which keeps agent files for handoff support). */
+  promptOnly: boolean;
+}
+
+/**
+ * Maps internal prompt names (matching the bundled .md filenames) to their
+ * verb-form (prompt) and noun-form (agent) output names, plus a flag for prompt-only items.
+ */
+export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
+  spec_help:          { promptName: "help",                  agentName: "help",                  promptOnly: true  },
+  brainstorm:         { promptName: "brainstorm",            agentName: "brainstormer",          promptOnly: false },
+  planner:            { promptName: "plan",                  agentName: "planner",               promptOnly: false },
+  feature:            { promptName: "feature",               agentName: "feature",               promptOnly: false },
+  quick_spec:         { promptName: "quick_spec",            agentName: "quick_spec",            promptOnly: false },
+  implement:          { promptName: "implement",             agentName: "implementer",           promptOnly: false },
+  code_review:        { promptName: "review_code",           agentName: "code_reviewer",         promptOnly: false },
+  security_audit:     { promptName: "security_audit",        agentName: "security_auditor",      promptOnly: false },
+  performance_review: { promptName: "review_performance",    agentName: "performance_reviewer",  promptOnly: false },
+  integration_tests:  { promptName: "test_integration",      agentName: "integration_tester",    promptOnly: false },
+  unit_tests:         { promptName: "test_unit",             agentName: "unit_tester",           promptOnly: false },
+  devops:             { promptName: "devops",                agentName: "devops",                promptOnly: false },
+  fix:                { promptName: "fix",                   agentName: "fixer",                 promptOnly: false },
+  memorize:           { promptName: "memorize",              agentName: "memorize",              promptOnly: true  },
+  technical_docs:     { promptName: "write_technical_docs",  agentName: "write_technical_docs",  promptOnly: true  },
+  readme:             { promptName: "write_readme",          agentName: "write_readme",          promptOnly: true  },
+  architect:          { promptName: "architect",             agentName: "architect",             promptOnly: false },
+  data_modeller:      { promptName: "model_data",            agentName: "data_modeller",         promptOnly: false },
+  yolo:               { promptName: "yolo",                  agentName: "yolo",                  promptOnly: false },
+  explore:            { promptName: "explore",               agentName: "explorer",              promptOnly: false },
+};
+
+/** Get the verb-form output name for a prompt file. Falls back to stripping "spec_" prefix. */
+export function getPromptOutputName(internalName: string): string {
+  return PROMPT_NAMES[internalName]?.promptName
+    ?? (internalName.startsWith("spec_") ? internalName.slice("spec_".length) : internalName);
+}
+
+/** Get the noun-form output name for an agent file. Falls back to prompt name. */
+export function getAgentOutputName(internalName: string): string {
+  return PROMPT_NAMES[internalName]?.agentName ?? getPromptOutputName(internalName);
+}
+
+/** Check whether a prompt is prompt-only (no dedicated agent file in non-Copilot providers). */
+export function isPromptOnly(internalName: string): boolean {
+  return PROMPT_NAMES[internalName]?.promptOnly ?? false;
+}
+
+// ---------------------------------------------------------------------------
+// Prompt catalog (metadata for display)
+// ---------------------------------------------------------------------------
+
 /** Map of prompt names to their human titles and descriptions */
 export const PROMPT_CATALOG: Record<string, { title: string; description: string; output?: string }> = {
   spec_help: {
@@ -46,6 +106,11 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   feature: {
     title: "Feature",
     description: "Breaks one feature into granular, verifiable vertical slices",
+    output: ".spec-lite/features/feature_<name>.md",
+  },
+  quick_spec: {
+    title: "Quick Spec",
+    description: "Clarifies requirements and produces a single self-contained feature spec with tasks — skips the full plan",
     output: ".spec-lite/features/feature_<name>.md",
   },
   implement: {

@@ -1,12 +1,14 @@
 import path from "path";
+import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
+import { getAgentOutputName, getPromptOutputName, isPromptOnly } from "../utils/prompts.js";
 
 // ---------------------------------------------------------------------------
 // Handoffs map — derived from the orchestrator pipeline.
-// Each key is a prompt name and the value is an ordered list of suggested
-// next-step handoffs.  Agent identifiers use the "spec.<name>" convention
-// (matching the file name without the ".agent.md" suffix).
+// Each key is an *internal* prompt name and the value is an ordered list of
+// suggested next-step handoffs.  The `agent` field uses the "spec.<agentName>"
+// convention (noun-form, matching the .agent.md file).
 // ---------------------------------------------------------------------------
 
 interface Handoff {
@@ -15,16 +17,8 @@ interface Handoff {
   prompt: string;
 }
 
-/**
- * Maps internal prompt names to the output file name suffix.
- * Prompts with a "spec_" prefix have that stripped (e.g. spec_help → help).
- */
-function toOutputName(promptName: string): string {
-  return promptName.startsWith("spec_") ? promptName.slice("spec_".length) : promptName;
-}
-
 const AGENT_HANDOFFS: Record<string, Handoff[]> = {
-  help: [],
+  spec_help: [],
   brainstorm: [
     {
       label: "Create Plan",
@@ -79,121 +73,121 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
   feature: [
     {
       label: "Implement Feature",
-      agent: "spec.implement",
+      agent: "spec.implementer",
       prompt: "Implement the feature spec produced above.",
     },
     {
       label: "Write Unit Tests",
-      agent: "spec.unit_tests",
+      agent: "spec.unit_tester",
       prompt: "Write unit tests for the feature spec produced above.",
     },
   ],
   implement: [
     {
       label: "Write Unit Tests",
-      agent: "spec.unit_tests",
+      agent: "spec.unit_tester",
       prompt: "Write comprehensive unit tests for the code just implemented.",
     },
     {
       label: "Review Code",
-      agent: "spec.code_review",
+      agent: "spec.code_reviewer",
       prompt: "Review the code just implemented for correctness, architecture, and readability.",
     },
     {
       label: "Write Integration Tests",
-      agent: "spec.integration_tests",
+      agent: "spec.integration_tester",
       prompt: "Write integration test scenarios for the feature just implemented.",
     },
   ],
   unit_tests: [
     {
       label: "Review Code",
-      agent: "spec.code_review",
+      agent: "spec.code_reviewer",
       prompt: "Review the implementation and tests for correctness, architecture, and readability.",
     },
     {
       label: "Write Integration Tests",
-      agent: "spec.integration_tests",
+      agent: "spec.integration_tester",
       prompt: "Write integration test scenarios to complement the unit tests.",
     },
   ],
   code_review: [
     {
       label: "Fix Issues",
-      agent: "spec.fix",
+      agent: "spec.fixer",
       prompt: "Fix the issues identified in the code review above.",
     },
     {
       label: "Security Audit",
-      agent: "spec.security_audit",
+      agent: "spec.security_auditor",
       prompt: "Run a security audit on the code reviewed above.",
     },
     {
       label: "Write Technical Docs",
-      agent: "spec.technical_docs",
+      agent: "spec.write_technical_docs",
       prompt: "Write technical documentation for the reviewed code.",
     },
   ],
   integration_tests: [
     {
       label: "Security Audit",
-      agent: "spec.security_audit",
+      agent: "spec.security_auditor",
       prompt: "Run a security audit on the features covered by integration tests.",
     },
     {
       label: "Performance Review",
-      agent: "spec.performance_review",
+      agent: "spec.performance_reviewer",
       prompt: "Review performance of the features covered by integration tests.",
     },
     {
       label: "Write Technical Docs",
-      agent: "spec.technical_docs",
+      agent: "spec.write_technical_docs",
       prompt: "Write technical documentation for the features covered by integration tests.",
     },
   ],
   performance_review: [
     {
       label: "Fix Critical Issues",
-      agent: "spec.fix",
+      agent: "spec.fixer",
       prompt: "Fix the critical performance issues identified in the review above.",
     },
     {
       label: "Security Audit",
-      agent: "spec.security_audit",
+      agent: "spec.security_auditor",
       prompt: "Run a security audit alongside the performance improvements.",
     },
     {
       label: "Write Technical Docs",
-      agent: "spec.technical_docs",
+      agent: "spec.write_technical_docs",
       prompt: "Write technical documentation capturing the performance findings and fixes.",
     },
   ],
   security_audit: [
     {
       label: "Fix Vulnerabilities",
-      agent: "spec.fix",
+      agent: "spec.fixer",
       prompt: "Fix the vulnerabilities and security issues identified in the audit above.",
     },
     {
       label: "Write Technical Docs",
-      agent: "spec.technical_docs",
+      agent: "spec.write_technical_docs",
       prompt: "Write technical documentation capturing the security findings and mitigations.",
     },
     {
       label: "Update README",
-      agent: "spec.readme",
+      agent: "spec.write_readme",
       prompt: "Update the README to reflect the hardened security posture.",
     },
   ],
   fix: [
     {
       label: "Review Fix",
-      agent: "spec.code_review",
+      agent: "spec.code_reviewer",
       prompt: "Review the fix applied above for correctness and regressions.",
     },
     {
       label: "Write Regression Tests",
-      agent: "spec.unit_tests",
+      agent: "spec.unit_tester",
       prompt: "Write regression tests to cover the bug fixed above.",
     },
   ],
@@ -215,14 +209,14 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Explore Codebase",
-      agent: "spec.explore",
+      agent: "spec.explorer",
       prompt: "Explore the codebase to discover conventions and document the architecture.",
     },
   ],
   technical_docs: [
     {
       label: "Update README",
-      agent: "spec.readme",
+      agent: "spec.write_readme",
       prompt: "Write or update the project README based on the technical docs produced above.",
     },
     {
@@ -239,24 +233,24 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Security Audit",
-      agent: "spec.security_audit",
+      agent: "spec.security_auditor",
       prompt: "Run a final security audit before releasing the project.",
     },
   ],
   devops: [
     {
       label: "Security Audit",
-      agent: "spec.security_audit",
+      agent: "spec.security_auditor",
       prompt: "Run a security audit on the infrastructure and deployment configuration.",
     },
     {
       label: "Update README",
-      agent: "spec.readme",
+      agent: "spec.write_readme",
       prompt: "Update the README with deployment and infrastructure instructions.",
     },
     {
       label: "Update Technical Docs",
-      agent: "spec.technical_docs",
+      agent: "spec.write_technical_docs",
       prompt: "Update the technical documentation to include the DevOps setup.",
     },
   ],
@@ -268,7 +262,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Implement Data Layer",
-      agent: "spec.implement",
+      agent: "spec.implementer",
       prompt: "Implement the data layer (migrations, models, repositories) from the data model.",
     },
     {
@@ -302,22 +296,30 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Code Review",
-      agent: "spec.code_review",
+      agent: "spec.code_reviewer",
       prompt: "Review the improvement areas identified during exploration.",
     },
     {
       label: "Security Audit",
-      agent: "spec.security_audit",
+      agent: "spec.security_auditor",
       prompt: "Audit the security risks identified during exploration.",
+    },
+  ],
+  quick_spec: [
+    {
+      label: "Implement Feature",
+      agent: "spec.implementer",
+      prompt: "Implement the feature spec produced above.",
     },
   ],
 };
 
 /**
  * Build the YAML frontmatter block for a .agent.md file.
+ * Looks up handoffs by internal prompt name.
  */
 function buildAgentFrontmatter(meta: PromptMeta): string {
-  const handoffs = AGENT_HANDOFFS[toOutputName(meta.name)] ?? [];
+  const handoffs = AGENT_HANDOFFS[meta.name] ?? [];
   const lines: string[] = ["---", `description: ${meta.description}`];
 
   if (handoffs.length > 0) {
@@ -337,42 +339,58 @@ function buildAgentFrontmatter(meta: PromptMeta): string {
  * GitHub Copilot provider.
  *
  * Writes two sets of files per prompt:
- *  - `.github/agents/spec.<name>.agent.md`  — custom agent files (with frontmatter + handoffs)
- *  - `.github/prompts/spec.<name>.prompt.md` — prompt files (plain markdown, for slash-command use)
+ *  - `.github/agents/spec.<agentName>.agent.md`  — custom agent files (noun-form, with frontmatter + handoffs)
+ *  - `.github/prompts/spec.<promptName>.prompt.md` — prompt files (verb-form, plain markdown, for slash-command use)
  *
- * Plus a `.github/copilot-instructions.md` that references the prompt files.
+ * For prompt-only items, both files use the verb-form name (to preserve handoff support).
+ *
+ * Plus a `.github/copilot-instructions.md` that references the files.
  */
 export class CopilotProvider implements Provider {
   name = "GitHub Copilot";
   alias = "copilot";
   description = "GitHub Copilot (VS Code, JetBrains, Neovim)";
+  supportsAgents = true;
+  supportsGlobal = true;
 
-  /** Primary target: the .agent.md file in .github/agents/ */
-  getTargetPath(promptName: string): string {
-    return path.join(".github", "agents", `spec.${toOutputName(promptName)}.agent.md`);
+  getOutputPaths(promptName: string): { agent: string; prompt: string } {
+    const agentName = isPromptOnly(promptName)
+      ? getPromptOutputName(promptName) // prompt-only: use verb name for agent file too
+      : getAgentOutputName(promptName);  // agent+prompt: use noun name
+    const promptOutName = getPromptOutputName(promptName);
+
+    return {
+      agent: path.join(".github", "agents", `spec.${agentName}.agent.md`),
+      prompt: path.join(".github", "prompts", `spec.${promptOutName}.prompt.md`),
+    };
+  }
+
+  getGlobalOutputPaths(promptName: string): { agent: string; prompt: string } {
+    const homeDir = os.homedir();
+    const agentName = isPromptOnly(promptName)
+      ? getPromptOutputName(promptName)
+      : getAgentOutputName(promptName);
+    const promptOutName = getPromptOutputName(promptName);
+
+    return {
+      agent: path.join(homeDir, ".copilot", "agents", `spec.${agentName}.agent.md`),
+      prompt: path.join(homeDir, ".copilot", "prompts", `spec.${promptOutName}.prompt.md`),
+    };
   }
 
   /** Transform content into an agent file: YAML frontmatter + prompt body. */
-  transformPrompt(content: string, meta: PromptMeta): string {
+  transformAgent(content: string, meta: PromptMeta): string {
     return buildAgentFrontmatter(meta) + content;
   }
 
-  /**
-   * Transform content into a prompt file (no frontmatter — just the managed-file
-   * header comment followed by the prompt body).
-   */
-  transformPromptFile(content: string, meta: PromptMeta): string {
+  /** Transform content into a prompt file (no frontmatter — just a managed-file header). */
+  transformPrompt(content: string, meta: PromptMeta): string {
     const header = [
       `<!-- spec-lite | ${meta.name} | DO NOT EDIT below the project-context block — managed by spec-lite -->`,
       `<!-- To update: run "spec-lite update" — your Project Context edits will be preserved -->`,
       "",
     ].join("\n");
     return header + content;
-  }
-
-  /** Returns the path for the companion .prompt.md file */
-  getPromptFilePath(promptName: string): string {
-    return path.join(".github", "prompts", `spec.${toOutputName(promptName)}.prompt.md`);
   }
 
   async detectExisting(workspaceRoot: string): Promise<string[]> {
@@ -424,8 +442,8 @@ export class CopilotProvider implements Provider {
       "",
       "📋 GitHub Copilot setup complete!",
       "",
-      "  Agent files  : .github/agents/spec.<name>.agent.md",
-      "  Prompt files : .github/prompts/spec.<name>.prompt.md",
+      "  Agent files  : .github/agents/spec.<name>.agent.md  (noun-form — e.g. spec.planner)",
+      "  Prompt files : .github/prompts/spec.<name>.prompt.md (verb-form — e.g. spec.plan)",
       "",
       "  How to use:",
       "  1. Open GitHub Copilot Chat in VS Code",
@@ -436,6 +454,19 @@ export class CopilotProvider implements Provider {
       "",
     ].join("\n");
   }
+
+  getGlobalPostInstallMessage(): string {
+    return [
+      "",
+      "📋 GitHub Copilot global install complete!",
+      "",
+      `  Agent files  : ~/.copilot/agents/spec.<name>.agent.md`,
+      `  Prompt files : ~/.copilot/prompts/spec.<name>.prompt.md`,
+      "",
+      "  These are available across all your workspaces in Copilot Chat.",
+      "",
+    ].join("\n");
+  }
 }
 
 const SPEC_LITE_MARKER_START = "<!-- spec-lite:start -->";
@@ -443,7 +474,7 @@ const SPEC_LITE_MARKER_END = "<!-- spec-lite:end -->";
 
 /**
  * Generate the spec-lite block to inject into (or create as) copilot-instructions.md.
- * Links point to the prompt files in .github/prompts/.
+ * Links point to agent files (noun-form) and prompt files (verb-form).
  */
 export function generateSpecLiteBlock(installedPrompts: string[]): string {
   const lines = [
@@ -460,8 +491,10 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
   ];
 
   for (const name of installedPrompts) {
-    const outName = toOutputName(name);
-    lines.push(`- [spec.${outName}](.github/agents/spec.${outName}.agent.md)`);
+    const agentName = isPromptOnly(name)
+      ? getPromptOutputName(name)
+      : getAgentOutputName(name);
+    lines.push(`- [spec.${agentName}](.github/agents/spec.${agentName}.agent.md)`);
   }
 
   lines.push(
@@ -471,8 +504,8 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
   );
 
   for (const name of installedPrompts) {
-    const outName = toOutputName(name);
-    lines.push(`- [spec.${outName}](.github/prompts/spec.${outName}.prompt.md)`);
+    const promptName = getPromptOutputName(name);
+    lines.push(`- [spec.${promptName}](.github/prompts/spec.${promptName}.prompt.md)`);
   }
 
   lines.push(

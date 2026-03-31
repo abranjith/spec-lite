@@ -28,6 +28,7 @@ Before starting, you MUST read the following artifacts:
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, logging rules, and security policies. Treat every entry as a hard requirement during implementation and testing.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory's standing rules. All implementation must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies to this feature.
 - **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model produced by the Data Modeller sub-agent. Contains table definitions, column types, constraints, indexes, and relationships. Use this as the definitive schema reference when writing migrations, models, and data-access code.
+- **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. Read this before starting to understand what already exists and how it behaves. You will **update this file** after completing implementation — see [Feature Summary Maintenance](#feature-summary-maintenance).
 - **Existing codebase** (recommended) — Understand current patterns, utilities, and conventions before writing new code.
 
 > **Note**: The plan and feature spec may contain **user-added instructions or corrections**. These take priority over any conflicting guidance in this prompt. If you notice annotations, notes, or modifications that weren't in the original generated output, follow them — the user is steering direction.
@@ -84,7 +85,8 @@ Before writing any code:
 - Read `.spec-lite/memory.md` for standing coding standards, architecture principles, testing conventions, and logging rules. Then read the plan for any plan-specific overrides. Adhere to both strictly.
 - Scan the existing codebase to understand current patterns, file organization, and utilities you can reuse.
 - Identify the task execution order based on the `Depends on` declarations in the spec. If no dependencies are declared, follow the spec's task order.
-- Mark the feature as `[/] In progress` in the governing plan file.
+- Mark the feature as `[/] In progress` in the governing plan file (`.spec-lite/plan.md` or the named plan) — update the `Status` column in `## 2. High-Level Features`.
+- Mark all tasks as `[ ] Not started` in the feature spec's **State Tracking** section (if not already). This confirms the starting baseline.
 
 ### 2. Execute Tasks
 
@@ -124,6 +126,7 @@ After all tasks are complete:
 - Run the full test suite to verify nothing is broken.
 - Update the feature spec's State Tracking section — all tasks should be `[x]`.
 - Update the governing plan file (`.spec-lite/plan.md` or the named plan): mark this feature's status as `[x] Complete`.
+- **Update `.spec-lite/feature-summary.md`** — Add or update the entry for this feature under the appropriate category. See [Feature Summary Maintenance](#feature-summary-maintenance) for format and rules.
 - Notify the user: "Implementation of FEAT-{{ID}} is complete. All tasks verified. Ready for review."
 - Optionally suggest: "For comprehensive unit test coverage, invoke the **Unit Test** sub-agent: `Generate unit tests for .spec-lite/features/feature_<name>.md`"
 
@@ -157,6 +160,7 @@ For each finding in the queue, in order:
 After all queued findings are addressed:
 
 - Run the full test suite.
+- **Update `.spec-lite/feature-summary.md`** — If any remediation changed observable feature behavior (not just internal hardening), update the affected feature entries to reflect the current behavior. See [Feature Summary Maintenance](#feature-summary-maintenance).
 - Notify the user: *"All {{n}} findings from `{{report_file}}` have been implemented and verified."*
 - Suggest re-running the relevant audit or review sub-agent to confirm remediations hold.
 
@@ -192,6 +196,7 @@ After all queued features are implemented:
 
 - Run the full test suite across the entire codebase.
 - Confirm all feature statuses in the plan are `[x]`.
+- **Verify `.spec-lite/feature-summary.md`** — Confirm all implemented features have entries. Each feature should have been added during its individual Finalize step.
 - Notify the user: *"All features in `{{plan_file}}` are implemented and verified."*
 
 ---
@@ -214,6 +219,69 @@ During implementation, you may discover potential improvements that are **out of
 2. **Append** them to `.spec-lite/TODO.md` under the appropriate section.
 3. **Format**: `- [ ] <description> (discovered during: FEAT-<ID> implementation)`
 4. **Notify the user**: "I've found some potential enhancements — see `.spec-lite/TODO.md`."
+
+---
+
+## Feature Summary Maintenance
+
+After completing implementation (Feature Mode, Plan Mode, or Review Mode — if behavior changed), you MUST update `.spec-lite/feature-summary.md`. This document is the **current-state reference** for all implemented features — not a changelog, not a log. It reflects what each feature does *right now*.
+
+### Rules
+
+1. **Create if missing**: If `.spec-lite/feature-summary.md` does not exist, create it with the template below.
+2. **Category assignment**: Place each feature under a meaningful domain category (e.g., `Order Management`, `Payment Processing`, `User Management`, `Notifications`). Use `General` for features that don't fit a specific category. **Do NOT nest categories** — keep the structure flat.
+3. **Multi-category features**: If a feature touches multiple categories, add an entry under **each** relevant category. Keep entries consistent across categories but emphasize the category-relevant behavior in each.
+4. **Latest first**: Within each category, the most recently updated feature goes at the **top**.
+5. **Replace, don't append**: When updating an existing feature entry, **replace** the entire entry with the current state. Do not append — the old description is gone. The document reflects only what is true *now*.
+6. **Concise & behavioral**: Describe *what the feature does* (observable behavior, key endpoints/commands, business rules), not *how it's implemented* (internal architecture, class names, design patterns). Keep each entry to 2–5 sentences.
+7. **Fix-driven updates**: When the Fix sub-agent changes a feature's observable behavior (e.g., a bug fix that alters validation rules, changes an API response format, or modifies a business rule), the corresponding entry in `feature-summary.md` must be updated to reflect the new behavior.
+
+### Template
+
+```markdown
+<!-- Maintained by spec-lite v0.0.6 | updated by: implement, fix sub-agents -->
+
+# Feature Summary
+
+> **Current state only.** This document reflects what each feature does *right now* — not what it used to do.
+> Maintained by the Implement and Fix sub-agents after every code change that affects feature behavior.
+> For change history, use source control (e.g., git).
+
+---
+
+## {{Category Name}}
+
+**FEAT-{{ID}}: {{Feature Name}}** *(updated: {{date}} by {{agent}})*
+{{Concise description of current feature behavior — what it does, key rules, important constraints. 2–5 sentences.}}
+
+**FEAT-{{ID}}: {{Feature Name}}** *(updated: {{date}} by {{agent}})*
+{{Concise description of current feature behavior.}}
+
+---
+
+## General
+
+{{Catch-all for features that don't fit a specific domain category.}}
+```
+
+### Example
+
+```markdown
+## Order Management
+
+**FEAT-005: Order History** *(updated: 2026-03-20 by implement)*
+Users can view paginated order history via `GET /orders?page=1&limit=20`. Supports filtering by status and date range. Returns order summary with line items. Empty orders return an empty array, not 404.
+
+**FEAT-003: Order Processing** *(updated: 2026-03-18 by fix)*
+Users create orders from their cart via `POST /orders`. Orders follow a `pending → confirmed → shipped → delivered` state machine — `PATCH /orders/:id/status` enforces valid transitions. Inventory is validated and decremented on confirmation. Orders with zero items are now rejected with 400 (previously allowed).
+
+---
+
+## Payment Processing
+
+**FEAT-004: Checkout & Payment** *(updated: 2026-03-19 by implement)*
+Checkout accepts credit card and PayPal via `POST /checkout`. Payment is processed asynchronously — order status moves to `confirmed` only after payment webhook confirms success. Failed payments leave the order in `pending` for retry.
+```
 
 ---
 

@@ -1,5 +1,5 @@
 import chalk from "chalk";
-import { getPromptCatalog } from "../utils/prompts.js";
+import { getPromptCatalog, isPromptOnly } from "../utils/prompts.js";
 
 export async function listCommand(): Promise<void> {
   const catalog = getPromptCatalog();
@@ -19,21 +19,26 @@ export async function listCommand(): Promise<void> {
     ...entries.map(([, v]) => v.title.length),
     5
   );
+  const typeWidth = 12;
 
   // Header
-  const header = `  ${"Name".padEnd(maxName + 2)}${"Title".padEnd(maxTitle + 2)}${"Description"}`;
+  const header = `  ${"Name".padEnd(maxName + 2)}${"Type".padEnd(typeWidth + 2)}${"Title".padEnd(maxTitle + 2)}${"Description"}`;
   console.log(chalk.cyan(header));
   console.log(chalk.dim(`  ${"─".repeat(header.trim().length + 10)}`));
 
   // Rows
   for (const [name, meta] of entries) {
     const nameCol = chalk.green(name.padEnd(maxName + 2));
+    const typeLabel = isPromptOnly(name) ? "prompt-only" : "agent+prompt";
+    const typeCol = isPromptOnly(name)
+      ? chalk.yellow(typeLabel.padEnd(typeWidth + 2))
+      : chalk.blue(typeLabel.padEnd(typeWidth + 2));
     const titleCol = chalk.white(meta.title.padEnd(maxTitle + 2));
     const descCol = chalk.dim(meta.description);
-    console.log(`  ${nameCol}${titleCol}${descCol}`);
+    console.log(`  ${nameCol}${typeCol}${titleCol}${descCol}`);
     if (meta.output) {
       console.log(
-        `  ${"".padEnd(maxName + 2)}${"".padEnd(maxTitle + 2)}${chalk.dim(`→ ${meta.output}`)}`
+        `  ${"".padEnd(maxName + 2)}${"".padEnd(typeWidth + 2)}${"".padEnd(maxTitle + 2)}${chalk.dim(`→ ${meta.output}`)}`
       );
     }
   }
@@ -48,7 +53,12 @@ export async function listCommand(): Promise<void> {
   console.log(chalk.bold("  Recommended Pipeline:\n"));
   console.log(
     chalk.dim(
-      "  Brainstorm → Planner → Feature (×N) → Reviews → Tests → DevOps → Docs"
+      "  Brainstorm → Planner → Feature (×N) → Implement → Reviews → Tests → DevOps → Docs"
+    )
+  );
+  console.log(
+    chalk.dim(
+      "  Quick Spec → Implement  (shortcut for single-feature work)\n"
     )
   );
   console.log(

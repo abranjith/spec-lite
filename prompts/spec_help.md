@@ -45,6 +45,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Architect** | `architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
 | **Data Modeller** | `data_modeller` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
 | **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
+| **Quick Spec** | `quick_spec` | Clarify requirements and produce a self-contained feature spec — skips the full plan | User's idea or requirement | `.spec-lite/features/feature_<name>.md` |
 | **Implement** | `implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
 | **Code Review** | `code_review` | Review code for correctness, architecture, readability | Feature spec + code | `.spec-lite/reviews/code_review_<name>.md` |
 | **Security Audit** | `security_audit` | Scan for vulnerabilities and security risks | Plan + code | `.spec-lite/reviews/security_audit_<scope>.md` |
@@ -123,6 +124,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 |---|---|
 | "I have a vague idea" | **Brainstorm** — refine it into a clear vision |
 | "I know what I want to build" | **Planner** — create the technical blueprint |
+| "I have a focused feature or enhancement" | **Quick Spec** — clarify and spec it directly, skip the full plan |
 | "I have a plan, time to spec a feature" | **Feature** — break it into verifiable tasks |
 | "I have a feature spec, time to code" | **Implement** — execute the tasks from the spec |
 | "I finished coding, need a review" | **Code Review** — get structured feedback |
