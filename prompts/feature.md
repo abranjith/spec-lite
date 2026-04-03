@@ -156,7 +156,7 @@ If this feature interacts with cross-cutting concerns (auth, logging, error hand
 During feature development, you may discover potential improvements that are **out of scope** for the current feature. When this happens:
 
 1. **Do NOT** implement them or expand the feature scope.
-2. **Append** them to `.spec-lite/TODO.md` under the appropriate section (e.g., `## General`, `## General / Caching`, `## UI / Landing Page`, `## Performance`, `## Security`, `## DX (Developer Experience)`).
+2. **Append** them to `.spec-lite/TODO.md` under the appropriate section (e.g., `## General`, `## Business Features`, `## Order Management`, `## User Experience`, `## Security`, `## Performance`).
 3. **Format**: `- [ ] <description> (discovered during: FEAT-<ID>)`
 4. **Notify the user**: "I've found some potential enhancements — see `.spec-lite/TODO.md`."
 

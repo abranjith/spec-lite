@@ -109,7 +109,7 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 During planning, you may discover potential improvements, optimizations, or ideas that are **out of scope** for the initial plan but worth tracking. When this happens:
 
 1. **Do NOT** expand the plan scope to include them.
-2. **Append** them to `.spec-lite/TODO.md` under the appropriate section (e.g., `## General`, `## General / Caching`, `## Performance`, `## UI`, `## Security`, `## DX (Developer Experience)`).
+2. **Append** them to `.spec-lite/TODO.md` under the appropriate section (e.g., `## General`, `## Business Features`, `## Order Management`, `## User Experience`, `## Security`, `## Performance`).
 3. **Format**: `- [ ] <description> (discovered during: planning)`
 4. **Notify the user**: "I've found some potential enhancements worth tracking — see `.spec-lite/TODO.md`."
 

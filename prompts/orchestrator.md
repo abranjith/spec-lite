@@ -17,6 +17,9 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
                     ┌──────────────┐
                     │   memorize   │  (memory — can be invoked anytime)
                     └──────────────┘
+                    ┌──────────────┐
+                    │     todo     │  (backlog curation — can be invoked anytime)
+                    └──────────────┘
 
                     ┌──────────────┐
                     │  brainstorm  │  Phase 0: Ideation (optional, user-directed)
@@ -88,6 +91,7 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 |-----------|-------|----------------|-----------------|
 | **spec_help** | Any | (none) | (none — interactive guidance only) |
 | **memorize** | Any | User instructions, `.spec-lite/memory.md` | `.spec-lite/memory.md` |
+| **todo** | Any | User TODO text, `.spec-lite/TODO.md` | Updated `.spec-lite/TODO.md` |
 | **brainstorm** | 0 | User idea/problem | `.spec-lite/brainstorm.md` |
 | **planner** | 1 | User requirements (optionally `.spec-lite/brainstorm.md`) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, updates `.spec-lite/TODO.md` |
 | **architect** | 1.5 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, user requirements | `.spec-lite/architect_<name>.md`, updates `.spec-lite/TODO.md` |
@@ -117,7 +121,7 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 ├── architect_<name>.md        # Cloud & infrastructure architecture (e.g., architect_fintech_platform.md)
 ├── data_model.md              # Relational data model (maintained by data_modeller sub-agent)
 ├── memory.md                  # Standing instructions (maintained by memorize sub-agent)
-├── TODO.md                    # Enhancement backlog (maintained by planner + feature)
+├── TODO.md                    # Enhancement backlog (maintained by planner + feature + todo)
 ├── features/
 │   ├── feature_<name>.md      # Feature specifications
 │   ├── integration_tests_<name>.md  # Integration test plans
@@ -199,6 +203,7 @@ The `.spec-lite/TODO.md` file serves as a living backlog. Multiple sub-agents co
 | Sub-Agent | TODO Interaction |
 |-----------|-----------------|
 | **memorize** | Creates/updates `.spec-lite/memory.md` with standing instructions (can be invoked anytime) |
+| **todo** | Adds a user-requested TODO item to the correct category (asks when category is unclear) |
 | **planner** | Creates initial TODO categories based on architectural decisions |
 | **feature** | Adds discovered enhancements during implementation exploration |
 | **fix** | Adds follow-up items discovered during debugging |

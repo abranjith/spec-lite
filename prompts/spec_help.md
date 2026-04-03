@@ -42,6 +42,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Memorize** | `memorize` | Store standing instructions enforced by all sub-agents | User instructions | `.spec-lite/memory.md` |
 | **Brainstorm** | `brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec-lite/brainstorm.md` |
 | **Planner** | `planner` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
+| **TODO** | `todo` | Add user-requested backlog items to TODO.md in the correct category | TODO item text (optional category) | `.spec-lite/TODO.md` |
 | **Architect** | `architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
 | **Data Modeller** | `data_modeller` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
 | **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
@@ -124,6 +125,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 |---|---|
 | "I have a vague idea" | **Brainstorm** — refine it into a clear vision |
 | "I know what I want to build" | **Planner** — create the technical blueprint |
+| "Track this for later" | **TODO** — add an item to `.spec-lite/TODO.md` under the right category |
 | "I have a focused feature or enhancement" | **Quick Spec** — clarify and spec it directly, skip the full plan |
 | "I have a plan, time to spec a feature" | **Feature** — break it into verifiable tasks |
 | "I have a feature spec, time to code" | **Implement** — execute the tasks from the spec |
@@ -155,7 +157,7 @@ Sub-agents produce and consume artifacts in the `.spec-lite/` directory:
 ├── plan_<name>.md         ← Named plans (complex projects)
 ├── architect_<name>.md    ← Cloud & infrastructure architecture
 ├── data_model.md          ← Relational data model (tables, relationships, indexes)
-├── TODO.md                ← Enhancement tracking (Planner & Feature)
+├── TODO.md                ← Enhancement tracking (Planner, Feature, TODO)
 ├── features/
 │   ├── feature_<name>.md  ← Feature output → Implement input → Reviews & Tests input
 │   └── ...
@@ -201,6 +203,7 @@ The brainstorm (`.spec-lite/brainstorm.md`) is **not** automatically fed into th
 |------|----------------|
 | Brainstorm an idea | Invoke **brainstorm**: *"I want to build a..."* |
 | Plan from scratch | Invoke **planner**: *"Create a plan for a task management API"* |
+| Track a backlog item | Invoke **todo**: *"Add TODO: optimize query caching in the API layer"* |
 | Plan using brainstorm | Invoke **planner**: *"Create a plan based on the brainstorm"* |
 | Plan a specific domain | Invoke **planner**: *"Create a plan for order management"* → outputs `plan_order_management.md` |
 | Design a data model | Invoke **data_modeller**: *"Design a data model for the order management domain"* |

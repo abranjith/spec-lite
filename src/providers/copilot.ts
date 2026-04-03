@@ -52,6 +52,11 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       agent: "spec.memorize",
       prompt: "Bootstrap memory from the plan's tech stack and conventions.",
     },
+    {
+      label: "Track Enhancement",
+      agent: "spec.todo",
+      prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
+    },
   ],
   architect: [
     {
@@ -80,6 +85,11 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       label: "Write Unit Tests",
       agent: "spec.unit_tester",
       prompt: "Write unit tests for the feature spec produced above.",
+    },
+    {
+      label: "Track Enhancement",
+      agent: "spec.todo",
+      prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
     },
   ],
   implement: [
@@ -311,7 +321,13 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       agent: "spec.implementer",
       prompt: "Implement the feature spec produced above.",
     },
+    {
+      label: "Track Enhancement",
+      agent: "spec.todo",
+      prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
+    },
   ],
+  todo: [],
 };
 
 /**

@@ -401,15 +401,13 @@ export async function initCommand(options: InitOptions): Promise<void> {
       "",
       "## General",
       "",
-      "## General / Caching",
+      "## Business Features",
       "",
-      "## UI",
-      "",
-      "## Performance",
+      "## User Experience",
       "",
       "## Security",
       "",
-      "## DX (Developer Experience)",
+      "## Performance",
       "",
     ].join("\n");
     await fs.writeFile(todoPath, todoContent, "utf-8");

@@ -47,6 +47,7 @@ export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
   spec_help:          { promptName: "help",                  agentName: "help",                  promptOnly: true  },
   brainstorm:         { promptName: "brainstorm",            agentName: "brainstormer",          promptOnly: false },
   planner:            { promptName: "plan",                  agentName: "planner",               promptOnly: false },
+  todo:               { promptName: "todo",                  agentName: "todo",                  promptOnly: false },
   feature:            { promptName: "feature",               agentName: "feature",               promptOnly: false },
   quick_spec:         { promptName: "quick_spec",            agentName: "quick_spec",            promptOnly: false },
   implement:          { promptName: "implement",             agentName: "implementer",           promptOnly: false },
@@ -102,6 +103,11 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     title: "Planner",
     description: "Creates a detailed technical blueprint from requirements",
     output: ".spec-lite/plan.md or .spec-lite/plan_<name>.md",
+  },
+  todo: {
+    title: "TODO",
+    description: "Adds user-requested backlog items to .spec-lite/TODO.md under the right category",
+    output: ".spec-lite/TODO.md",
   },
   feature: {
     title: "Feature",
