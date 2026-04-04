@@ -46,17 +46,17 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Architect** | `architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
 | **Data Modeller** | `data_modeller` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
 | **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
-| **Quick Spec** | `quick_spec` | Clarify requirements and produce a self-contained feature spec — skips the full plan | User's idea or requirement | `.spec-lite/features/feature_<name>.md` |
+| **Feature Planner** | `plan_feature` | Clarify requirements and produce a self-contained feature spec — skips the full plan | User's idea or requirement | `.spec-lite/features/feature_<name>.md` |
 | **Implement** | `implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
 | **Code Review** | `code_review` | Review code for correctness, architecture, readability | Feature spec + code | `.spec-lite/reviews/code_review_<name>.md` |
 | **Security Audit** | `security_audit` | Scan for vulnerabilities and security risks | Plan + code | `.spec-lite/reviews/security_audit_<scope>.md` |
 | **Performance Review** | `performance_review` | Identify bottlenecks and optimization opportunities | Plan + code | `.spec-lite/reviews/performance_review_<scope>.md` |
-| **Integration Tests** | `integration_tests` | Write traceable test scenarios from feature specs | Feature spec + plan | `tests/` |
+| **Integration Tests** | `integration_tests` | Write traceable test scenarios from feature specs | Feature spec + plan | `.spec-lite/features/integration_tests_<name>.md` |
+| **Unit Tests** | `unit_tests` | Generate comprehensive unit tests with edge-case coverage and coverage config | Feature spec + source code (or standalone source files) | `.spec-lite/features/unit_tests_<name>.md` |
 | **DevOps** | `devops` | Set up Docker, CI/CD, environments, and deployment | Plan + codebase | Infrastructure files |
 | **Fix & Refactor** | `fix` | Debug issues or restructure code safely | Bug report or code smells | Targeted fixes |
-| **Technical Docs** | `technical_docs` | Create scope-calibrated architecture documentation | Plan + features + code | `docs/technical_architecture.md` |
 | **README** | `readme` | Write the project README and optional user guide | Plan + features | `README.md` |
-| **Explore** | `explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `README.md` + `TECH_SPECS.md` + `.spec-lite/memory.md` |
+| **Explore** | `explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `docs/explore/<project-name>.md` + `docs/explore/INDEX.md` + `README.md` + `.spec-lite/memory.md` |
 
 ---
 
@@ -98,6 +98,9 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
           │  ┌─────────────┐ ┌──────────┐ ┌───────────┐ │
           │  │ Code Review │ │ Security │ │Performance│ │
           │  └─────────────┘ └──────────┘ └───────────┘ │
+          │  ┌──────────┐ ┌─────────────────┐           │
+          │  │Unit Tests│ │Integration Tests│           │
+          │  └──────────┘ └─────────────────┘           │
           └──────────────────────┬──────────────────────┘
                                  │
                     ┌────────────┼────────────┐
@@ -126,13 +129,14 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | "I have a vague idea" | **Brainstorm** — refine it into a clear vision |
 | "I know what I want to build" | **Planner** — create the technical blueprint |
 | "Track this for later" | **TODO** — add an item to `.spec-lite/TODO.md` under the right category |
-| "I have a focused feature or enhancement" | **Quick Spec** — clarify and spec it directly, skip the full plan |
+| "I have a focused feature or enhancement" | **Feature Planner** — clarify and spec it directly, skip the full plan |
 | "I have a plan, time to spec a feature" | **Feature** — break it into verifiable tasks |
 | "I have a feature spec, time to code" | **Implement** — execute the tasks from the spec |
 | "I finished coding, need a review" | **Code Review** — get structured feedback |
 | "Is my code secure?" | **Security Audit** — find vulnerabilities |
 | "Is my code fast enough?" | **Performance Review** — identify bottlenecks |
 | "I need test scenarios" | **Integration Tests** — traceable test specs |
+| "I need comprehensive unit tests" | **Unit Tests** — thorough unit tests with edge-case coverage and coverage config |
 | "I need cloud/infra architecture" | **Architect** — design infrastructure, databases, and scaling |
 | "I need to design database tables" | **Data Modeller** — design relational data models with tables, indexes, constraints |
 | "I need Docker/CI/CD setup" | **DevOps** — infrastructure as code |
@@ -142,7 +146,8 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | "I need a README" | **README** — user-facing documentation |
 | "I don't know where to start" | Start with **Brainstorm** or **Planner** |
 | "I need to understand an existing codebase" | **Explore** — systematically discover architecture, patterns, and features |
-| "I joined a new project and need to onboard" | **Explore** — generates README, TECH_SPECS, and captures conventions in memory |
+| "I joined a new project and need to onboard" | **Explore** — generates per-project docs in `docs/explore/`, README, and captures conventions in memory |
+| "I want to run the full pipeline autonomously" | **YOLO** — drives the entire pipeline end-to-end with persistent state |
 
 ---
 
@@ -157,15 +162,28 @@ Sub-agents produce and consume artifacts in the `.spec-lite/` directory:
 ├── plan_<name>.md         ← Named plans (complex projects)
 ├── architect_<name>.md    ← Cloud & infrastructure architecture
 ├── data_model.md          ← Relational data model (tables, relationships, indexes)
+├── memory.md              ← Standing instructions (maintained by memorize sub-agent)
+├── feature-summary.md     ← Current-state summary of implemented feature behavior
+├── yolo_state.md          ← Persistent state for YOLO pause/resume
 ├── TODO.md                ← Enhancement tracking (Planner, Feature, TODO)
 ├── features/
 │   ├── feature_<name>.md  ← Feature output → Implement input → Reviews & Tests input
+│   ├── integration_tests_<name>.md  ← Integration test plans
+│   ├── unit_tests_<name>.md         ← Unit test plans
 │   └── ...
-└── reviews/
-    ├── code_review_<name>.md
-    ├── security_audit_<scope>.md
-    └── performance_review_<scope>.md
+├── reviews/
+│   ├── code_review_<name>.md
+│   ├── security_audit_<scope>.md
+│   ├── performance_review_<scope>.md
+│   └── fix_<issue>.md
+└── devops/
+    └── ...                ← Infrastructure artifacts
 ```
+
+Additional common non-`.spec-lite/` outputs:
+
+- `README.md` (from `readme`)
+- `docs/explore/` (from `explore` — per-project docs + `INDEX.md`)
 
 ---
 
@@ -215,6 +233,10 @@ The brainstorm (`.spec-lite/brainstorm.md`) is **not** automatically fed into th
 | Continue implementation | Invoke **implement**: *"Continue implementing user management"* |
 | Review code | Invoke **code_review**: *"Review the user management feature"* |
 | Fix a bug | Invoke **fix**: *"The test_create_order test is failing with..."* |
+| Run unit tests for a feature | Invoke **unit_tests**: *"Generate unit tests for `.spec-lite/features/feature_user_management.md`"* |
+| Run unit tests (standalone) | Invoke **unit_tests**: *"Write unit tests for `src/utils/validators.ts`"* |
+| Explore a codebase | Invoke **explore**: *"Explore this codebase"* or *"/explore all"* |
+| Run the full pipeline | Invoke **yolo**: *"Build a full-stack task management app with React + Node.js"* |
 
 ---
 

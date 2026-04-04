@@ -40,6 +40,7 @@ Before starting, understand what YOLO will do:
 ```
 For each plan (1 or more, depending on scope):
   Phase 1  — Create the technical plan (.spec-lite/plan_<name>.md)
+  Phase 1b — Data Modelling (optional; creates .spec-lite/data_model.md if plan has data layer)
   Phase 2  — For each feature in the plan:
                a. Write the feature spec (.spec-lite/features/feature_<name>.md)
                b. Implement every task in the spec (code + unit tests + docs)
@@ -100,6 +101,7 @@ YOLO delegates to these sub-agents at each phase. When executing a phase, follow
 | Phase | Sub-Agent | Prompt File |
 |-------|-----------|-------------|
 | 1 | Planner | [planner.md](planner.md) |
+| 1b | Data Modeller (optional) | [data_modeller.md](data_modeller.md) |
 | 2a | Feature | [feature.md](feature.md) |
 | 2b | Implement | [implement.md](implement.md) |
 | 3 | Code Review | [code_review.md](code_review.md) |
@@ -107,8 +109,7 @@ YOLO delegates to these sub-agents at each phase. When executing a phase, follow
 | 5 | Security Audit | [security_audit.md](security_audit.md) |
 | 6 | Implement (Review Mode) | [implement.md](implement.md) |
 | 7 | Integration Tests | [integration_tests.md](integration_tests.md) |
-| 8a | Technical Docs | [technical_docs.md](technical_docs.md) |
-| 8b | README | [readme.md](readme.md) |
+| 8 | README | [readme.md](readme.md) |
 
 ---
 
@@ -247,7 +248,26 @@ For each plan in the state's Plans table, in order:
 
 > **If you are uncertain about a key architectural decision** (e.g., monolith vs microservices, REST vs GraphQL), invoke the [Stuck Protocol](#stuck-protocol) before proceeding.
 
-After all plan files are created, announce: *"Phase 1 complete. Plans created: [list]. Starting Phase 2 for `plan_<first>.md`."*
+After all plan files are created, announce: *"Phase 1 complete. Plans created: [list]. Starting Phase 1b (Data Modelling) if applicable, then Phase 2 for `plan_<first>.md`."*
+
+---
+
+### Phase 1b — Data Modelling (optional, per plan)
+
+> **Delegate to**: [data_modeller.md](data_modeller.md) — follow its full process, output format, and constraints.
+
+**Applicability criteria**: Only run if the plan includes a **Data Model (High-Level)** section with domain concepts and storage strategy (i.e., the project persists data). If the plan explicitly skips the data model section or the project has no persistent data, skip this phase.
+
+If **not applicable**: announce *"Skipping Phase 1b (Data Modelling) — no persistent data layer in this plan."* Move to Phase 2.
+
+If **applicable**:
+1. Announce: *"Starting Phase 1b — Data Modelling ([data_modeller.md](data_modeller.md)) for `plan_<name>.md`..."*
+2. Follow [data_modeller.md](data_modeller.md) to produce `.spec-lite/data_model.md`.
+   - Input: the plan's conceptual data model + `.spec-lite/memory.md`.
+   - The data model becomes the authoritative schema for all downstream Feature and Implement phases.
+3. Update the state file session log.
+
+> **Why this matters**: Without a data model, each feature designs its own schema independently, risking inconsistencies across features. The Data Modeller produces a unified schema that all features reference.
 
 ---
 
@@ -403,25 +423,13 @@ If Critical or High findings exist:
 
 ---
 
-### Phase 8 — Technical Docs & README (optional)
+### Phase 8 — README (optional)
 
-**Optional phase gate**: If Technical Docs & README is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 8 (Technical Docs & README) — disabled by user preference."* Update state: mark `tech-docs` as `N/A` for all features in this plan and mark `README` as `N/A`. Move to Between Plans (or Run Complete if this is the last plan).
-
-**Phase 8a — Technical Documentation** (run for every plan):
-
-> **Delegate to**: [technical_docs.md](technical_docs.md) — follow its full process and output format.
-
-1. Announce: *"Starting Phase 8a — Technical Docs ([technical_docs.md](technical_docs.md)) for `plan_<name>.md`..."*
-2. Follow [technical_docs.md](technical_docs.md).
-   - Input: all feature specs + implemented source code + review reports for this plan.
-3. Output: `docs/technical_architecture.md` (created or updated).
-4. Update `.spec-lite/yolo_state.md`: mark `tech-docs` as `[x]`.
-
-**Phase 8b — README** (run once, after all plans are complete):
+**Optional phase gate**: If README is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 8 (README) — disabled by user preference."* Update state: mark `README` as `N/A`. Move to Between Plans (or Run Complete if this is the last plan).
 
 > **Delegate to**: [readme.md](readme.md) — follow its full process and output format.
 
-1. Announce: *"Starting Phase 8b — README ([readme.md](readme.md)) — all plans complete..."*
+1. Announce: *"Starting Phase 8 — README ([readme.md](readme.md)) — all plans complete..."*
 2. Follow [readme.md](readme.md).
    - Input: all plan files + all feature specs + the full implemented project.
 3. Output: `README.md` (created or updated).
@@ -546,14 +554,14 @@ When the user says "resume YOLO" (or "continue YOLO"):
 | 4 | Performance Review | yes |
 | 5 | Security Audit | yes |
 | 7 | Integration Tests | yes |
-| 8 | Technical Docs & README | yes |
+| 8 | README | yes |
 
 ## Progress: plan_<name>.md
 
-| FEAT-ID | Feature | spec | impl | code-review | perf-review | sec-review | fix | integ-tests | tech-docs |
-|---------|---------|------|------|-------------|-------------|------------|-----|-------------|-----------|
-| FEAT-001 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
-| FEAT-002 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| FEAT-ID | Feature | spec | impl | code-review | perf-review | sec-review | fix | integ-tests |
+|---------|---------|------|------|-------------|-------------|------------|-----|-------------|
+| FEAT-001 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| FEAT-002 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
 
 **README**: [ ] Not started \| [x] Complete \| N/A
 

@@ -44,27 +44,26 @@ export interface PromptNameEntry {
  * verb-form (prompt) and noun-form (agent) output names, plus a flag for prompt-only items.
  */
 export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
-  spec_help:          { promptName: "help",                  agentName: "help",                  promptOnly: true  },
-  brainstorm:         { promptName: "brainstorm",            agentName: "brainstormer",          promptOnly: false },
-  planner:            { promptName: "plan",                  agentName: "planner",               promptOnly: false },
-  todo:               { promptName: "todo",                  agentName: "todo",                  promptOnly: false },
-  feature:            { promptName: "feature",               agentName: "feature",               promptOnly: false },
-  quick_spec:         { promptName: "quick_spec",            agentName: "quick_spec",            promptOnly: false },
-  implement:          { promptName: "implement",             agentName: "implementer",           promptOnly: false },
-  code_review:        { promptName: "review_code",           agentName: "code_reviewer",         promptOnly: false },
-  security_audit:     { promptName: "security_audit",        agentName: "security_auditor",      promptOnly: false },
-  performance_review: { promptName: "review_performance",    agentName: "performance_reviewer",  promptOnly: false },
-  integration_tests:  { promptName: "test_integration",      agentName: "integration_tester",    promptOnly: false },
-  unit_tests:         { promptName: "test_unit",             agentName: "unit_tester",           promptOnly: false },
-  devops:             { promptName: "devops",                agentName: "devops",                promptOnly: false },
-  fix:                { promptName: "fix",                   agentName: "fixer",                 promptOnly: false },
-  memorize:           { promptName: "memorize",              agentName: "memorize",              promptOnly: true  },
-  technical_docs:     { promptName: "write_technical_docs",  agentName: "write_technical_docs",  promptOnly: true  },
-  readme:             { promptName: "write_readme",          agentName: "write_readme",          promptOnly: true  },
-  architect:          { promptName: "architect",             agentName: "architect",             promptOnly: false },
-  data_modeller:      { promptName: "model_data",            agentName: "data_modeller",         promptOnly: false },
-  yolo:               { promptName: "yolo",                  agentName: "yolo",                  promptOnly: false },
-  explore:            { promptName: "explore",               agentName: "explorer",              promptOnly: false },
+  spec_help:          { promptName: "help",                         agentName: "help",                   promptOnly: true  },
+  brainstorm:         { promptName: "brainstorm",                   agentName: "brainstormer",           promptOnly: false },
+  planner:            { promptName: "plan",                         agentName: "planner",                promptOnly: false },
+  todo:               { promptName: "todo",                         agentName: "todo",                   promptOnly: false },
+  feature:            { promptName: "feature",                      agentName: "feature",                promptOnly: false },
+  plan_feature:       { promptName: "plan_feature",                 agentName: "feature_planner",        promptOnly: false },
+  implement:          { promptName: "implement",                    agentName: "implementer",            promptOnly: false },
+  code_review:        { promptName: "review_code",                  agentName: "code_reviewer",          promptOnly: false },
+  security_audit:     { promptName: "review_security",              agentName: "security_reviewer",      promptOnly: false },
+  performance_review: { promptName: "review_performance",           agentName: "performance_reviewer",   promptOnly: false },
+  integration_tests:  { promptName: "write_integration_tests",      agentName: "integration_tester",     promptOnly: false },
+  unit_tests:         { promptName: "write_unit_tests",             agentName: "unit_tester",            promptOnly: false },
+  devops:             { promptName: "devops",                       agentName: "devops",                 promptOnly: false },
+  fix:                { promptName: "fix",                          agentName: "fixer",                  promptOnly: false },
+  memorize:           { promptName: "memorize",                     agentName: "memorize",               promptOnly: true  },
+  readme:             { promptName: "write_readme",                 agentName: "readme_writer",          promptOnly: true  },
+  architect:          { promptName: "architect",                    agentName: "architect",              promptOnly: false },
+  data_modeller:      { promptName: "build_data_model",             agentName: "data_model_builder",     promptOnly: false },
+  yolo:               { promptName: "yolo",                         agentName: "yolo",                   promptOnly: false },
+  explore:            { promptName: "explore",                      agentName: "explorer",               promptOnly: false },
 };
 
 /** Get the verb-form output name for a prompt file. Falls back to stripping "spec_" prefix. */
@@ -114,8 +113,8 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     description: "Breaks one feature into granular, verifiable vertical slices",
     output: ".spec-lite/features/feature_<name>.md",
   },
-  quick_spec: {
-    title: "Quick Spec",
+  plan_feature: {
+    title: "Feature Planner",
     description: "Clarifies requirements and produces a single self-contained feature spec with tasks — skips the full plan",
     output: ".spec-lite/features/feature_<name>.md",
   },
@@ -164,11 +163,6 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     description:
       "Stores standing instructions that all sub-agents enforce. Use `/memorize bootstrap` to auto-generate from project analysis.",
     output: ".spec-lite/memory.md",
-  },
-  technical_docs: {
-    title: "Technical Docs",
-    description: "Creates deep architecture documentation for developers",
-    output: "docs/technical_architecture.md",
   },
   readme: {
     title: "README",

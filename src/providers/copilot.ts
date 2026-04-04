@@ -132,11 +132,6 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       agent: "spec.security_auditor",
       prompt: "Run a security audit on the code reviewed above.",
     },
-    {
-      label: "Write Technical Docs",
-      agent: "spec.write_technical_docs",
-      prompt: "Write technical documentation for the reviewed code.",
-    },
   ],
   integration_tests: [
     {
@@ -148,11 +143,6 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       label: "Performance Review",
       agent: "spec.performance_reviewer",
       prompt: "Review performance of the features covered by integration tests.",
-    },
-    {
-      label: "Write Technical Docs",
-      agent: "spec.write_technical_docs",
-      prompt: "Write technical documentation for the features covered by integration tests.",
     },
   ],
   performance_review: [
@@ -166,22 +156,12 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       agent: "spec.security_auditor",
       prompt: "Run a security audit alongside the performance improvements.",
     },
-    {
-      label: "Write Technical Docs",
-      agent: "spec.write_technical_docs",
-      prompt: "Write technical documentation capturing the performance findings and fixes.",
-    },
   ],
   security_audit: [
     {
       label: "Fix Vulnerabilities",
       agent: "spec.fixer",
       prompt: "Fix the vulnerabilities and security issues identified in the audit above.",
-    },
-    {
-      label: "Write Technical Docs",
-      agent: "spec.write_technical_docs",
-      prompt: "Write technical documentation capturing the security findings and mitigations.",
     },
     {
       label: "Update README",
@@ -223,18 +203,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Explore the codebase to discover conventions and document the architecture.",
     },
   ],
-  technical_docs: [
-    {
-      label: "Update README",
-      agent: "spec.write_readme",
-      prompt: "Write or update the project README based on the technical docs produced above.",
-    },
-    {
-      label: "Set Up DevOps",
-      agent: "spec.devops",
-      prompt: "Set up deployment infrastructure to complement the documented architecture.",
-    },
-  ],
+
   readme: [
     {
       label: "Set Up DevOps",
@@ -257,11 +226,6 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       label: "Update README",
       agent: "spec.write_readme",
       prompt: "Update the README with deployment and infrastructure instructions.",
-    },
-    {
-      label: "Update Technical Docs",
-      agent: "spec.write_technical_docs",
-      prompt: "Update the technical documentation to include the DevOps setup.",
     },
   ],
   data_modeller: [
@@ -315,7 +279,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Audit the security risks identified during exploration.",
     },
   ],
-  quick_spec: [
+  plan_feature: [
     {
       label: "Implement Feature",
       agent: "spec.implementer",

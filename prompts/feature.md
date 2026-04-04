@@ -53,6 +53,17 @@ If `.spec-lite/data_model.md` does **not** exist, the plan provides a *conceptua
 - **Optional**: `.spec-lite/brainstorm.md` — only if the user explicitly requests it.
 - **Optional**: Existing codebase (if adding to an existing project).
 
+### Parent Plan Synchronization (Mandatory)
+
+When you create `.spec-lite/features/feature_<name>.md`, you MUST also update the parent plan file (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) in `## 2. High-Level Features`:
+
+1. Find the row for the selected FEAT-ID.
+2. Update the `Spec File` cell to point to the created feature spec path (for example: `` `features/feature_user_management.md` ``).
+3. Do **not** modify the `Status` value (Status is owned by the Implement sub-agent).
+4. If `Spec File` is empty, placeholder, incorrect, or missing, normalize it so it correctly points to the created feature file.
+
+This update is required for every feature breakdown so the plan always maintains a reliable link to the underlying feature spec.
+
 ---
 
 ## Personality
@@ -82,7 +93,7 @@ Before writing any tasks, explore and understand the full scope:
 - **Design the granular data model** for this feature: If `.spec-lite/data_model.md` exists, reference it as the authoritative schema — extract the relevant tables, columns, and relationships for this feature and document them in the feature spec. Only add feature-specific extensions (additional columns, indexes) with justification. If `data_model.md` does not exist, translate the plan's conceptual domain concepts into concrete entities with attributes, types, constraints, relationships, and storage details (e.g., table definitions, indexes, foreign keys). Document these in the feature spec.
 - Identify what files need to be created or modified.
 - Map out the vertical slices — end-to-end behaviors that can be implemented and tested independently.
-- **Record the source plan**: Note the exact plan filename (e.g., `plan.md` or `plan_order_management.md`) — it goes in the `Source Plan` field of `## 1. Feature Goal`. **Do NOT update the plan's Status column** — status tracking in both the plan and the feature spec is owned exclusively by the **Implement** sub-agent to ensure consistent, deterministic state transitions.
+- **Record and sync plan linkage**: Note the exact plan filename (e.g., `plan.md` or `plan_order_management.md`) — it goes in the `Source Plan` field of `## 1. Feature Goal` in the feature spec. Then update the selected FEAT-ID row in the parent plan's `## 2. High-Level Features` table so the `Spec File` column points to the created feature file. **Do NOT update the plan's Status column** — status tracking remains owned exclusively by the **Implement** sub-agent.
 
 ### Phase 2: Task Creation
 
@@ -165,6 +176,11 @@ During feature development, you may discover potential improvements that are **o
 ## Output: `.spec-lite/features/feature_<name>.md`
 
 Your output is a markdown file at `.spec-lite/features/feature_<name>.md` (e.g., `.spec-lite/features/feature_user_management.md`).
+
+Before finishing, also save the parent plan update described above so both artifacts are synchronized:
+
+- Feature spec file exists at `.spec-lite/features/feature_<name>.md`.
+- Parent plan `## 2. High-Level Features` row for this FEAT-ID has the correct `Spec File` link.
 
 ### Output Template
 
@@ -268,6 +284,7 @@ Legend: [ ] Not started | [/] In progress | [x] Completed
 - **Do NOT** skip the three sub-items (Implementation, Unit Tests, Documentation) for any task — **unless the user explicitly requests it** (e.g., *"skip unit tests"*, *"no documentation"*). If skipped, note the omission at the top of the Implementation Tasks section.
 - **Do NOT** go off track from the original plan. Follow the plan's architecture and coding standards. If the plan seems wrong, flag it — don't silently deviate.
 - **Do NOT** carry context from previous features into this one. Each feature spec starts from a clean slate — derive all context from the plan, memory, and codebase only.
+- **Do NOT** finish the task without updating the parent plan's `Spec File` link for the selected FEAT-ID to the exact generated feature file path.
 
 ---
 

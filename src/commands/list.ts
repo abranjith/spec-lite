@@ -58,7 +58,7 @@ export async function listCommand(): Promise<void> {
   );
   console.log(
     chalk.dim(
-      "  Quick Spec → Implement  (shortcut for single-feature work)\n"
+      "  Feature Planner → Implement  (shortcut for single-feature work)\n"
     )
   );
   console.log(

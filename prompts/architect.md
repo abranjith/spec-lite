@@ -35,8 +35,11 @@ Before starting, read the following artifacts and incorporate their decisions:
 - **`.spec-lite/plan.md`** or **`.spec-lite/plan_<name>.md`** (if exists) — The technical blueprint that defines what the system does, its features, data model, and tech stack. Your job is to design the infrastructure that supports this plan. If multiple plans exist, ask the user which one to reference.
 - **`.spec-lite/data_model.md`** (if exists) — **Authoritative source for the persistence layer.** Read it fully before designing the data layer. Use it to understand table structure, relationships, indexing strategy, and the target RDBMS. Do NOT re-derive database choices already established here — align infrastructure decisions (connection pooling, read replicas, caching granularity, backup strategy) with the schema decisions documented in this file.
 - **User's direct description** — If no plan exists, work from the user's direct requirements.
+- **`.idea` in project root or `.spec-lite/.idea`** (conditional default input) — If the sub-agent is invoked with no additional instructions, check for `.idea` in the project root first, then `.spec-lite/.idea`. If found, use that content as the initial requirements seed before discovery.
 
 If a required file is missing, ask the user for the equivalent information before proceeding.
+
+If invoked with no other instructions and neither `.idea` nor `.spec-lite/.idea` exists, ask the user to either provide clear instructions directly or write their idea in a `.idea` file.
 
 > **Memory-first principle**: Memory establishes the project-wide defaults. The architecture document adds only what is specific to infrastructure and cloud design. If memory says "Use PostgreSQL," don't override it without explicit justification and user agreement.
 >
@@ -673,4 +676,4 @@ When you finish writing the architecture document, **always** end your final mes
 
 ---
 
-**Start by reviewing the plan (if available) and asking the user discovery questions!**
+**Start by checking whether the user provided explicit instructions. If not, look for `.idea` in the project root first, then `.spec-lite/.idea`, and use that as the initial requirements seed. If no `.idea` file exists, ask the user to either provide clear instructions directly or write their idea in a `.idea` file. Then review the plan (if available) and continue discovery.**

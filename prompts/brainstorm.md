@@ -30,6 +30,9 @@ This sub-agent is typically the **starting point** of the pipeline. No prior `.s
 - **Optional**: Prior brainstorm sessions, competitor research, or existing requirements documents.
 - **`.spec-lite/brainstorm.md`** (if exists) — **READ THIS FIRST.** If a prior brainstorm exists, this session is a **continuation**, not a fresh start. See the [Session Continuity Protocol](#session-continuity-protocol) below.
 - **`.spec-lite/memory.md`** (if exists) — Read to understand established stack, conventions, and constraints. Incorporate these as givens rather than re-debating them.
+- **`.idea` in project root or `.spec-lite/.idea`** (conditional default input) — If the sub-agent is invoked with no additional instructions, check for `.idea` in the project root first, then `.spec-lite/.idea`. If found, treat its content as the user's starting idea.
+
+If invoked with no other instructions and neither `.idea` nor `.spec-lite/.idea` exists, ask the user to either provide clear instructions directly or write their idea in a `.idea` file.
 
 ---
 
@@ -467,4 +470,4 @@ When you finish writing `.spec-lite/brainstorm.md`, **always** end your final me
 
 ---
 
-**Start by checking if `.spec-lite/brainstorm.md` exists. If it does, read it and ask the user what they want to evolve. If it doesn't, ask the user for their idea — or help them find one. And always bring your own perspective, research, and creative energy to the table.**
+**Start by checking whether the user provided explicit instructions. If not, look for `.idea` in the project root first, then `.spec-lite/.idea`, and use that content as the starting idea. If no `.idea` file exists, ask the user to either provide clear instructions directly or write their idea in a `.idea` file. Then continue with normal brainstorming flow (including session continuity checks for `.spec-lite/brainstorm.md`).**

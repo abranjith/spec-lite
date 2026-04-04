@@ -85,9 +85,11 @@ Follow the signal, not the noise:
 
 ### 4. Regression Test
 
-- Write a test that would have caught this bug *before* the fix.
-- The test should fail on the broken code and pass on the fixed code.
-- Name the test descriptively: `test_user_signup_rejects_duplicate_email` not `test_fix_123`.
+- Write **thorough** regression tests — not just a single test that reproduces the exact bug.
+- Start with a test that would have caught this bug *before* the fix (should fail on broken code, pass on fixed code).
+- Then add related edge-case tests: boundary conditions, null/empty inputs, adjacent code paths that could suffer from the same pattern.
+- Name tests descriptively: `test_user_signup_rejects_duplicate_email` not `test_fix_123`.
+- **You own test coverage for the fix.** Do not defer test writing to a separate agent or suggest it as a follow-up. The tests you write here should be comprehensive enough that no additional test pass is needed for this fix.
 
 ### 5. Document
 
@@ -184,14 +186,14 @@ When you finish the fix and verify it works, **always** end your final message w
 
 - **If the fix came from a code review** → Re-run the code review to verify (invoke the **Code Review** sub-agent).
 - **If the fix came from a security audit** → Re-run the security audit to confirm remediation (invoke the **Security Audit** sub-agent).
-- **If the fix came from a failing test** → Re-run the test suite, then continue with the next task.
-- **Always** → Suggest running unit tests to confirm no regressions.
+- **If the fix came from a failing test** → Run the full test suite to confirm no regressions, then continue with the next task.
+- **Always** → Suggest running the full test suite to confirm no regressions.
 
 **Format your output like this:**
 
-> **What's next?** The fix is applied and verified. Here are your suggested next steps:
+> **What's next?** The fix is applied and verified (including comprehensive regression tests). Here are your suggested next steps:
 >
-> 1. **Run unit tests**: *"Generate unit tests for `.spec-lite/features/feature_{{name}}.md`"*
+> 1. **Run full test suite**: Verify no regressions across the project.
 > 2. **Re-run code review** _(if fix was from review)_: *"Review the {{feature_name}} feature"*
 > 3. **Continue implementation** _(if tasks remain)_: *"Continue implementing {{feature_name}}"*
 

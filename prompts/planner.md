@@ -28,8 +28,11 @@ Before starting, read the following artifacts and incorporate their decisions:
 - **`.spec-lite/brainstorm.md`** (optional) — Only read this if the user explicitly asks you to incorporate the brainstorm (e.g., "plan based on the brainstorm", "use brainstorm.md"). Do NOT auto-include brainstorm output — the user may have brainstormed a different idea than what they want planned. If the user doesn't mention the brainstorm, work from their direct description instead.
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, logging rules, security policies, tech stack, and project structure. Treat every entry as a hard requirement. **Do NOT re-derive or re-generate** standards that are already established in memory — reference them as the baseline and only add plan-specific overrides or additions in your output.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. If this file exists, it represents **what has already been built and how it behaves right now**. Use it to understand the existing feature landscape when planning new work — avoid re-planning features that already exist, identify integration points with existing behavior, and ensure new features don't conflict with current functionality.
+- **`.idea` in project root or `.spec-lite/.idea`** (conditional default input) — If the sub-agent is invoked with no additional instructions, check for `.idea` in the project root first, then `.spec-lite/.idea`. If found, use that content as the primary planning input.
 
 If a required file is missing, ask the user for the equivalent information before proceeding.
+
+If invoked with no other instructions and neither `.idea` nor `.spec-lite/.idea` exists, ask the user to either provide clear instructions directly or write their idea in a `.idea` file.
 
 > **Note**: The generated plan is a **living document**. Users may modify it directly to add corrections, override decisions, or steer direction. Downstream sub-agents MUST respect user modifications — user edits to the plan take precedence over the original generated content.
 >
@@ -311,4 +314,4 @@ When you finish writing the plan, **always** end your final message with a "What
 
 ---
 
-**Start by reviewing the input and asking clarifying questions!**
+**Start by checking whether the user provided explicit instructions. If not, look for `.idea` in the project root first, then `.spec-lite/.idea`, and use that as the primary input. If no `.idea` file exists, ask the user to either provide clear instructions directly or write their idea in a `.idea` file. Then proceed with requirement clarification.**

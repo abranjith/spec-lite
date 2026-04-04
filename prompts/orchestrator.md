@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.4 | prompt: orchestrator | updated: 2026-02-19 -->
+<!-- spec-lite v0.0.7 | prompt: orchestrator | updated: 2026-04-03 -->
 
 # PERSONA: Orchestrator — Sub-Agent Pipeline Reference
 
@@ -19,6 +19,12 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
                     └──────────────┘
                     ┌──────────────┐
                     │     todo     │  (backlog curation — can be invoked anytime)
+                    └──────────────┘
+                    ┌──────────────┐
+                    │   explore    │  (codebase discovery — can be invoked anytime)
+                    └──────────────┘
+                    ┌──────────────┐
+                    │     yolo     │  (autonomous orchestration — can be invoked anytime)
                     └──────────────┘
 
                     ┌──────────────┐
@@ -51,35 +57,29 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
             │ .spec-lite/TODO.md (updated)
             ▼
      ┌──────────────┐     ┌──────────────┐
-     │  implement   │     │  quick_spec  │  Shortcut: idea → feature spec → implement
+     │  implement   │     │ plan_feature │  Shortcut: idea → feature spec → implement
      └──────┬───────┘     └──────┬───────┘
             │                    │ .spec-lite/features/feature_*.md
             │◄───────────────────┘
             │  Phase 2.5: Implementation
-     └──────┬───────┘
-            │ Working code + updated feature spec
-            ▼              ▼           ▼
+            ▼
      ┌──────────────────────────────────────┐
      │          Review Sub-Agents           │  Phase 3: Validation
      │  ┌─────────────┐ ┌───────────────┐  │
      │  │ code_review │ │security_audit │  │
      │  └─────────────┘ └───────────────┘  │
-     │  ┌──────────────────┐ ┌───────────┐ │
-     │  │performance_review│ │integ_tests│ │
-     │  └──────────────────┘ └───────────┘ │
-     │  ┌──────────────────┐               │
-     │  │   unit_tests     │               │
-     │  └──────────────────┘               │
-     └──────────────────┬───────────────────┘
+     │  ┌──────────────────┐ ┌───────────────┐ │
+     │  │performance_review│ │integration_tests│ │
+     │  └──────────────────┘ └───────────────┘ │
+     │  ┌──────────────────┐                    │
+     │  │   unit_tests     │                    │
+     │  └──────────────────┘                    │
+     └──────────────────┬───────────────────────┘
                         │ .spec-lite/reviews/*.md
+                        │ .spec-lite/features/{unit_tests_,integration_tests_}*.md
                         ▼
               ┌──────────────────┐
-              │ technical_docs   │  Phase 4: Documentation
-              └────────┬─────────┘
-                       │
-                       ▼
-              ┌──────────────────┐
-              │     readme       │  Phase 5: Frontend / Polish
+              │     readme       │  Phase 4: Polish
               └──────────────────┘
 ```
 
@@ -92,22 +92,23 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 | **spec_help** | Any | (none) | (none — interactive guidance only) |
 | **memorize** | Any | User instructions, `.spec-lite/memory.md` | `.spec-lite/memory.md` |
 | **todo** | Any | User TODO text, `.spec-lite/TODO.md` | Updated `.spec-lite/TODO.md` |
+| **explore** | Any | Codebase, optional existing `docs/explore/`/`.spec-lite/memory.md` | `docs/explore/<project-name>.md`, `docs/explore/INDEX.md`, `README.md`, updated `.spec-lite/memory.md` |
+| **yolo** | Any | User goal, optional `.spec-lite/memory.md`, optional `.spec-lite/yolo_state.md` (resume) | End-to-end pipeline artifacts + `.spec-lite/yolo_state.md` |
 | **brainstorm** | 0 | User idea/problem | `.spec-lite/brainstorm.md` |
-| **planner** | 1 | User requirements (optionally `.spec-lite/brainstorm.md`) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, updates `.spec-lite/TODO.md` |
+| **planner** | 1 | User requirements (optionally `.spec-lite/brainstorm.md`), optional `.spec-lite/feature-summary.md` | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, updates `.spec-lite/TODO.md` |
 | **architect** | 1.5 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, user requirements | `.spec-lite/architect_<name>.md`, updates `.spec-lite/TODO.md` |
 | **data_modeller** | 1.5 | User description, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/memory.md` | `.spec-lite/data_model.md` |
-| **feature** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/data_model.md` (if exists) | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
-| **quick_spec** | 1→2 | User description, `.spec-lite/memory.md`, `.spec-lite/data_model.md` (if exists) | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
-| **implement** | 2.5 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Working code, updated feature spec (task states) |
-| **fix** | 2 | Error logs, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Fix + regression test, `.spec-lite/reviews/fix_<issue>.md` |
+| **feature** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/data_model.md`, optional `.spec-lite/feature-summary.md` | `.spec-lite/features/feature_<name>.md`, updates parent plan `Spec File`, updates `.spec-lite/TODO.md` |
+| **plan_feature** | 1→2 | User description, `.spec-lite/memory.md`, optional `.spec-lite/data_model.md`, optional `.spec-lite/feature-summary.md` | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
+| **implement** | 2.5 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/data_model.md`, optional `.spec-lite/feature-summary.md` | Working code, updated feature spec (task states), updates `.spec-lite/feature-summary.md` |
+| **fix** | 2 | Error logs, optional `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/feature-summary.md` | Fix + regression test, `.spec-lite/reviews/fix_<issue>.md` (or inline), may update `.spec-lite/feature-summary.md` |
 | **devops** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | `.spec-lite/devops/`, infra configs |
 | **code_review** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | `.spec-lite/reviews/code_review_<name>.md` |
 | **security_audit** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code, deploy configs | `.spec-lite/reviews/security_audit.md` |
 | **performance_review** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code, benchmarks | `.spec-lite/reviews/performance_review.md` |
-| **integration_tests** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/` | `.spec-lite/features/integration_tests_<name>.md` |
+| **integration_tests** | 3 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code | `.spec-lite/features/integration_tests_<name>.md` |
 | **unit_tests** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | `.spec-lite/features/unit_tests_<name>.md` |
-| **technical_docs** | 4 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | Technical documentation |
-| **readme** | 5 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/brainstorm.md`, source code | `README.md` |
+| **readme** | 4 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/brainstorm.md`, source code, optional `docs/explore/INDEX.md`, optional `.spec-lite/feature-summary.md` *(legacy alias: `feature_summary.md`)* | `README.md` |
 
 ---
 
@@ -121,6 +122,8 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 ├── architect_<name>.md        # Cloud & infrastructure architecture (e.g., architect_fintech_platform.md)
 ├── data_model.md              # Relational data model (maintained by data_modeller sub-agent)
 ├── memory.md                  # Standing instructions (maintained by memorize sub-agent)
+├── feature-summary.md         # Current-state summary of implemented feature behavior
+├── yolo_state.md              # Persistent state for YOLO pause/resume
 ├── TODO.md                    # Enhancement backlog (maintained by planner + feature + todo)
 ├── features/
 │   ├── feature_<name>.md      # Feature specifications
@@ -134,6 +137,11 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 └── devops/
     └── ...                    # Infrastructure artifacts
 ```
+
+Additional common non-`.spec-lite/` outputs:
+
+- `README.md` (from `readme`)
+- `docs/explore/` (from `explore` — per-project docs + `INDEX.md`)
 
 ---
 
@@ -229,8 +237,8 @@ When sub-agents disagree or produce contradictory outputs:
 1. **User-modified artifacts** — User edits to plans, memory.md, TODO.md, or feature specs always win.
 2. **Standing instructions (memory.md)** — Entries in `.spec-lite/memory.md` represent the user's persistent preferences. They override plan defaults if there is a conflict.
 3. **Plan constraints** — Architectural decisions in the relevant plan override individual sub-agent preferences.
-3. **Evidence-based findings** — A security vulnerability found by security_audit overrides a code_review "approve" if the code_review missed it.
-4. **Later-stage sub-agents** — Review sub-agents (Phase 3) can override implementation sub-agents (Phase 2) for quality concerns.
+4. **Evidence-based findings** — A security vulnerability found by security_audit overrides a code_review "approve" if the code_review missed it.
+5. **Later-stage sub-agents** — Review sub-agents (Phase 3) can override implementation sub-agents (Phase 2) for quality concerns.
 
 ### Common Conflicts
 
@@ -248,13 +256,19 @@ When sub-agents disagree or produce contradictory outputs:
 ### Full Pipeline (New Project)
 
 ```
-brainstorm → planner → data_modeller (if data-driven) → feature (×N) → implement (×N) → [code_review, security_audit, performance_review, unit_tests, integration_tests] → technical_docs → readme
+memorize bootstrap → explore (optional) → brainstorm → planner → data_modeller (if data-driven) → feature (×N) → implement (×N) → [code_review, security_audit, performance_review, unit_tests, integration_tests] → readme
 ```
 
 ### Feature Addition (Existing Project)
 
 ```
-brainstorm (optional) → feature → implement → [code_review, unit_tests, integration_tests] → technical_docs (update)
+brainstorm (optional) → feature → implement → [code_review, unit_tests, integration_tests] → readme (update)
+```
+
+### Quick Feature (Focused Enhancement)
+
+```
+plan_feature → implement → [code_review, unit_tests, integration_tests]
 ```
 
 ### Data Modelling (Standalone or from Plan)
@@ -272,13 +286,13 @@ implement → [code_review, unit_tests, integration_tests]
 ### Bug Fix
 
 ```
-fix → [code_review] → technical_docs (update if needed)
+fix → [code_review]
 ```
 
 ### Security Hardening
 
 ```
-security_audit → fix (×N) → code_review → technical_docs (update)
+security_audit → fix (×N) → code_review
 ```
 
 ### Performance Optimization
@@ -293,6 +307,18 @@ performance_review → feature (optimization tasks) → implement → code_revie
 spec_help (anytime — no prerequisites)
 ```
 
+### Codebase Discovery / Onboarding
+
+```
+explore → planner (if no plan exists) → feature / implement
+```
+
+### Autonomous End-to-End
+
+```
+yolo (drives planner → feature → implement → optional reviews/tests/docs; persists state in yolo_state.md)
+```
+
 ---
 
 ## Conventions
@@ -305,13 +331,16 @@ spec_help (anytime — no prerequisites)
 - Code reviews: `code_review_<feature_name>.md`
 - Fix reports: `fix_<issue_description>.md`
 - Data model: `data_model.md`
+- Feature summary (current-state behavior): `feature-summary.md` *(legacy variants like `feature_summary.md` may exist in older prompts)*
+- YOLO state: `yolo_state.md`
+- Explore output: `docs/explore/` (per-project docs + `INDEX.md`)
 - IDs: FEAT-001, TASK-001.1, SEC-001, PERF-001
 
 ### Plan ↔ Feature Cross-Reference
 
 Plans and feature specs maintain bidirectional linkage:
 
-- **`plan.md` → feature specs** (`## 2. High-Level Features` table): The planner pre-assigns FEAT-IDs and records the expected spec filename. The Feature sub-agent updates the `Status` column as specs are produced (`[ ] Not started` → `[/] In progress` → `[x] Complete`).
+- **`plan.md` → feature specs** (`## 2. High-Level Features` table): The planner pre-assigns FEAT-IDs and records the expected spec filename. The Feature sub-agent must ensure the selected FEAT-ID row has the correct `Spec File` link to the generated `.spec-lite/features/feature_<name>.md` file. The `Status` column is updated only by the Implement sub-agent.
 - **`feature_*.md` → plan** (`## 1. Feature Goal` → `**Source Plan**` field): Every feature spec records which plan file it was derived from.
 
 This round-trip reference ensures that given a plan you can enumerate all derived feature specs, and given a feature spec you can trace it back to its originating plan.
@@ -321,8 +350,10 @@ This round-trip reference ensures that given a plan you can enumerate all derive
 Every generated artifact should include:
 
 ```markdown
-<!-- Generated by spec-lite v0.0.4 | sub-agent: {{name}} | date: {{date}} -->
+<!-- Generated by spec-lite v{{version}} | sub-agent: {{name}} | date: {{date}} -->
 ```
+
+Some maintained artifacts may use `updated:` instead of `date:` depending on sub-agent conventions.
 
 ### Plan References
 
@@ -371,6 +402,20 @@ In complex projects, users need clear ways to tell sub-agents which artifact to 
 - **How users reference it**: "Design a data model" or "Update the data model for orders".
 - **Default behavior**: Downstream agents (feature, implement, code_review, etc.) read `data_model.md` if it exists. It is not mandatory — projects without persistent data don't need it.
 
+### Feature Summary
+
+- **File**: `.spec-lite/feature-summary.md` *(legacy: `.spec-lite/feature_summary.md` may still appear in older prompts)*.
+- **Maintained by**: primarily **implement** and **fix**.
+- **How users reference it**: "update feature summary", "what's the current behavior of implemented features?"
+- **Default behavior**: Planner/Feature/Implement/Fix/Docs/README sub-agents may read it to align new work with current implemented behavior.
+
+### YOLO State
+
+- **File**: `.spec-lite/yolo_state.md`.
+- **Maintained by**: **yolo** sub-agent.
+- **How users reference it**: "pause YOLO", "resume YOLO", "continue YOLO".
+- **Default behavior**: Used only by YOLO orchestration runs; ignored by other sub-agents.
+
 ### General Rule
 
 When a user's reference is ambiguous (e.g., "use the plan" when multiple plans exist), agents should list the available options and ask the user to pick one. Never guess.
@@ -399,7 +444,9 @@ Every sub-agent includes a **"What's Next? (End-of-Task Output)"** section that 
 | **Technical Docs** | README; DevOps; Security Audit |
 | **README** | DevOps; Security Audit; Done |
 | **DevOps** | Security Audit; README (update); Technical Docs |
-| **Memorize** | Planner (if new project); Data Modeller (if data-driven); Feature (if plan exists) |
+| **Memorize** | Explore (recommended for existing projects); Planner (if new project); Data Modeller (if data-driven); Feature (if plan exists) |
+| **Explore** | Planner (create plan from discovered codebase); Feature (if a plan already exists); Memorize bootstrap (if only descriptive conventions exist) |
+| **YOLO** | Resume/pause controls, or post-run hardening/docs tasks based on remaining optional phases |
 
 ### Format Convention
 

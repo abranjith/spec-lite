@@ -101,12 +101,12 @@ For each task in the feature spec, follow this sequence:
 
 #### b. Unit Tests
 
-- Write the tests described in the task's **Unit Tests** sub-item.
+- Write **thorough** unit tests for the task — not just the cases listed in the spec.
+- Start with the cases described in the task's **Unit Tests** sub-item, then **go beyond them**: add boundary conditions, null/empty inputs, invalid states, concurrent access (if applicable), and any edge cases you identify from reading the implementation.
 - Follow memory's testing conventions and the plan's testing strategy: framework, organization, naming, mocking approach.
-- Cover the cases listed in the spec: happy path, edge cases, error cases.
+- Cover: happy path, edge cases, error cases, boundary conditions, and integration points with adjacent code.
 - **Run the tests and verify they pass.** If a test fails, fix the implementation (not the test, unless the test is incorrect).
-
-> **Tip**: The task's unit test sub-items cover the essential cases. For deeper coverage (additional edge cases, boundary conditions, coverage exclusions), the user can invoke the **Unit Test** sub-agent after implementation is complete. See [unit_tests.md](unit_tests.md).
+- **You own test coverage.** Do not defer test writing to a separate agent or a later step. The unit tests you write here should be comprehensive enough that a dedicated test pass is not needed.
 
 #### c. Documentation Update
 
@@ -127,8 +127,7 @@ After all tasks are complete:
 - Update the feature spec's State Tracking section — all tasks should be `[x]`.
 - Update the governing plan file (`.spec-lite/plan.md` or the named plan): mark this feature's status as `[x] Complete`.
 - **Update `.spec-lite/feature-summary.md`** — Add or update the entry for this feature under the appropriate category. See [Feature Summary Maintenance](#feature-summary-maintenance) for format and rules.
-- Notify the user: "Implementation of FEAT-{{ID}} is complete. All tasks verified. Ready for review."
-- Optionally suggest: "For comprehensive unit test coverage, invoke the **Unit Test** sub-agent: `Generate unit tests for .spec-lite/features/feature_<name>.md`"
+- Notify the user: "Implementation of FEAT-{{ID}} is complete. All tasks verified, including comprehensive unit tests. Ready for review."
 
 ---
 
@@ -391,7 +390,6 @@ When you finish implementing all tasks in the feature spec, **always** end your 
 **Suggest these based on context:**
 
 **After Feature Mode (single feature complete):**
-- **Always** → Run unit tests or generate comprehensive test coverage (invoke the **Unit Test** sub-agent).
 - **Always** → Review the code (invoke the **Code Review** sub-agent).
 - **If more feature specs exist with incomplete tasks** → Implement the next feature, or suggest Plan Mode: *"Implement all features from the plan"*.
 - **If all features are implemented** → Suggest integration tests, security audit, or performance review.
@@ -399,7 +397,6 @@ When you finish implementing all tasks in the feature spec, **always** end your 
 **After Plan Mode (all features complete):**
 - **Always** → Suggest integration tests across all features.
 - **Always** → Suggest a security audit and performance review now that the full codebase is in place.
-- **Always** → Suggest generating comprehensive unit tests for any features that only have basic coverage.
 
 **After Review Mode (all findings implemented):**
 - **Always** → Re-run the originating audit/review sub-agent to confirm all remediations hold: *"Re-run the security audit"* or *"Re-run the performance review"*.
@@ -409,12 +406,11 @@ When you finish implementing all tasks in the feature spec, **always** end your 
 **Format your output like this** (use actual names and paths):
 
 *Feature Mode:*
-> **What's next?** All tasks in `feature_{{name}}.md` are complete. Here are your suggested next steps:
+> **What's next?** All tasks in `feature_{{name}}.md` are complete (including comprehensive unit tests). Here are your suggested next steps:
 >
-> 1. **Generate unit tests**: *"Generate unit tests for `.spec-lite/features/feature_{{name}}.md`"*
-> 2. **Code review**: *"Review the {{feature_name}} feature"*
-> 3. **Implement next feature** _(if applicable)_: *"Implement `.spec-lite/features/feature_{{next}}.md`"* or *"Implement all features from the plan"*
-> 4. **Integration tests** _(when all features are done)_: *"Generate integration tests for {{feature_name}}"*
+> 1. **Code review**: *"Review the {{feature_name}} feature"*
+> 2. **Implement next feature** _(if applicable)_: *"Implement `.spec-lite/features/feature_{{next}}.md`"* or *"Implement all features from the plan"*
+> 3. **Integration tests** _(when all features are done)_: *"Generate integration tests for {{feature_name}}"*
 
 *Plan Mode:*
 > **What's next?** All features in `{{plan_file}}` are implemented and verified. Here are your suggested next steps:
@@ -422,7 +418,6 @@ When you finish implementing all tasks in the feature spec, **always** end your 
 > 1. **Integration tests**: *"Generate integration tests for all features in {{plan_file}}"*
 > 2. **Security audit**: *"Run a security audit on the project"*
 > 3. **Performance review**: *"Review performance of the critical paths"*
-> 4. **Generate unit tests** _(for deeper coverage)_: *"Generate unit tests for `.spec-lite/features/feature_{{name}}.md`"*
 
 *Review Mode:*
 > **What's next?** All findings from `{{report_file}}` have been implemented and verified. Here are your suggested next steps:

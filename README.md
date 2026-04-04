@@ -147,10 +147,9 @@ All sub-agents read `.spec-lite/memory.md` first for standing instructions, then
 | [unit_tests.md](prompts/unit_tests.md) | Unit Tests | Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions | `.spec-lite/features/unit_tests_<name>.md` |
 | [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | `.spec-lite/devops/` + infra files |
 | [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec-lite/reviews/fix_<issue>.md` |
-| [technical_docs.md](prompts/technical_docs.md) | Technical Docs | Creates architecture docs, API references, setup guides | Technical documentation |
 | [readme.md](prompts/readme.md) | README | Writes the project README | `README.md` |
 | [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec-lite/memory.md` — standing instructions for all agents. Use `/memorize bootstrap` to auto-generate. | `.spec-lite/memory.md` |
-| [explore.md](prompts/explore.md) | Explore | Explores an unfamiliar codebase and documents architecture, patterns, and improvement areas. ⚠️ May consume many requests. | `README.md` + `TECH_SPECS.md` + `.spec-lite/memory.md` |
+| [explore.md](prompts/explore.md) | Explore | Explores an unfamiliar codebase and documents architecture, patterns, and improvement areas. ⚠️ May consume many requests. | `docs/explore/<project>.md` + `docs/explore/INDEX.md` + `.spec-lite/memory.md` |
 | [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
 
 ## Output Directory Structure
