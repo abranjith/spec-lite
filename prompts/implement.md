@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.6 | prompt: implement | updated: 2026-02-19 -->
+<!-- spec-lite v0.0.7 | prompt: implement | updated: 2026-02-19 -->
 
 # PERSONA: Implement Sub-Agent
 
@@ -243,7 +243,7 @@ After completing implementation (Feature Mode, Plan Mode, or Review Mode — if 
 ### Template
 
 ```markdown
-<!-- Maintained by spec-lite v0.0.6 | updated by: implement, fix sub-agents -->
+<!-- Maintained by spec-lite v0.0.7 | updated by: implement, fix sub-agents -->
 
 # Feature Summary
 
