@@ -29,6 +29,7 @@ Before starting, you MUST read the following artifacts:
 - **`.spec-lite/features/feature_<name>.md`** (mandatory) — The feature spec for the code being reviewed. Understand what the code is *supposed* to do.
 - **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model. Validate that the code's data-access patterns, migrations, and entity definitions match the defined schema.
 - **Previous review reports** (optional) — For re-review after fixes, focus on whether prior issues were addressed.
+- **`.spec-lite/tools/`** (if exists) — User-defined tooling scripts that provide dynamic project context, validation, or automation. List the directory and read each script's header block to understand available tools, when to use them, and what arguments they accept. Execute relevant tools during your review — they may provide linting, coverage metrics, or codebase analysis. See [Project Tools](#project-tools) for the convention and usage rules.
 
 > **Note**: The plan may contain user-added instructions or corrections. These take priority over any conflicting guidance in this prompt.
 
@@ -136,6 +137,37 @@ Categorize findings by severity:
 - **Review finding vs User style**: If the code uses a style the user clearly prefers (evident from the broader codebase) but it contradicts the plan's standards, note it as an observation, not a critical issue. Suggest updating the plan to match if the user's style is consistent.
 - **Re-reviews**: When reviewing code that was revised after a previous review, focus on whether the previous issues were addressed. Don't re-raise issues that were intentionally not fixed (the user decided to accept the trade-off).
 - See [orchestrator.md](orchestrator.md) for global conflict resolution rules.
+
+---
+
+## Project Tools
+
+If `.spec-lite/tools/` exists, the project has **user-defined tooling scripts** that you can execute during your workflow. These tools bridge the gap between static spec files and live project state — providing dynamic context like database status, build health, dependency analysis, code metrics, environment validation, and more.
+
+### Discovery
+
+1. **List** `.spec-lite/tools/` to see available tools.
+2. **Read each script's header block** (structured comments at the top of the file) to understand what the tool does, when to use it, what arguments it accepts, and see example invocations.
+3. The header block follows this format and ends with a `# ---` delimiter:
+
+```bash
+#!/bin/bash
+# TOOL: <tool-name>
+# DESCRIPTION: <what the tool does>
+# WHEN: <when to call this tool — e.g., "Before writing migrations", "After implementing auth changes">
+# ARGS:
+#   <arg>  <description>
+# EXAMPLE: .spec-lite/tools/<tool-name>.sh <example args>
+# ---
+```
+
+### Execution Rules
+
+- **Run tools via bash**: Execute directly (e.g., `bash .spec-lite/tools/check-migrations.sh --env dev`).
+- **Respect WHEN directives**: Each tool's `WHEN` field tells you at what point in your workflow to run it. These encode project-specific requirements that the user considers important.
+- **Use output as context**: Tool output is dynamic context. Incorporate it into your analysis, decisions, or implementation alongside memory and plan context.
+- **Don't modify tools**: These are user-maintained. Do not edit, delete, or create tools unless the user explicitly asks.
+- **Report failures**: If a tool exits with a non-zero status or produces error output, report it to the user — it may indicate a real project issue affecting your work.
 
 ---
 

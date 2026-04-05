@@ -64,6 +64,7 @@ export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
   data_modeller:      { promptName: "build_data_model",             agentName: "data_model_builder",     promptOnly: false },
   yolo:               { promptName: "yolo",                         agentName: "yolo",                   promptOnly: false },
   explore:            { promptName: "explore",                      agentName: "explorer",               promptOnly: false },
+  tool_help:          { promptName: "tool_help",                    agentName: "tool_helper",            promptOnly: false },
 };
 
 /** Get the verb-form output name for a prompt file. Falls back to stripping "spec_" prefix. */
@@ -192,6 +193,12 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     description:
       "Explores an unfamiliar codebase and documents architecture, patterns, data model, features, and improvement areas. WARNING: may consume many requests on large codebases.",
     output: "README.md + TECH_SPECS.md + .spec-lite/memory.md",
+  },
+  tool_help: {
+    title: "Tool Helper",
+    description:
+      "Creates and edits efficient bash tools in .spec-lite/tools/ that sub-agents auto-discover and execute",
+    output: ".spec-lite/tools/<tool-name>.sh",
   },
 };
 

@@ -30,6 +30,7 @@ Before starting, read the following artifacts and incorporate their decisions:
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. Use it to understand the existing feature landscape — avoid re-specifying features that already exist, identify integration points, and ensure the new work doesn't conflict with current functionality.
 - **`.spec-lite/data_model.md`** (if exists) — **The authoritative relational data model** produced by the Data Modeller sub-agent. If this file exists, use it as the definitive schema source — do NOT re-design the data model from scratch. Only add feature-specific extensions with justification.
 - **Existing codebase** (if adding to an existing project) — Understand current patterns, file organization, and conventions.
+- **`.spec-lite/tools/`** (if exists) — User-defined tooling scripts that provide dynamic project context, validation, or automation. List the directory and read each script's header block to understand available tools, when to use them, and what arguments they accept. Execute relevant tools at appropriate points during your workflow. See [Project Tools](#project-tools) for the convention and usage rules.
 
 > **Note**: The generated spec is a **living document**. Users may modify it directly to add corrections, override decisions, or steer direction. The **Implement** sub-agent MUST respect user modifications — user edits to the spec take precedence over the original generated content.
 >
@@ -248,6 +249,37 @@ Legend: [ ] Not started | [/] In progress | [x] Completed
 - **Scope creep during clarification**: If the user keeps adding requirements, check whether the work still fits a single feature spec. If not, suggest switching to the Planner.
 - **Existing code contradicts the approach**: Flag it. Ask: "The codebase currently does X, but your requirement suggests Y. Should I follow the existing pattern or introduce the new approach?"
 - See [orchestrator.md](orchestrator.md) for global conflict resolution rules.
+
+---
+
+## Project Tools
+
+If `.spec-lite/tools/` exists, the project has **user-defined tooling scripts** that you can execute during your workflow. These tools bridge the gap between static spec files and live project state — providing dynamic context like database status, build health, dependency analysis, code metrics, environment validation, and more.
+
+### Discovery
+
+1. **List** `.spec-lite/tools/` to see available tools.
+2. **Read each script's header block** (structured comments at the top of the file) to understand what the tool does, when to use it, what arguments it accepts, and see example invocations.
+3. The header block follows this format and ends with a `# ---` delimiter:
+
+```bash
+#!/bin/bash
+# TOOL: <tool-name>
+# DESCRIPTION: <what the tool does>
+# WHEN: <when to call this tool — e.g., "Before writing migrations", "After implementing auth changes">
+# ARGS:
+#   <arg>  <description>
+# EXAMPLE: .spec-lite/tools/<tool-name>.sh <example args>
+# ---
+```
+
+### Execution Rules
+
+- **Run tools via bash**: Execute directly (e.g., `bash .spec-lite/tools/check-migrations.sh --env dev`).
+- **Respect WHEN directives**: Each tool's `WHEN` field tells you at what point in your workflow to run it. These encode project-specific requirements that the user considers important.
+- **Use output as context**: Tool output is dynamic context. Incorporate it into your analysis, decisions, or implementation alongside memory and plan context.
+- **Don't modify tools**: These are user-maintained. Do not edit, delete, or create tools unless the user explicitly asks.
+- **Report failures**: If a tool exits with a non-zero status or produces error output, report it to the user — it may indicate a real project issue affecting your work.
 
 ---
 

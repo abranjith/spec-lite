@@ -282,9 +282,12 @@ Combine all inputs (profile, manifest data, bundled snippet, web findings) to ge
 
 **Default Instructions**: In addition to the project-specific conventions discovered above, **always** include the following baseline instructions in every bootstrapped memory. Place them in the appropriate sections:
 
-- **Architecture**: "Follow SOLID software design principles (Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion) and clean code principles across all code."
+- **Architecture**: "Follow SOLID software design principles (Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion) and clean code principles. Prefer composition over multi-level inheritance. Use interfaces (in typed languages) to decouple components, making code more flexible and easier to test."
+- **General**: "Look at the big picture: avoid churning out similar code in multiple places. Abstract shared logic into common utility or helper methods. Before refactoring existing code, ask the user whether backwards compatibility is required. If backwards compatibility is **not** required, do not preserve deprecated signatures, unused parameters, or legacy behavior — remove them cleanly."
+- **Logging**: "Implement structured logging. Log at appropriate levels (INFO for business events, DEBUG for troubleshooting, ERROR for exceptions with stack traces). Never log sensitive PII, secrets, or credentials."
+- **Dependencies**: "When adding new packages, strictly fetch the latest stable (not pre-release) versions. Strongly prefer Long Term Support (LTS) distributions for all libraries, frameworks, and runtimes."
+- **Data Model** (if applicable): "Centralize database access (e.g., utilizing the Repository pattern). Write efficient queries, strictly use parameterized queries to prevent SQL injection, avoid N+1 query problems, and ensure appropriate indexing on frequently queried columns."
 - **Documentation**: "Every method or function must include clear, human-readable comments that describe its purpose, parameters, return value, and any side effects. Comments should be written for a broad audience — not just the original author."
-- **General**: "Before refactoring existing code, ask the user whether backwards compatibility is required. If backwards compatibility is **not** required, do not preserve deprecated signatures, unused parameters, or legacy behavior — remove them cleanly."
 
 These defaults apply universally regardless of language or framework. If the project already has instructions that conflict with or refine these (e.g., a stricter documentation standard), the project-specific version takes precedence.
 

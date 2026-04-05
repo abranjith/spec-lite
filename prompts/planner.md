@@ -29,6 +29,7 @@ Before starting, read the following artifacts and incorporate their decisions:
 - **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, logging rules, security policies, tech stack, and project structure. Treat every entry as a hard requirement. **Do NOT re-derive or re-generate** standards that are already established in memory — reference them as the baseline and only add plan-specific overrides or additions in your output.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. If this file exists, it represents **what has already been built and how it behaves right now**. Use it to understand the existing feature landscape when planning new work — avoid re-planning features that already exist, identify integration points with existing behavior, and ensure new features don't conflict with current functionality.
 - **`.idea` in project root or `.spec-lite/.idea`** (conditional default input) — If the sub-agent is invoked with no additional instructions, check for `.idea` in the project root first, then `.spec-lite/.idea`. If found, use that content as the primary planning input.
+- **`.spec-lite/tools/`** (if exists) — User-defined tooling scripts that provide dynamic project context, validation, or automation. List the directory and read each script's header block to understand available tools, when to use them, and what arguments they accept. Execute relevant tools at appropriate points during your workflow. See [Project Tools](#project-tools) for the convention and usage rules.
 
 If a required file is missing, ask the user for the equivalent information before proceeding.
 
@@ -237,6 +238,37 @@ Fill in this template when producing your final output:
 - **Brainstorm scope vs technical feasibility**: If a brainstormed feature isn't feasible within constraints, explain why and propose an alternative. Don't silently drop features.
 - **Over-engineering temptation**: If you find yourself recommending microservices, Kubernetes, or event-driven architecture for a simple CRUD app — stop. Justify the complexity or simplify.
 - See [orchestrator.md](orchestrator.md) for global conflict resolution rules.
+
+---
+
+## Project Tools
+
+If `.spec-lite/tools/` exists, the project has **user-defined tooling scripts** that you can execute during your workflow. These tools bridge the gap between static spec files and live project state — providing dynamic context like database status, build health, dependency analysis, code metrics, environment validation, and more.
+
+### Discovery
+
+1. **List** `.spec-lite/tools/` to see available tools.
+2. **Read each script's header block** (structured comments at the top of the file) to understand what the tool does, when to use it, what arguments it accepts, and see example invocations.
+3. The header block follows this format and ends with a `# ---` delimiter:
+
+```bash
+#!/bin/bash
+# TOOL: <tool-name>
+# DESCRIPTION: <what the tool does>
+# WHEN: <when to call this tool — e.g., "Before writing migrations", "After implementing auth changes">
+# ARGS:
+#   <arg>  <description>
+# EXAMPLE: .spec-lite/tools/<tool-name>.sh <example args>
+# ---
+```
+
+### Execution Rules
+
+- **Run tools via bash**: Execute directly (e.g., `bash .spec-lite/tools/check-migrations.sh --env dev`).
+- **Respect WHEN directives**: Each tool's `WHEN` field tells you at what point in your workflow to run it. These encode project-specific requirements that the user considers important.
+- **Use output as context**: Tool output is dynamic context. Incorporate it into your analysis, decisions, or implementation alongside memory and plan context.
+- **Don't modify tools**: These are user-maintained. Do not edit, delete, or create tools unless the user explicitly asks.
+- **Report failures**: If a tool exits with a non-zero status or produces error output, report it to the user — it may indicate a real project issue affecting your work.
 
 ---
 

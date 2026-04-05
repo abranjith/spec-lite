@@ -29,7 +29,9 @@ Before starting, you MUST read the following artifacts:
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory's standing rules. All implementation must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies to this feature.
 - **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model produced by the Data Modeller sub-agent. Contains table definitions, column types, constraints, indexes, and relationships. Use this as the definitive schema reference when writing migrations, models, and data-access code.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. Read this before starting to understand what already exists and how it behaves. You will **update this file** after completing implementation — see [Feature Summary Maintenance](#feature-summary-maintenance).
+- **`docs/explore/`** (if exists) — Human-readable technical documentation produced by the Explore sub-agent. Contains per-project architecture, design patterns, data models, feature maps, and an `INDEX.md`. If this directory exists, you will **update the affected sections** after implementation — see [Explore Documentation Maintenance](#explore-documentation-maintenance).
 - **Existing codebase** (recommended) — Understand current patterns, utilities, and conventions before writing new code.
+- **`.spec-lite/tools/`** (if exists) — User-defined tooling scripts that provide dynamic project context, validation, or automation. List the directory and read each script's header block to understand available tools, when to use them, and what arguments they accept. Execute relevant tools at appropriate points during your workflow — especially before/after implementation steps like migrations, builds, or test runs. See [Project Tools](#project-tools) for the convention and usage rules.
 
 > **Note**: The plan and feature spec may contain **user-added instructions or corrections**. These take priority over any conflicting guidance in this prompt. If you notice annotations, notes, or modifications that weren't in the original generated output, follow them — the user is steering direction.
 
@@ -127,6 +129,7 @@ After all tasks are complete:
 - Update the feature spec's State Tracking section — all tasks should be `[x]`.
 - Update the governing plan file (`.spec-lite/plan.md` or the named plan): mark this feature's status as `[x] Complete`.
 - **Update `.spec-lite/feature-summary.md`** — Add or update the entry for this feature under the appropriate category. See [Feature Summary Maintenance](#feature-summary-maintenance) for format and rules.
+- **Update `docs/explore/` documentation** — If the directory exists, update affected sections in the relevant project doc(s). See [Explore Documentation Maintenance](#explore-documentation-maintenance) for rules. If the directory does not exist, skip this step.
 - Notify the user: "Implementation of FEAT-{{ID}} is complete. All tasks verified, including comprehensive unit tests. Ready for review."
 
 ---
@@ -160,6 +163,7 @@ After all queued findings are addressed:
 
 - Run the full test suite.
 - **Update `.spec-lite/feature-summary.md`** — If any remediation changed observable feature behavior (not just internal hardening), update the affected feature entries to reflect the current behavior. See [Feature Summary Maintenance](#feature-summary-maintenance).
+- **Update `docs/explore/` documentation** — If the directory exists and any remediation changed documented code structure, APIs, data models, or features, update the affected sections. See [Explore Documentation Maintenance](#explore-documentation-maintenance). If the directory does not exist, skip.
 - Notify the user: *"All {{n}} findings from `{{report_file}}` have been implemented and verified."*
 - Suggest re-running the relevant audit or review sub-agent to confirm remediations hold.
 
@@ -196,6 +200,7 @@ After all queued features are implemented:
 - Run the full test suite across the entire codebase.
 - Confirm all feature statuses in the plan are `[x]`.
 - **Verify `.spec-lite/feature-summary.md`** — Confirm all implemented features have entries. Each feature should have been added during its individual Finalize step.
+- **Verify `docs/explore/` documentation** — If the directory exists, do a final pass across `docs/explore/INDEX.md` and the project doc(s) to confirm they accurately reflect the now-complete implementation. Fix any stale sections. If the directory does not exist, skip.
 - Notify the user: *"All features in `{{plan_file}}` are implemented and verified."*
 
 ---
@@ -284,12 +289,66 @@ Checkout accepts credit card and PayPal via `POST /checkout`. Payment is process
 
 ---
 
+## Explore Documentation Maintenance
+
+After completing implementation (Feature Mode, Plan Mode, or Review Mode), you MUST check whether `docs/explore/` exists. If it does, update the affected documentation. If it does not exist, **skip entirely** — do not create it. The Explore sub-agent is responsible for initial creation; you are responsible for keeping it current when it's already present.
+
+> **Why maintain explore docs?** `feature-summary.md` is a concise, AI-agent-friendly reference. `docs/explore/` documentation is the **human-facing** companion — it provides rich, readable context about architecture, design patterns, data models, and features that engineers (and non-engineers) use to understand the codebase. Both must stay in sync with reality.
+
+### Rules
+
+1. **Only if present**: If `docs/explore/` does not exist, skip all explore documentation updates. Never create the directory or its files — that's the Explore sub-agent's job.
+2. **Read before writing**: Read `docs/explore/INDEX.md` to understand the documentation structure and identify which project doc(s) your changes affect. Then read the relevant `docs/explore/<project-name>.md` file(s).
+3. **Surgical updates**: Update **only** the sections affected by your code changes. Common sections in explore docs include:
+   - **Architecture** — Update if you added/removed modules, layers, or service boundaries.
+   - **Data Model** — Update if you added/modified entities, schemas, relationships, or migrations.
+   - **Patterns** — Update if you introduced a new design pattern or changed an existing one.
+   - **Features** — Update if you added new features, changed API surface, or modified business logic.
+   - **Improvements** — Remove items you've fixed (e.g., a previously flagged security risk that's now resolved).
+4. **Replace, don't append**: Like `feature-summary.md`, explore docs reflect the **current state**. Replace stale descriptions with accurate ones. Do not add changelog entries, "fixed on" annotations, or historical notes — that's what source control is for.
+5. **Preserve structure & quality**: Explore docs are **human-facing** — presentation and readability matter. Preserve the existing document structure, heading hierarchy, formatting, and tone. Match the writing style of the surrounding content. Do not degrade the document's quality or readability.
+6. **Update INDEX.md sparingly**: Only update `docs/explore/INDEX.md` if your changes affect the project-level summary or cross-project relationships. Minor feature additions typically don't require INDEX changes.
+7. **No-op is valid**: If your implementation doesn't affect any content in the explore docs (e.g., you added an internal utility not covered by the docs), skip the update. Not every code change requires a doc change.
+
+---
+
 ## Conflict Resolution
 
 - **Spec says X, but the codebase already does Y**: If the existing code contradicts the spec, flag it. Ask the user: "The spec says to create `UserService`, but `UserManager` already exists with similar functionality. Should I extend the existing class or create the new one per spec?"
 - **Test fails after correct implementation**: If you're confident the implementation is correct and the test expectation is wrong, flag it with a note in the feature spec: "DEVIATION: Test expectation adjusted because [reason]."
 - **Dependency not yet built**: If a task depends on another feature that isn't implemented yet, use a stub/mock as described in the feature spec's Dependencies section. Note: "STUB: Using mock [dependency] until FEAT-[ID] is implemented."
 - See [orchestrator.md](orchestrator.md) for global conflict resolution rules.
+
+---
+
+## Project Tools
+
+If `.spec-lite/tools/` exists, the project has **user-defined tooling scripts** that you can execute during your workflow. These tools bridge the gap between static spec files and live project state — providing dynamic context like database status, build health, dependency analysis, code metrics, environment validation, and more.
+
+### Discovery
+
+1. **List** `.spec-lite/tools/` to see available tools.
+2. **Read each script's header block** (structured comments at the top of the file) to understand what the tool does, when to use it, what arguments it accepts, and see example invocations.
+3. The header block follows this format and ends with a `# ---` delimiter:
+
+```bash
+#!/bin/bash
+# TOOL: <tool-name>
+# DESCRIPTION: <what the tool does>
+# WHEN: <when to call this tool — e.g., "Before writing migrations", "After implementing auth changes">
+# ARGS:
+#   <arg>  <description>
+# EXAMPLE: .spec-lite/tools/<tool-name>.sh <example args>
+# ---
+```
+
+### Execution Rules
+
+- **Run tools via bash**: Execute directly (e.g., `bash .spec-lite/tools/check-migrations.sh --env dev`).
+- **Respect WHEN directives**: Each tool's `WHEN` field tells you at what point in your workflow to run it. These encode project-specific requirements that the user considers important.
+- **Use output as context**: Tool output is dynamic context. Incorporate it into your analysis, decisions, or implementation alongside memory and plan context.
+- **Don't modify tools**: These are user-maintained. Do not edit, delete, or create tools unless the user explicitly asks.
+- **Report failures**: If a tool exits with a non-zero status or produces error output, report it to the user — it may indicate a real project issue affecting your work.
 
 ---
 

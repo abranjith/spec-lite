@@ -29,7 +29,9 @@ Before starting, you SHOULD read the following artifacts:
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (recommended) — Architecture and design patterns. Contains plan-specific decisions. Fixes should not violate architectural constraints. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **`.spec-lite/features/feature_<name>.md`** (recommended) — If the bug relates to a specific feature, understand what the correct behavior should be.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features. Read this to understand what the feature is supposed to do. If your fix changes observable behavior, you will **update this file** — see step 5 (Document).
+- **`docs/explore/`** (if exists) — Human-readable technical documentation produced by the Explore sub-agent. Contains per-project architecture, design patterns, data models, feature maps, and an `INDEX.md`. If this directory exists and your fix changes code structure, APIs, data models, or feature behavior, you will **update the affected sections** — see step 5 (Document).
 - **Failing tests / error logs** (mandatory) — The actual error output. You need to see the symptom before diagnosing the cause.
+- **`.spec-lite/tools/`** (if exists) — User-defined tooling scripts that provide dynamic project context, validation, or automation. List the directory and read each script's header block to understand available tools, when to use them, and what arguments they accept. Execute relevant tools during diagnosis or after applying fixes — they may provide reproduction helpers, environment checks, or validation scripts. See [Project Tools](#project-tools) for the convention and usage rules.
 
 > **Note**: The plan may contain user-defined constraints that affect how fixes should be implemented (e.g., "no ORM changes without migration", "all fixes must include regression tests").
 
@@ -99,6 +101,16 @@ Add a brief entry to `.spec-lite/TODO.md` or the relevant feature spec if the bu
 
 When updating, find the affected feature's entry under its category, **replace** the description with the current behavior (not append), and update the `*(updated: {{date}} by fix)*` annotation. If the feature appears in multiple categories, update all of them. See the Feature Summary Maintenance section in [implement.md](implement.md) for the full format and rules.
 
+**Update `docs/explore/` documentation** if the directory exists **and** the fix changes code that is documented there (architecture, data models, API surface, design patterns, or feature behavior). If `docs/explore/` does not exist, skip this entirely — do not create it.
+
+When updating:
+- Read `docs/explore/INDEX.md` to identify which project doc(s) are affected.
+- Open the relevant `docs/explore/<project-name>.md` file(s) and update **only** the sections affected by your fix (e.g., if you changed a data model, update the Data Model section; if you changed an API endpoint, update the Features / API surface section).
+- **Replace** stale information with current state — do not append changelogs or "fixed on" notes. These docs describe what the code does *now*.
+- Preserve the existing document structure, formatting, and any sections you did not change. Readability and presentation matter — these are human-facing docs.
+- Update the `INDEX.md` summary only if the change affects cross-project relationships or the project-level summary.
+- If `docs/explore/` exists but has no content relevant to the changed code (e.g., the fix touches a file/module not covered by explore docs), skip the update.
+
 ---
 
 ## Output: Fix Report (inline or `.spec-lite/reviews/fix_<issue>.md`)
@@ -159,6 +171,37 @@ When updating, find the affected feature's entry under its category, **replace**
 
 ---
 
+## Project Tools
+
+If `.spec-lite/tools/` exists, the project has **user-defined tooling scripts** that you can execute during your workflow. These tools bridge the gap between static spec files and live project state — providing dynamic context like database status, build health, dependency analysis, code metrics, environment validation, and more.
+
+### Discovery
+
+1. **List** `.spec-lite/tools/` to see available tools.
+2. **Read each script's header block** (structured comments at the top of the file) to understand what the tool does, when to use it, what arguments it accepts, and see example invocations.
+3. The header block follows this format and ends with a `# ---` delimiter:
+
+```bash
+#!/bin/bash
+# TOOL: <tool-name>
+# DESCRIPTION: <what the tool does>
+# WHEN: <when to call this tool — e.g., "Before writing migrations", "After implementing auth changes">
+# ARGS:
+#   <arg>  <description>
+# EXAMPLE: .spec-lite/tools/<tool-name>.sh <example args>
+# ---
+```
+
+### Execution Rules
+
+- **Run tools via bash**: Execute directly (e.g., `bash .spec-lite/tools/check-migrations.sh --env dev`).
+- **Respect WHEN directives**: Each tool's `WHEN` field tells you at what point in your workflow to run it. These encode project-specific requirements that the user considers important.
+- **Use output as context**: Tool output is dynamic context. Incorporate it into your analysis, decisions, or implementation alongside memory and plan context.
+- **Don't modify tools**: These are user-maintained. Do not edit, delete, or create tools unless the user explicitly asks.
+- **Report failures**: If a tool exits with a non-zero status or produces error output, report it to the user — it may indicate a real project issue affecting your work.
+
+---
+
 ## Constraints
 
 - **Do NOT** fix more than what's broken. Scope discipline is non-negotiable.
@@ -167,6 +210,7 @@ When updating, find the affected feature's entry under its category, **replace**
 - **Do** check if the same bug pattern exists elsewhere in the codebase. Note it as a follow-up, but don't fix it in the same change.
 - **Do** verify the fix actually resolves the original issue before declaring it done.
 - **Do** update `.spec-lite/TODO.md` if the bug reveals a broader concern that should be tracked.
+- **Do** update `docs/explore/` documentation if it exists and the fix changes documented code structure, APIs, data models, or features. Skip if the directory does not exist.
 
 ---
 

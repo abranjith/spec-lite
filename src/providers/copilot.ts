@@ -291,6 +291,18 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
     },
   ],
+  tool_help: [
+    {
+      label: "Implement Feature",
+      agent: "spec.implementer",
+      prompt: "Implement the feature, using the tools created above where applicable.",
+    },
+    {
+      label: "Capture Conventions",
+      agent: "spec.memorize",
+      prompt: "Capture tool usage conventions in project memory.",
+    },
+  ],
   todo: [],
 };
 

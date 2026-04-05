@@ -39,6 +39,8 @@ const LANGUAGE_MAP: Record<string, string> = {
   "spring": "java.md",
   "spring boot": "java.md",
   "spring-boot": "java.md",
+  go: "go.md",
+  golang: "go.md",
 };
 
 /**

@@ -57,6 +57,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Fix & Refactor** | `fix` | Debug issues or restructure code safely | Bug report or code smells | Targeted fixes |
 | **README** | `readme` | Write the project README and optional user guide | Plan + features | `README.md` |
 | **Explore** | `explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `docs/explore/<project-name>.md` + `docs/explore/INDEX.md` + `README.md` + `.spec-lite/memory.md` |
+| **Tool Helper** | `tool_help` | Create and edit efficient bash tools in `.spec-lite/tools/` that sub-agents auto-discover and execute | Tool description or existing script | `.spec-lite/tools/<tool-name>.sh` |
 
 ---
 
