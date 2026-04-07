@@ -1,21 +1,29 @@
 # spec-lite
 
-> Lightweight, modular, LLM-agnostic prompt collection for structured software engineering — with a CLI installer.
+> Surgical, spec-driven prompts for professional software development — no tools, no framework, no lock-in.
 
 ## What Is This?
 
-spec-lite is a set of **modular prompt files** — each defining a specialist AI sub-agent for one phase of the software development lifecycle. Install once, and spec-lite configures your workspace for your AI coding assistant of choice.
+spec-lite is a curated collection of **precise, modular prompt files** — each defining a specialist AI sub-agent for one phase of the software development lifecycle. Every prompt is self-contained markdown. There is no runtime, no SDK, no agent harness. Install once, and spec-lite places the right files in the right locations for your AI coding assistant.
 
-**No frameworks. No lock-in. Just markdown prompts that work everywhere.**
+**Just markdown prompts that work everywhere.**
 
-### Design Principles
+## What It Is
 
-- **Lightweight** — Plain markdown files. Minimal CLI.
-- **Modular** — Use one sub-agent or all of them. Skip what you don't need.
-- **Unopinionated** — Adapts to any project type (web, CLI, library, desktop, pipeline), any language, any stack.
-- **Finite-scoped** — Each sub-agent has one job, clear inputs, and a concrete output artifact.
-- **Memory-first** — Cross-cutting standards (coding conventions, architecture, testing, security) live in `.spec-lite/memory.md` — the single source of truth read by every sub-agent.
-- **Provider-agnostic** — Works with GitHub Copilot, Claude Code, or any LLM via generic mode.
+- **Surgical prompts for spec-driven development.** Each prompt targets a specific SDLC activity — planning, feature design, implementation, code review, testing, security audit, DevOps, and more. They are precise, finite-scoped, and produce concrete output artifacts.
+- **No tools attached.** spec-lite ships zero tools on purpose. Modern AI agents are excellent at creating tools themselves, and every project's tooling needs are different. Instead, spec-lite includes a **Tool Helper** sub-agent (`/tool_help`) that helps you create project-specific bash tools in `.spec-lite/tools/` — which other prompts can then discover and use to inject project context.
+- **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, and **Pi** — prompts are written as both prompt files and agent files where the provider supports it (e.g., Copilot gets `.prompt.md` + `.agent.md` files with handoff support; Claude Code gets files in `.claude/agents/` and `.claude/prompts/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
+- **Global installation support.** Install prompts once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, and Pi.
+- **Slash-command invocation.** Once installed, sub-agents are invoked with `/` commands (e.g., `/spec.plan`, `/spec.feature`) or via your provider's agent selection UI.
+- **YOLO mode.** For when you want to go fully autonomous — the YOLO sub-agent drives the entire spec-lite pipeline end to end, from planning through implementation, reviews, and documentation. Pausable, resumable, with checkpoints at every phase.
+- **Memory support.** `.spec-lite/memory.md` is a user-controlled file of standing instructions (coding standards, architecture decisions, testing conventions) read by every sub-agent. Bootstrap it automatically with `/memorize bootstrap`, or edit it directly. Some prompts also auto-update memory when they discover new conventions.
+- **TODO helper.** `.spec-lite/TODO.md` is a living backlog. The `/todo` sub-agent adds items under the right category, and other sub-agents (planner, feature) auto-append enhancements they discover during their work.
+- **Large project exploration.** The `/explore` sub-agent systematically maps unfamiliar or large codebases — including monorepos — producing structured documentation of architecture, patterns, and data models. It works top-down through the dependency graph and handles multi-project repositories by exploring one project at a time.
+
+## What It Is Not
+
+- **Not an agent harness or framework.** There is no runtime, no orchestration engine, no message bus. spec-lite is just prompt files — your AI coding assistant does all the work.
+- **Not a code library.** spec-lite doesn't ship application code. It ships instructions that tell your AI assistant *how* to write code following professional engineering practices.
 
 ---
 
@@ -25,7 +33,7 @@ spec-lite is a set of **modular prompt files** — each defining a specialist AI
 npm install -g @abranjith/spec-lite
 ```
 
-Requires Node.js 18+.
+Requires Node.js 20+.
 
 ## Quick Start
 
@@ -38,13 +46,16 @@ spec-lite init --ai copilot
 # For Claude Code users
 spec-lite init --ai claude-code
 
+# For Pi users
+spec-lite init --ai pi
+
 # For any other LLM (raw prompts you can copy-paste)
 spec-lite init --ai generic
 ```
 
 The CLI will walk you through a short **project profile questionnaire** (language, frameworks, test framework, architecture style, and coding conventions). Your answers are used to:
 
-1. Write agent prompt files to the correct location for your AI tool
+1. Write prompt and agent files to the correct location for your AI tool
 2. Inject your tech-stack context into every prompt's `<!-- project-context -->` block
 3. Copy a curated **best-practice snippet** for your stack into `.spec-lite/stacks/`
 4. Create the `.spec-lite/` directory structure for agent outputs
@@ -64,7 +75,13 @@ spec-lite init --ai copilot --exclude brainstorm,readme
 spec-lite init --ai copilot --skip-profile
 ```
 
-Use `--skip-profile` to skip the interactive questionnaire and install prompts without project-specific context.
+### Install globally (user-level)
+
+```bash
+spec-lite install --global --ai copilot
+```
+
+Global prompts are available across all your workspaces without running `init` in each one.
 
 ### Update prompts to latest version
 
@@ -78,13 +95,14 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 
 ## Supported AI Providers
 
-| Provider | Flag | Files Written To | Format |
-|----------|------|-----------------|--------|
-| GitHub Copilot | `--ai copilot` | `.github/prompts/spec.*.prompt.md` | Slash-command prompts |
-| Claude Code | `--ai claude-code` | `.claude/prompts/spec.*.md` + `CLAUDE.md` | Markdown |
-| Generic | `--ai generic` | `.spec-lite/prompts/spec.*.md` | Raw markdown (copy-paste) |
+| Provider | Flag | Prompt Files | Agent Files | Global Support |
+|----------|------|-------------|-------------|----------------|
+| GitHub Copilot | `--ai copilot` | `.github/prompts/spec.*.prompt.md` | `.github/agents/spec.*.agent.md` | ✅ |
+| Claude Code | `--ai claude-code` | `.claude/prompts/spec.*.md` | `.claude/agents/spec.*.md` + `CLAUDE.md` | ✅ |
+| Pi | `--ai pi` | `.pi/prompts/spec.*.md` | — (prompts only) | ✅ |
+| Generic | `--ai generic` | `.spec-lite/prompts/spec.*.md` | — | — |
 
-More providers (Cursor, Windsurf, Cline, Zed) coming soon.
+For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the prompt files into your tool's expected location.
 
 ## Memory-First Architecture
 
@@ -122,13 +140,13 @@ spec_help (anytime)
                   ┌─ /memorize bootstrap (one-time setup)
                   ▼
 Brainstorm ─→ Planner ─→ Architect ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
-                │                          ├─ Code Review
-                │                          ├─ Security Audit
-                ▼                          └─ Performance Review
-            TODO.md (living backlog)
+                │              │           ├─ Code Review
+                │              │           ├─ Security Audit
+                ▼              ▼           └─ Performance Review
+            TODO.md     Data Modeller
 ```
 
-All sub-agents read `.spec-lite/memory.md` first for standing instructions, then the relevant plan (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
+All sub-agents read `.spec-lite/memory.md` first for standing instructions, then the relevant plan for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
 
 ## Sub-Agent Prompt Files
 
@@ -137,19 +155,24 @@ All sub-agents read `.spec-lite/memory.md` first for standing instructions, then
 | [spec_help.md](prompts/spec_help.md) | Spec Help | Navigator — explains which sub-agent to use and when | Interactive guidance |
 | [brainstorm.md](prompts/brainstorm.md) | Brainstorm | Back-and-forth ideation partner that refines vague ideas | `.spec-lite/brainstorm.md` |
 | [planner.md](prompts/planner.md) | Planner | Creates a detailed technical blueprint (living document) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
-| [todo.md](prompts/todo.md) | TODO | Adds user-requested backlog items to TODO.md under the right category | `.spec-lite/TODO.md` |
+| [todo.md](prompts/todo.md) | TODO | Adds backlog items to TODO.md under the right category | `.spec-lite/TODO.md` |
 | [architect.md](prompts/architect.md) | Architect | Designs cloud infrastructure, database strategy, and scaling architecture | `.spec-lite/architect_<name>.md` |
+| [data_modeller.md](prompts/data_modeller.md) | Data Modeller | Transforms domain descriptions into optimized relational data models | `.spec-lite/data_model.md` |
 | [feature.md](prompts/feature.md) | Feature | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec-lite/features/feature_<name>.md` |
+| [plan_feature.md](prompts/plan_feature.md) | Feature Planner | From idea to actionable feature spec in one shot — skips the full plan | `.spec-lite/features/feature_<name>.md` |
+| [implement.md](prompts/implement.md) | Implement | Takes a completed feature spec and writes production code, tests, and docs | Code + tests + docs |
 | [code_review.md](prompts/code_review.md) | Code Review | Reviews code for correctness, architecture, readability | `.spec-lite/reviews/code_review_<name>.md` |
 | [security_audit.md](prompts/security_audit.md) | Security Audit | Threat-models and scans for vulnerabilities | `.spec-lite/reviews/security_audit.md` |
 | [performance_review.md](prompts/performance_review.md) | Performance Review | Identifies bottlenecks and optimization opportunities | `.spec-lite/reviews/performance_review.md` |
 | [integration_tests.md](prompts/integration_tests.md) | Integration Tests | Writes traceable integration test scenarios from feature specs | `.spec-lite/features/integration_tests_<name>.md` |
-| [unit_tests.md](prompts/unit_tests.md) | Unit Tests | Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions | `.spec-lite/features/unit_tests_<name>.md` |
+| [unit_tests.md](prompts/unit_tests.md) | Unit Tests | Generates comprehensive unit tests with edge-case coverage | `.spec-lite/features/unit_tests_<name>.md` |
 | [devops.md](prompts/devops.md) | DevOps | Sets up Docker, CI/CD, environments, and deployment | `.spec-lite/devops/` + infra files |
 | [fix.md](prompts/fix.md) | Fix | Debugs issues with root cause analysis + regression tests | `.spec-lite/reviews/fix_<issue>.md` |
 | [readme.md](prompts/readme.md) | README | Writes the project README | `README.md` |
-| [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec-lite/memory.md` — standing instructions for all agents. Use `/memorize bootstrap` to auto-generate. | `.spec-lite/memory.md` |
-| [explore.md](prompts/explore.md) | Explore | Explores an unfamiliar codebase and documents architecture, patterns, and improvement areas. ⚠️ May consume many requests. | `docs/explore/<project>.md` + `docs/explore/INDEX.md` + `.spec-lite/memory.md` |
+| [memorize.md](prompts/memorize.md) | Memorize | Manages `.spec-lite/memory.md` — standing instructions for all agents | `.spec-lite/memory.md` |
+| [explore.md](prompts/explore.md) | Explore | Systematically maps unfamiliar codebases (including monorepos) | `docs/explore/<project>.md` + `.spec-lite/memory.md` |
+| [tool_help.md](prompts/tool_help.md) | Tool Helper | Creates and edits project-specific bash tools in `.spec-lite/tools/` | `.spec-lite/tools/*.sh` |
+| [yolo.md](prompts/yolo.md) | YOLO | Autonomous end-to-end pipeline — runs all phases from plan to docs | All of the above |
 | [orchestrator.md](prompts/orchestrator.md) | — | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
 
 ## Output Directory Structure
@@ -162,20 +185,22 @@ spec-lite sub-agents produce artifacts in the `.spec-lite/` directory (version-c
 ├── brainstorm.md
 ├── plan.md                    # Default plan (simple projects) — user-modifiable
 ├── plan_<name>.md             # Named plans (complex projects, e.g., plan_order_management.md)
-├── architect_<name>.md        # Cloud & infrastructure architecture (e.g., architect_fintech_platform.md)
+├── architect_<name>.md        # Cloud & infrastructure architecture
+├── data_model.md              # Relational data model
 ├── TODO.md                    # Enhancement backlog — maintained by planner + feature + todo
 ├── features/
-│   ├── feature_user_management.md
-│   ├── feature_billing.md
-│   ├── unit_tests_user_management.md
-│   └── integration_tests_user_management.md
+│   ├── feature_<name>.md
+│   ├── unit_tests_<name>.md
+│   └── integration_tests_<name>.md
 ├── reviews/
-│   ├── code_review_user_management.md
+│   ├── code_review_<name>.md
 │   ├── security_audit.md
 │   ├── performance_review.md
-│   └── fix_create_order_null.md
-└── devops/
-    └── ...                    # Infrastructure artifacts
+│   └── fix_<issue>.md
+├── devops/
+│   └── ...                    # Infrastructure artifacts
+└── tools/
+    └── ...                    # Project-specific bash tools (created via /tool_help)
 ```
 
 Implementation artifacts (tests, docs, infra configs) are written to standard project directories.
@@ -198,10 +223,21 @@ Initialize spec-lite prompts in your workspace.
 
 ```
 Options:
-  --ai <provider>      AI provider: copilot, claude-code, generic
+  --ai <provider>      AI provider: copilot, claude-code, pi, generic
   --exclude <prompts>  Comma-separated prompts to skip (e.g., brainstorm,readme)
   --skip-profile       Skip the interactive project profile questionnaire
   --force              Overwrite existing files without prompting
+```
+
+### `spec-lite install --global`
+
+Install prompts globally (user-level) for use across all workspaces.
+
+```
+Options:
+  --ai <provider>      AI provider: copilot, claude-code, pi
+  --exclude <prompts>  Comma-separated prompts to skip
+  --force              Overwrite existing global files without prompting
 ```
 
 ### `spec-lite update`
@@ -215,7 +251,7 @@ Options:
 
 ### `spec-lite list`
 
-List all available sub-agents with their purpose and output artifacts.
+List all available sub-agents with their type (agent+prompt or prompt-only), purpose, and output artifacts.
 
 ```bash
 spec-lite list
@@ -223,9 +259,31 @@ spec-lite list
 
 ---
 
+## Best Practices
+
+1. **Bootstrap memory first.** After `spec-lite init`, run `/memorize bootstrap` before doing anything else. This gives every sub-agent your project's coding standards, architecture conventions, and testing preferences from the start.
+
+2. **Start with the Planner (or Feature Planner).** If you have clear requirements, go straight to `/spec.plan`. For a single contained feature, use `/spec.plan_feature` to skip the full plan and get an actionable spec in one shot.
+
+3. **Use memory as your single source of truth.** Don't repeat conventions in every prompt invocation. Put them in `.spec-lite/memory.md` once and every sub-agent will pick them up.
+
+4. **Create project-specific tools.** Use `/tool_help` to create bash scripts in `.spec-lite/tools/` that gather project context (build output, test results, lint status). Other sub-agents automatically discover and use these tools.
+
+5. **Commit `.spec-lite/` to version control.** Plans, feature specs, reviews, and memory are living documents. Treat them like code — commit with meaningful messages, review changes, and track evolution.
+
+6. **Use YOLO mode sparingly.** YOLO is powerful but can consume a large number of AI requests. Best used for greenfield projects or well-scoped feature sets where you're comfortable with autonomous execution.
+
+7. **Edit freely.** Plans, memory, and feature specs are your documents. Sub-agents respect your edits. The hierarchy is always: your direct instruction > plan > sub-agent defaults.
+
+## Demos
+
+See [spec-lite-demo](https://github.com/abranjith/spec-lite-demo) for walkthroughs and example projects built with spec-lite.
+
+---
+
 ## Versioning
 
-spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v0.0.1 | ... -->`) for traceability.
+spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v0.0.8 | ... -->`) for traceability.
 
 ## Adapting & Contributing
 

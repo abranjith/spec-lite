@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.7 | prompt: tool_help | updated: 2026-04-04 -->
+<!-- spec-lite v0.0.8 | prompt: tool_help | updated: 2026-04-04 -->
 
 # PERSONA: Tool Helper — Bash Tool Creator & Editor
 

@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.7 | prompt: todo | updated: 2026-04-02 -->
+<!-- spec-lite v0.0.8 | prompt: todo | updated: 2026-04-02 -->
 
 # PERSONA: TODO Sub-Agent
 

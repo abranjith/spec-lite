@@ -1,4 +1,4 @@
-<!-- spec-lite v0.0.7 | prompt: orchestrator | updated: 2026-04-03 -->
+<!-- spec-lite v0.0.8 | prompt: orchestrator | updated: 2026-04-03 -->
 
 # PERSONA: Orchestrator — Sub-Agent Pipeline Reference
 
