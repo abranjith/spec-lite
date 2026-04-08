@@ -148,6 +148,93 @@ Brainstorm ─→ Planner ─→ Architect ─→ Feature (×N) ─→ Reviews �
 
 All sub-agents read `.spec-lite/memory.md` first for standing instructions, then the relevant plan for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every sub-agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help sub-agent to understand the pipeline.
 
+## Real-World Workflows
+
+Not every project follows the full pipeline. Here are the most common workflows, with the exact sub-agent invocations for each.
+
+### Large Feature Development
+
+For substantial work that spans multiple features — a new module, a major refactor, or an epic with several user stories.
+
+```
+/memorize bootstrap          ← one-time (if not already done)
+/spec.plan                   ← produces .spec-lite/plan.md with task breakdown
+  ↓
+  ┌── for each feature in the plan ──┐
+  │  /spec.feature                    │  ← creates .spec-lite/features/feature_<name>.md
+  │  /spec.implement                  │  ← writes code, tests, and docs from the feature spec
+  │  /spec.code_review                │  ← review the implementation
+  │  (iterate if review has findings) │
+  └───────────────────────────────────┘
+/spec.security_audit         ← once all features are in place
+/spec.readme                 ← update project README
+```
+
+**Example:** You're building an e-commerce checkout system. Run `/spec.plan` with your requirements — it produces a plan breaking the work into features like *cart management*, *payment processing*, *order confirmation*, and *email notifications*. Then for each feature: `/spec.feature` to spec it out, `/spec.implement` to build it, and `/spec.code_review` to catch issues before moving on. After all features land, run `/spec.security_audit` to threat-model the entire checkout flow.
+
+### Small / Single Feature
+
+For a contained piece of work — an API endpoint, a UI component, a new utility. No full plan needed.
+
+```
+/spec.plan_feature           ← produces .spec-lite/features/feature_<name>.md directly
+/spec.implement              ← writes code, tests, and docs
+/spec.code_review            ← review the implementation
+```
+
+**Example:** You need to add a "forgot password" flow. Run `/spec.plan_feature` describing the feature — it creates a single actionable feature spec in one shot, skipping the overhead of a full project plan. Then `/spec.implement` builds it and `/spec.code_review` validates the result.
+
+### Bug Fix
+
+For diagnosing and fixing a reported issue — includes root cause analysis and regression tests.
+
+```
+/spec.fix                    ← diagnoses root cause, applies fix, adds regression tests
+/spec.code_review            ← review the fix
+```
+
+**Example:** Users report that search results are duplicated when filters are applied. Run `/spec.fix` with the bug description — it traces the issue to a missing deduplication step in the query pipeline, applies the fix, and writes a regression test. Then `/spec.code_review` confirms the fix is correct and doesn't introduce side effects.
+
+### Greenfield Project
+
+Starting from scratch — from idea to deployed code.
+
+```
+/spec.brainstorm             ← refine the idea interactively
+/memorize bootstrap          ← set up coding standards and conventions
+/spec.plan                   ← full technical blueprint
+/spec.architect              ← infrastructure and database design
+/spec.data_modeller          ← data model from domain description
+  ↓
+  (feature loop — same as Large Feature Development above)
+  ↓
+/spec.devops                 ← Docker, CI/CD, deployment
+/spec.readme                 ← project documentation
+```
+
+**Example:** You have a rough idea for a task management API. Start with `/spec.brainstorm` to clarify scope and requirements. Then `/memorize bootstrap` to establish conventions, `/spec.plan` for the full blueprint, `/spec.architect` for infrastructure decisions, and `/spec.data_modeller` for the schema. Work through features one by one, then finish with `/spec.devops` for deployment and `/spec.readme` for documentation.
+
+### Exploring an Existing Codebase
+
+When you inherit or join a project and need to understand what's there.
+
+```
+/spec.explore                ← maps the codebase structure, patterns, and architecture
+/memorize bootstrap          ← captures discovered conventions into memory
+```
+
+**Example:** You're onboarded to a large monorepo with multiple services. Run `/spec.explore` — it systematically walks the dependency graph, documents architecture patterns, data models, and inter-service communication, and produces structured exploration docs. Then `/memorize bootstrap` distills those findings into standing instructions for all future sub-agent work.
+
+### Autonomous Mode (YOLO)
+
+For when you trust the pipeline and want it to run end-to-end with minimal intervention. Best for greenfield projects or well-scoped feature sets.
+
+```
+/spec.yolo                   ← runs the entire pipeline autonomously with checkpoints
+```
+
+The YOLO sub-agent drives planning through implementation, reviews, and documentation — pausing at checkpoints for your approval before proceeding to the next phase.
+
 ## Sub-Agent Prompt Files
 
 | File | Sub-Agent | What It Does | Output |

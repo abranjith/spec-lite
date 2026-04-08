@@ -99,7 +99,7 @@ Add a brief entry to `.spec-lite/TODO.md` or the relevant feature spec if the bu
 
 **Update `.spec-lite/feature-summary.md`** if the fix changes **observable feature behavior** (e.g., altered validation rules, changed API response format, modified business logic, fixed a behavioral bug). If the fix is purely internal (refactor, performance tweak, test-only fix) with no user-visible change, skip this step.
 
-When updating, find the affected feature's entry under its category, **replace** the description with the current behavior (not append), and update the `*(updated: {{date}} by fix)*` annotation. If the feature appears in multiple categories, update all of them. See the Feature Summary Maintenance section in [implement.md](implement.md) for the full format and rules.
+When updating, find the affected feature's entry under its category, **replace** the description with the current behavior (not append), and update the `*(updated: {{date}} by fix)*` annotation. If the feature appears in multiple categories, update all of them. Do **not** include `FEAT-...` identifiers in `feature-summary.md` entries; use human-readable feature names only. Add (or keep) a `Source spec:` markdown link to the relevant `.spec-lite/features/feature_<name>.md` file when available. See the Feature Summary Maintenance section in [implement.md](implement.md) for the full format and rules.
 
 **Update `docs/explore/` documentation** if the directory exists **and** the fix changes code that is documented there (architecture, data models, API surface, design patterns, or feature behavior). If `docs/explore/` does not exist, skip this entirely — do not create it.
 
