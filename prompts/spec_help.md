@@ -36,28 +36,28 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 
 ## Available Sub-Agents
 
-| Sub-Agent | Prompt File | Purpose | Input | Output |
+| Sub-Agent | Installed As | Purpose | Input | Output |
 |-----------|-------------|---------|-------|--------|
-| **Spec Help** | `spec_help` | Navigate the sub-agent system (you are here) | Questions | Guidance |
-| **Memorize** | `memorize` | Store standing instructions enforced by all sub-agents | User instructions | `.spec-lite/memory.md` |
-| **Brainstorm** | `brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec-lite/brainstorm.md` |
-| **Planner** | `planner` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
-| **TODO** | `todo` | Add user-requested backlog items to TODO.md in the correct category | TODO item text (optional category) | `.spec-lite/TODO.md` |
-| **Architect** | `architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
-| **Data Modeller** | `data_modeller` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
-| **Feature** | `feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
-| **Feature Planner** | `plan_feature` | Clarify requirements and produce a self-contained feature spec — skips the full plan | User's idea or requirement | `.spec-lite/features/feature_<name>.md` |
-| **Implement** | `implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
-| **Code Review** | `code_review` | Review code for correctness, architecture, readability | Feature spec + code | `.spec-lite/reviews/code_review_<name>.md` |
-| **Security Audit** | `security_audit` | Scan for vulnerabilities and security risks | Plan + code | `.spec-lite/reviews/security_audit_<scope>.md` |
-| **Performance Review** | `performance_review` | Identify bottlenecks and optimization opportunities | Plan + code | `.spec-lite/reviews/performance_review_<scope>.md` |
-| **Integration Tests** | `integration_tests` | Write traceable test scenarios from feature specs | Feature spec + plan | `.spec-lite/features/integration_tests_<name>.md` |
-| **Unit Tests** | `unit_tests` | Generate comprehensive unit tests with edge-case coverage and coverage config | Feature spec + source code (or standalone source files) | `.spec-lite/features/unit_tests_<name>.md` |
-| **DevOps** | `devops` | Set up Docker, CI/CD, environments, and deployment | Plan + codebase | Infrastructure files |
-| **Fix & Refactor** | `fix` | Debug issues or restructure code safely | Bug report or code smells | Targeted fixes |
-| **README** | `readme` | Write the project README and optional user guide | Plan + features | `README.md` |
-| **Explore** | `explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `docs/explore/<project-name>.md` + `docs/explore/INDEX.md` + `README.md` + `.spec-lite/memory.md` |
-| **Tool Helper** | `tool_help` | Create and edit efficient bash tools in `.spec-lite/tools/` that sub-agents auto-discover and execute | Tool description or existing script | `.spec-lite/tools/<tool-name>.sh` |
+| **Spec Help** | `spec.help` | Navigate the sub-agent system (you are here) | Questions | Guidance |
+| **Memorize** | `spec.memorize` | Store standing instructions enforced by all sub-agents | User instructions | `.spec-lite/memory.md` |
+| **Brainstorm** | `spec.brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec-lite/brainstorm.md` |
+| **Planner** | `spec.plan` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
+| **TODO** | `spec.todo` | Add user-requested backlog items to TODO.md in the correct category | TODO item text (optional category) | `.spec-lite/TODO.md` |
+| **Architect** | `spec.architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
+| **Data Modeller** | `spec.build_data_model` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
+| **Feature** | `spec.feature` | Break one feature into granular, verifiable vertical slices | One feature from plan | `.spec-lite/features/feature_<name>.md` |
+| **Feature Planner** | `spec.plan_feature` | Clarify requirements and produce a self-contained feature spec — skips the full plan | User's idea or requirement | `.spec-lite/features/feature_<name>.md` |
+| **Implement** | `spec.implement` | Pick up a feature spec and execute its tasks with code | Feature spec + plan | Working code + updated feature spec |
+| **Code Review** | `spec.review_code` | Review code for correctness, architecture, readability | Feature spec + code | `.spec-lite/reviews/code_review_<name>.md` |
+| **Security Audit** | `spec.review_security` | Scan for vulnerabilities and security risks | Plan + code | `.spec-lite/reviews/security_audit_<scope>.md` |
+| **Performance Review** | `spec.review_performance` | Identify bottlenecks and optimization opportunities | Plan + code | `.spec-lite/reviews/performance_review_<scope>.md` |
+| **Integration Tests** | `spec.write_integration_tests` | Write traceable test scenarios from feature specs | Feature spec + plan | `.spec-lite/features/integration_tests_<name>.md` |
+| **Unit Tests** | `spec.write_unit_tests` | Generate comprehensive unit tests with edge-case coverage and coverage config | Feature spec + source code (or standalone source files) | `.spec-lite/features/unit_tests_<name>.md` |
+| **DevOps** | `spec.devops` | Set up Docker, CI/CD, environments, and deployment | Plan + codebase | Infrastructure files |
+| **Fix & Refactor** | `spec.fix` | Debug issues or restructure code safely | Bug report or code smells | Targeted fixes |
+| **README** | `spec.write_readme` | Write the project README and optional user guide | Plan + features | `README.md` |
+| **Explore** | `spec.explore` | Explore an unfamiliar codebase — documents architecture, patterns, data model, features, and improvements | Codebase | `docs/explore/<project-name>.md` + `docs/explore/INDEX.md` + `README.md` + `.spec-lite/memory.md` |
+| **Tool Helper** | `spec.tool_help` | Create and edit efficient bash tools in `.spec-lite/tools/` that sub-agents auto-discover and execute | Tool description or existing script | `.spec-lite/tools/<tool-name>.sh` |
 
 ---
 
@@ -236,7 +236,7 @@ The brainstorm (`.spec-lite/brainstorm.md`) is **not** automatically fed into th
 | Fix a bug | Invoke **fix**: *"The test_create_order test is failing with..."* |
 | Run unit tests for a feature | Invoke **unit_tests**: *"Generate unit tests for `.spec-lite/features/feature_user_management.md`"* |
 | Run unit tests (standalone) | Invoke **unit_tests**: *"Write unit tests for `src/utils/validators.ts`"* |
-| Explore a codebase | Invoke **explore**: *"Explore this codebase"* or *"/explore all"* |
+| Explore a codebase | Invoke **explore**: *"Explore this codebase"* or *"/spec.explore all"* |
 | Run the full pipeline | Invoke **yolo**: *"Build a full-stack task management app with React + Node.js"* |
 
 ---

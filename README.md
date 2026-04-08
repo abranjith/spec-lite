@@ -11,14 +11,14 @@ spec-lite is a curated collection of **precise, modular prompt files** — each 
 ## What It Is
 
 - **Surgical prompts for spec-driven development.** Each prompt targets a specific SDLC activity — planning, feature design, implementation, code review, testing, security audit, DevOps, and more. They are precise, finite-scoped, and produce concrete output artifacts.
-- **No tools attached.** spec-lite ships zero tools on purpose. Modern AI agents are excellent at creating tools themselves, and every project's tooling needs are different. Instead, spec-lite includes a **Tool Helper** sub-agent (`/tool_help`) that helps you create project-specific bash tools in `.spec-lite/tools/` — which other prompts can then discover and use to inject project context.
+- **No tools attached.** spec-lite ships zero tools on purpose. Modern AI agents are excellent at creating tools themselves, and every project's tooling needs are different. Instead, spec-lite includes a **Tool Helper** sub-agent (`/spec.tool_help`) that helps you create project-specific bash tools in `.spec-lite/tools/` — which other prompts can then discover and use to inject project context.
 - **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, and **Pi** — prompts are written as both prompt files and agent files where the provider supports it (e.g., Copilot gets `.prompt.md` + `.agent.md` files with handoff support; Claude Code gets files in `.claude/agents/` and `.claude/prompts/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
 - **Global installation support.** Install prompts once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, and Pi.
 - **Slash-command invocation.** Once installed, sub-agents are invoked with `/` commands (e.g., `/spec.plan`, `/spec.feature`) or via your provider's agent selection UI.
 - **YOLO mode.** For when you want to go fully autonomous — the YOLO sub-agent drives the entire spec-lite pipeline end to end, from planning through implementation, reviews, and documentation. Pausable, resumable, with checkpoints at every phase.
-- **Memory support.** `.spec-lite/memory.md` is a user-controlled file of standing instructions (coding standards, architecture decisions, testing conventions) read by every sub-agent. Bootstrap it automatically with `/memorize bootstrap`, or edit it directly. Some prompts also auto-update memory when they discover new conventions.
-- **TODO helper.** `.spec-lite/TODO.md` is a living backlog. The `/todo` sub-agent adds items under the right category, and other sub-agents (planner, feature) auto-append enhancements they discover during their work.
-- **Large project exploration.** The `/explore` sub-agent systematically maps unfamiliar or large codebases — including monorepos — producing structured documentation of architecture, patterns, and data models. It works top-down through the dependency graph and handles multi-project repositories by exploring one project at a time.
+- **Memory support.** `.spec-lite/memory.md` is a user-controlled file of standing instructions (coding standards, architecture decisions, testing conventions) read by every sub-agent. Bootstrap it automatically with `/spec.memorize bootstrap`, or edit it directly. Some prompts also auto-update memory when they discover new conventions.
+- **TODO helper.** `.spec-lite/TODO.md` is a living backlog. The `/spec.todo` sub-agent adds items under the right category, and other sub-agents (planner, feature) auto-append enhancements they discover during their work.
+- **Large project exploration.** The `/spec.explore` sub-agent systematically maps unfamiliar or large codebases — including monorepos — producing structured documentation of architecture, patterns, and data models. It works top-down through the dependency graph and handles multi-project repositories by exploring one project at a time.
 
 ## What It Is Not
 
@@ -61,7 +61,7 @@ The CLI will walk you through a short **project profile questionnaire** (languag
 4. Create the `.spec-lite/` directory structure for agent outputs
 5. Save a `.spec-lite.json` config (including your project profile) to track your setup
 
-After init completes, run **`/memorize bootstrap`** (see below) to let the LLM auto-generate a comprehensive `memory.md` from your codebase.
+After init completes, run **`/spec.memorize bootstrap`** (see below) to let the LLM auto-generate a comprehensive `memory.md` from your codebase.
 
 ### Exclude specific agents
 
@@ -119,7 +119,7 @@ spec-lite uses a **memory-first** approach: cross-cutting concerns that every su
 After running `spec-lite init`, bootstrap your memory in one step:
 
 ```
-/memorize bootstrap
+/spec.memorize bootstrap
 ```
 
 The memorize sub-agent will:
@@ -137,7 +137,7 @@ Once memory is bootstrapped, the **Planner** focuses on project-specific archite
 ```
 spec_help (anytime)
 
-                  ┌─ /memorize bootstrap (one-time setup)
+                  ┌─ /spec.memorize bootstrap (one-time setup)
                   ▼
 Brainstorm ─→ Planner ─→ Architect ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
                 │              │           ├─ Code Review
@@ -157,20 +157,20 @@ Not every project follows the full pipeline. Here are the most common workflows,
 For substantial work that spans multiple features — a new module, a major refactor, or an epic with several user stories.
 
 ```
-/memorize bootstrap          ← one-time (if not already done)
+/spec.memorize bootstrap     ← one-time (if not already done)
 /spec.plan                   ← produces .spec-lite/plan.md with task breakdown
   ↓
   ┌── for each feature in the plan ──┐
   │  /spec.feature                    │  ← creates .spec-lite/features/feature_<name>.md
   │  /spec.implement                  │  ← writes code, tests, and docs from the feature spec
-  │  /spec.code_review                │  ← review the implementation
+  │  /spec.review_code                │  ← review the implementation
   │  (iterate if review has findings) │
   └───────────────────────────────────┘
-/spec.security_audit         ← once all features are in place
-/spec.readme                 ← update project README
+/spec.review_security        ← once all features are in place
+/spec.write_readme           ← update project README
 ```
 
-**Example:** You're building an e-commerce checkout system. Run `/spec.plan` with your requirements — it produces a plan breaking the work into features like *cart management*, *payment processing*, *order confirmation*, and *email notifications*. Then for each feature: `/spec.feature` to spec it out, `/spec.implement` to build it, and `/spec.code_review` to catch issues before moving on. After all features land, run `/spec.security_audit` to threat-model the entire checkout flow.
+**Example:** You're building an e-commerce checkout system. Run `/spec.plan` with your requirements — it produces a plan breaking the work into features like *cart management*, *payment processing*, *order confirmation*, and *email notifications*. Then for each feature: `/spec.feature` to spec it out, `/spec.implement` to build it, and `/spec.review_code` to catch issues before moving on. After all features land, run `/spec.review_security` to threat-model the entire checkout flow.
 
 ### Small / Single Feature
 
@@ -179,10 +179,10 @@ For a contained piece of work — an API endpoint, a UI component, a new utility
 ```
 /spec.plan_feature           ← produces .spec-lite/features/feature_<name>.md directly
 /spec.implement              ← writes code, tests, and docs
-/spec.code_review            ← review the implementation
+/spec.review_code            ← review the implementation
 ```
 
-**Example:** You need to add a "forgot password" flow. Run `/spec.plan_feature` describing the feature — it creates a single actionable feature spec in one shot, skipping the overhead of a full project plan. Then `/spec.implement` builds it and `/spec.code_review` validates the result.
+**Example:** You need to add a "forgot password" flow. Run `/spec.plan_feature` describing the feature — it creates a single actionable feature spec in one shot, skipping the overhead of a full project plan. Then `/spec.implement` builds it and `/spec.review_code` validates the result.
 
 ### Bug Fix
 
@@ -190,10 +190,10 @@ For diagnosing and fixing a reported issue — includes root cause analysis and 
 
 ```
 /spec.fix                    ← diagnoses root cause, applies fix, adds regression tests
-/spec.code_review            ← review the fix
+/spec.review_code            ← review the fix
 ```
 
-**Example:** Users report that search results are duplicated when filters are applied. Run `/spec.fix` with the bug description — it traces the issue to a missing deduplication step in the query pipeline, applies the fix, and writes a regression test. Then `/spec.code_review` confirms the fix is correct and doesn't introduce side effects.
+**Example:** Users report that search results are duplicated when filters are applied. Run `/spec.fix` with the bug description — it traces the issue to a missing deduplication step in the query pipeline, applies the fix, and writes a regression test. Then `/spec.review_code` confirms the fix is correct and doesn't introduce side effects.
 
 ### Greenfield Project
 
@@ -201,18 +201,18 @@ Starting from scratch — from idea to deployed code.
 
 ```
 /spec.brainstorm             ← refine the idea interactively
-/memorize bootstrap          ← set up coding standards and conventions
+/spec.memorize bootstrap     ← set up coding standards and conventions
 /spec.plan                   ← full technical blueprint
 /spec.architect              ← infrastructure and database design
-/spec.data_modeller          ← data model from domain description
+/spec.build_data_model       ← data model from domain description
   ↓
   (feature loop — same as Large Feature Development above)
   ↓
 /spec.devops                 ← Docker, CI/CD, deployment
-/spec.readme                 ← project documentation
+/spec.write_readme           ← project documentation
 ```
 
-**Example:** You have a rough idea for a task management API. Start with `/spec.brainstorm` to clarify scope and requirements. Then `/memorize bootstrap` to establish conventions, `/spec.plan` for the full blueprint, `/spec.architect` for infrastructure decisions, and `/spec.data_modeller` for the schema. Work through features one by one, then finish with `/spec.devops` for deployment and `/spec.readme` for documentation.
+**Example:** You have a rough idea for a task management API. Start with `/spec.brainstorm` to clarify scope and requirements. Then `/spec.memorize bootstrap` to establish conventions, `/spec.plan` for the full blueprint, `/spec.architect` for infrastructure decisions, and `/spec.build_data_model` for the schema. Work through features one by one, then finish with `/spec.devops` for deployment and `/spec.write_readme` for documentation.
 
 ### Exploring an Existing Codebase
 
@@ -220,10 +220,10 @@ When you inherit or join a project and need to understand what's there.
 
 ```
 /spec.explore                ← maps the codebase structure, patterns, and architecture
-/memorize bootstrap          ← captures discovered conventions into memory
+/spec.memorize bootstrap     ← captures discovered conventions into memory
 ```
 
-**Example:** You're onboarded to a large monorepo with multiple services. Run `/spec.explore` — it systematically walks the dependency graph, documents architecture patterns, data models, and inter-service communication, and produces structured exploration docs. Then `/memorize bootstrap` distills those findings into standing instructions for all future sub-agent work.
+**Example:** You're onboarded to a large monorepo with multiple services. Run `/spec.explore` — it systematically walks the dependency graph, documents architecture patterns, data models, and inter-service communication, and produces structured exploration docs. Then `/spec.memorize bootstrap` distills those findings into standing instructions for all future sub-agent work.
 
 ### Autonomous Mode (YOLO)
 
@@ -287,7 +287,7 @@ spec-lite sub-agents produce artifacts in the `.spec-lite/` directory (version-c
 ├── devops/
 │   └── ...                    # Infrastructure artifacts
 └── tools/
-    └── ...                    # Project-specific bash tools (created via /tool_help)
+    └── ...                    # Project-specific bash tools (created via /spec.tool_help)
 ```
 
 Implementation artifacts (tests, docs, infra configs) are written to standard project directories.
@@ -348,13 +348,13 @@ spec-lite list
 
 ## Best Practices
 
-1. **Bootstrap memory first.** After `spec-lite init`, run `/memorize bootstrap` before doing anything else. This gives every sub-agent your project's coding standards, architecture conventions, and testing preferences from the start.
+1. **Bootstrap memory first.** After `spec-lite init`, run `/spec.memorize bootstrap` before doing anything else. This gives every sub-agent your project's coding standards, architecture conventions, and testing preferences from the start.
 
 2. **Start with the Planner (or Feature Planner).** If you have clear requirements, go straight to `/spec.plan`. For a single contained feature, use `/spec.plan_feature` to skip the full plan and get an actionable spec in one shot.
 
 3. **Use memory as your single source of truth.** Don't repeat conventions in every prompt invocation. Put them in `.spec-lite/memory.md` once and every sub-agent will pick them up.
 
-4. **Create project-specific tools.** Use `/tool_help` to create bash scripts in `.spec-lite/tools/` that gather project context (build output, test results, lint status). Other sub-agents automatically discover and use these tools.
+4. **Create project-specific tools.** Use `/spec.tool_help` to create bash scripts in `.spec-lite/tools/` that gather project context (build output, test results, lint status). Other sub-agents automatically discover and use these tools.
 
 5. **Commit `.spec-lite/` to version control.** Plans, feature specs, reviews, and memory are living documents. Treat them like code — commit with meaningful messages, review changes, and track evolution.
 
@@ -376,7 +376,7 @@ spec-lite relies on **git** for artifact versioning. When a plan or review is up
 
 spec-lite is designed to be forked and adapted:
 
-- **Bootstrap memory first** — run `/memorize bootstrap` after init to populate `.spec-lite/memory.md` with your project's standards.
+- **Bootstrap memory first** — run `/spec.memorize bootstrap` after init to populate `.spec-lite/memory.md` with your project's standards.
 - **Edit memory directly** — `.spec-lite/memory.md` is the standing-instruction file. Your edits persist across all sub-agent invocations.
 - **Add project-specific conventions** to the Project Context blocks or directly to memory.
 - **Remove sub-agents** you don't need.

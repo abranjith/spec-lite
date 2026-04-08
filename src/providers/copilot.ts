@@ -44,7 +44,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Design Data Model",
-      agent: "spec.data_modeller",
+      agent: "spec.data_model_builder",
       prompt: "Design a detailed data model based on the plan.",
     },
     {
@@ -66,7 +66,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Design Data Model",
-      agent: "spec.data_modeller",
+      agent: "spec.data_model_builder",
       prompt: "Design a detailed data model based on the architecture.",
     },
     {
@@ -129,14 +129,14 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Security Audit",
-      agent: "spec.security_auditor",
+      agent: "spec.security_reviewer",
       prompt: "Run a security audit on the code reviewed above.",
     },
   ],
   integration_tests: [
     {
       label: "Security Audit",
-      agent: "spec.security_auditor",
+      agent: "spec.security_reviewer",
       prompt: "Run a security audit on the features covered by integration tests.",
     },
     {
@@ -153,7 +153,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Security Audit",
-      agent: "spec.security_auditor",
+      agent: "spec.security_reviewer",
       prompt: "Run a security audit alongside the performance improvements.",
     },
   ],
@@ -189,7 +189,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Design Data Model",
-      agent: "spec.data_modeller",
+      agent: "spec.data_model_builder",
       prompt: "Design a data model using the conventions captured in memory.",
     },
     {
@@ -212,14 +212,14 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Security Audit",
-      agent: "spec.security_auditor",
+      agent: "spec.security_reviewer",
       prompt: "Run a final security audit before releasing the project.",
     },
   ],
   devops: [
     {
       label: "Security Audit",
-      agent: "spec.security_auditor",
+      agent: "spec.security_reviewer",
       prompt: "Run a security audit on the infrastructure and deployment configuration.",
     },
     {
@@ -275,7 +275,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
     {
       label: "Security Audit",
-      agent: "spec.security_auditor",
+      agent: "spec.security_reviewer",
       prompt: "Audit the security risks identified during exploration.",
     },
   ],
