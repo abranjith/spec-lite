@@ -165,7 +165,7 @@ Fill in this template when producing your final output:
 ## 4. Data Model (High-Level)
 
 > Skip if the project doesn't persist data.
-> **Note**: This section captures the *conceptual* data model — the key domain entities and how they relate at a high level. Granular schema design (table definitions, column types, indexes, constraints, detailed relationships) is the responsibility of the **Data Modeller sub-agent** (see [data_modeller.md](data_modeller.md)). After the plan is finalized, invoke the Data Modeller to produce `.spec-lite/data_model.md` with the complete relational schema.
+> **Note**: This section captures the *conceptual* data model — the key domain entities and how they relate at a high level. Granular schema design (table definitions, column types, indexes, constraints, detailed relationships) is the responsibility of the **Data Modeller sub-agent** (see [build_data_model.md](build_data_model.md)). After the plan is finalized, invoke the Data Modeller to produce `.spec-lite/data_model.md` with the complete relational schema.
 >
 > If the project doesn't need a formal data model (e.g., simple CLI, static site), skip this section entirely.
 

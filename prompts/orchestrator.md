@@ -37,6 +37,8 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
                     └──────┬───────┘
                            │ .spec-lite/plan.md or .spec-lite/plan_<name>.md
                            │ .spec-lite/TODO.md (updated)
+                           │
+                           ├──── Optional manual checkpoint ────► .spec-lite/reviews/plan_critique_<scope>.md
                            ▼
               ┌────────────────────────────────┐
               │        Phase 1.5: Design       │
@@ -89,26 +91,27 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 
 | Sub-Agent | Phase | Input Artifacts | Output Artifacts |
 |-----------|-------|----------------|-----------------|
-| **spec_help** | Any | (none) | (none — interactive guidance only) |
+| **help** | Any | (none) | (none — interactive guidance only) |
 | **memorize** | Any | User instructions, `.spec-lite/memory.md` | `.spec-lite/memory.md` |
 | **todo** | Any | User TODO text, `.spec-lite/TODO.md` | Updated `.spec-lite/TODO.md` |
 | **explore** | Any | Codebase, optional existing `docs/explore/`/`.spec-lite/memory.md` | `docs/explore/<project-name>.md`, `docs/explore/INDEX.md`, `README.md`, updated `.spec-lite/memory.md` |
 | **yolo** | Any | User goal, optional `.spec-lite/memory.md`, optional `.spec-lite/yolo_state.md` (resume) | End-to-end pipeline artifacts + `.spec-lite/yolo_state.md` |
 | **brainstorm** | 0 | User idea/problem | `.spec-lite/brainstorm.md` |
-| **planner** | 1 | User requirements (optionally `.spec-lite/brainstorm.md`), optional `.spec-lite/feature-summary.md` | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, updates `.spec-lite/TODO.md` |
+| **plan** | 1 | User requirements (optionally `.spec-lite/brainstorm.md`), optional `.spec-lite/feature-summary.md` | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, updates `.spec-lite/TODO.md` |
+| **plan_critic** | 1.25 (manual) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/brainstorm.md`, optional feature specs | `.spec-lite/reviews/plan_critique_<scope>.md`, may update `.spec-lite/TODO.md` |
 | **architect** | 1.5 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, user requirements | `.spec-lite/architect_<name>.md`, updates `.spec-lite/TODO.md` |
-| **data_modeller** | 1.5 | User description, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/memory.md` | `.spec-lite/data_model.md` |
+| **build_data_model** | 1.5 | User description, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/memory.md` | `.spec-lite/data_model.md` |
 | **feature** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/data_model.md`, optional `.spec-lite/feature-summary.md` | `.spec-lite/features/feature_<name>.md`, updates parent plan `Spec File`, updates `.spec-lite/TODO.md` |
 | **plan_feature** | 1→2 | User description, `.spec-lite/memory.md`, optional `.spec-lite/data_model.md`, optional `.spec-lite/feature-summary.md` | `.spec-lite/features/feature_<name>.md`, updates `.spec-lite/TODO.md` |
 | **implement** | 2.5 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/data_model.md`, optional `.spec-lite/feature-summary.md` | Working code, updated feature spec (task states), updates `.spec-lite/feature-summary.md` |
 | **fix** | 2 | Error logs, optional `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/feature-summary.md` | Fix + regression test, `.spec-lite/reviews/fix_<issue>.md` (or inline), may update `.spec-lite/feature-summary.md` |
 | **devops** | 2 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | `.spec-lite/devops/`, infra configs |
-| **code_review** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | `.spec-lite/reviews/code_review_<name>.md` |
-| **security_audit** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code, deploy configs | `.spec-lite/reviews/security_audit.md` |
-| **performance_review** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code, benchmarks | `.spec-lite/reviews/performance_review.md` |
-| **integration_tests** | 3 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code | `.spec-lite/features/integration_tests_<name>.md` |
-| **unit_tests** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | `.spec-lite/features/unit_tests_<name>.md` |
-| **readme** | 4 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/brainstorm.md`, source code, optional `docs/explore/INDEX.md`, optional `.spec-lite/feature-summary.md` *(legacy alias: `feature_summary.md`)* | `README.md` |
+| **review_code** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | `.spec-lite/reviews/code_review_<name>.md` |
+| **review_security** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code, deploy configs | `.spec-lite/reviews/security_audit.md` |
+| **review_performance** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code, benchmarks | `.spec-lite/reviews/performance_review.md` |
+| **write_integration_tests** | 3 | `.spec-lite/features/feature_<name>.md`, `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, source code | `.spec-lite/features/integration_tests_<name>.md` |
+| **write_unit_tests** | 3 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, `.spec-lite/features/`, source code | `.spec-lite/features/unit_tests_<name>.md` |
+| **write_readme** | 4 | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, optional `.spec-lite/brainstorm.md`, source code, optional `docs/explore/INDEX.md`, optional `.spec-lite/feature-summary.md` *(legacy alias: `feature_summary.md`)* | `README.md` |
 
 ---
 
@@ -130,6 +133,7 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 │   ├── integration_tests_<name>.md  # Integration test plans
 │   └── unit_tests_<name>.md         # Unit test plans
 ├── reviews/
+│   ├── plan_critique_<scope>.md # Optional manual plan critique report
 │   ├── code_review_<name>.md  # Code review reports
 │   ├── security_audit.md      # Security audit report
 │   ├── performance_review.md  # Performance review report
@@ -140,8 +144,24 @@ The sub-agents form a directed pipeline. Each sub-agent reads artifacts produced
 
 Additional common non-`.spec-lite/` outputs:
 
-- `README.md` (from `readme`)
+- `README.md` (from `write_readme`)
 - `docs/explore/` (from `explore` — per-project docs + `INDEX.md`)
+
+### Manual Plan Critique
+
+`plan_critic` is an **optional manual checkpoint** after planning. It is intentionally **not** part of YOLO or any default invocation pattern.
+
+Use it when you want a second-pass critique before feature work or implementation begins:
+
+- sanity-check feasibility and sequencing
+- surface hidden technical complexity or missing decisions
+- capture future enhancements in `.spec-lite/TODO.md` without expanding the current scope
+
+Typical invocation:
+
+```text
+/spec.plan_critic .spec-lite/plan_<name>.md
+```
 
 ---
 
@@ -213,6 +233,7 @@ The `.spec-lite/TODO.md` file serves as a living backlog. Multiple sub-agents co
 | **memorize** | Creates/updates `.spec-lite/memory.md` with standing instructions (can be invoked anytime) |
 | **todo** | Adds a user-requested TODO item to the correct category (asks when category is unclear) |
 | **planner** | Creates initial TODO categories based on architectural decisions |
+| **plan_critic** | Adds future enhancement ideas that should not expand the current plan scope |
 | **feature** | Adds discovered enhancements during implementation exploration |
 | **fix** | Adds follow-up items discovered during debugging |
 | **code_review** | May reference TODO items for broader refactoring needs |
@@ -328,6 +349,7 @@ yolo (drives planner → feature → implement → optional reviews/tests/docs; 
 - Feature specs: `feature_<snake_case_name>.md`
 - Integration tests: `integration_tests_<snake_case_name>.md`
 - Unit tests: `unit_tests_<snake_case_name>.md`
+- Plan critiques: `plan_critique_<scope>.md`
 - Code reviews: `code_review_<feature_name>.md`
 - Fix reports: `fix_<issue_description>.md`
 - Data model: `data_model.md`
@@ -379,6 +401,13 @@ In complex projects, users need clear ways to tell sub-agents which artifact to 
   - "Plan based on `.spec-lite/plan_catalog.md`" → explicit file path
   - If only one plan exists, agents use it automatically without asking.
   - If multiple plans exist and the user doesn't specify, agents MUST ask which plan to use.
+
+### Plan Critiques
+
+- **File**: `.spec-lite/reviews/plan_critique_<scope>.md`
+- **Created by**: **plan_critic** sub-agent.
+- **How users reference it**: "Critique `plan_order_management.md`", "Review the plan before implementation", or by explicit file path.
+- **Default behavior**: Manual-only checkpoint. It is not auto-invoked by YOLO or the default pipeline.
 
 ### Brainstorms
 

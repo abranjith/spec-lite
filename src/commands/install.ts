@@ -156,6 +156,29 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   if (provider.getGlobalPostInstallMessage) {
     console.log(provider.getGlobalPostInstallMessage());
   }
+
+  if (installedPrompts.includes("plan_critic")) {
+    let planCriticNote: string | undefined;
+
+    switch (provider.alias) {
+      case "copilot":
+        planCriticNote =
+          "  💡 Optional checkpoint after planning: /spec.plan_critic .spec-lite/plan.md";
+        break;
+      case "claude-code":
+        planCriticNote =
+          "  💡 Optional checkpoint after planning: use spec.plan_critic against .spec-lite/plan.md in Claude Code.";
+        break;
+      case "pi":
+        planCriticNote =
+          "  💡 Optional checkpoint after planning: /spec.plan_critic .spec-lite/plan.md";
+        break;
+    }
+
+    if (planCriticNote) {
+      console.log(`\n${planCriticNote}`);
+    }
+  }
 }
 
 async function loadPackageVersion(): Promise<string> {

@@ -99,13 +99,13 @@ Systematically explore a codebase and produce structured documentation that accu
 
 1. **`docs/explore/<project-name>.md`** — Deep technical findings: architecture, design patterns, data model (when applicable), and feature map.
 2. **`docs/explore/INDEX.md`** — Simplified index pointing to the project doc.
-3. **`README.md`** (repo root) — Project overview, features, quick start, usage, architecture summary (follows [readme.md](readme.md) conventions).
+3. **`README.md`** (repo root) — Project overview, features, quick start, usage, architecture summary (follows [write_readme.md](write_readme.md) conventions).
 
 ### Multi-Project / Monorepo Repository
 
 1. **`docs/explore/<project-name>.md`** (one per project/package) — Per-project technical documentation covering business features, technical design, and patterns.
 2. **`docs/explore/INDEX.md`** — Master index summarizing every project, their relationships, cross-cutting patterns, and links to each project doc.
-3. **`README.md`** (repo root) — Project overview, features, quick start, usage, architecture summary (follows [readme.md](readme.md) conventions).
+3. **`README.md`** (repo root) — Project overview, features, quick start, usage, architecture summary (follows [write_readme.md](write_readme.md) conventions).
 
 Documentation must reflect **what the code actually does**, not what it aspires to do. If a section is not supported by evidence or is not meaningful for the project, omit it entirely rather than fabricating content.
 
@@ -797,7 +797,7 @@ For detailed technical documentation of each project, see:
 
 ### Output 3: `README.md` (repo root)
 
-Follow the conventions from [readme.md](readme.md). The README should contain:
+Follow the conventions from [write_readme.md](write_readme.md). The README should contain:
 
 - **Title + tagline** (1 line — what this project is)
 - **What Is This** (2–3 paragraphs — what it does, who it's for, why it exists)

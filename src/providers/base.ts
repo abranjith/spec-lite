@@ -87,17 +87,17 @@ export interface PromptMeta {
  * Stored in .spec-lite.json and used by the memorize bootstrap agent.
  */
 export interface ProjectProfile {
-  /** Primary programming language (e.g., "TypeScript", "Python", "C#") */
-  language: string;
+  /** Programming languages used in the repository (e.g., ["TypeScript", "Python", "C#"]) */
+  languages: string[];
 
-  /** Framework(s) in use (e.g., "Express + React", "FastAPI", "ASP.NET Core") */
-  frameworks: string;
+  /** Frameworks in use (e.g., ["Express", "React"], ["FastAPI"], ["ASP.NET Core"]) */
+  frameworks: string[];
 
-  /** Testing framework (e.g., "Jest", "Vitest", "pytest", "xUnit") */
-  testFramework: string;
+  /** Testing frameworks in use (e.g., ["Jest", "Vitest", "pytest", "xUnit"]) */
+  testFrameworks: string[];
 
-  /** Architectural pattern (e.g., "Monolith", "Microservices", "Serverless") */
-  architecture: string;
+  /** Architectural patterns present in the repository (e.g., ["Monolith"], ["Microservices", "Serverless"]) */
+  architectures: string[];
 
   /** Additional coding conventions (e.g., "Airbnb style guide", "PEP 8") */
   conventions: string;

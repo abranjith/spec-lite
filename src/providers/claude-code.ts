@@ -194,6 +194,20 @@ export function generateClaudeRootMd(
     '```text',
     "Use the planner from .claude/agents/spec.planner.md to create a technical plan for this project.",
     '```',
+  );
+
+  if (installedPrompts.includes("plan_critic")) {
+    lines.push(
+      "",
+      "Suggested manual checkpoint after planning:",
+      "",
+      '```text',
+      "Use the plan critic from .claude/agents/spec.plan_critic.md to review .spec-lite/plan.md for feasibility, technical risks, product improvements, and future enhancements before implementation starts.",
+      '```',
+    );
+  }
+
+  lines.push(
     "",
     "## Output Directory",
     "",

@@ -43,20 +43,36 @@ const LANGUAGE_MAP: Record<string, string> = {
   golang: "go.md",
 };
 
+export interface StackSnippetInfo {
+  fileName: string;
+  content: string;
+}
+
+export function resolveStackSnippetFileName(language: string): string | null {
+  const key = language.toLowerCase().trim();
+  return LANGUAGE_MAP[key] ?? null;
+}
+
+export function getStackSnippetInfo(language: string): StackSnippetInfo | null {
+  const fileName = resolveStackSnippetFileName(language);
+
+  if (!fileName) return null;
+
+  const filePath = path.join(getStacksDir(), fileName);
+  if (!fs.pathExistsSync(filePath)) return null;
+
+  return {
+    fileName,
+    content: fs.readFileSync(filePath, "utf-8"),
+  };
+}
+
 /**
  * Get the bundled best-practice snippet for a given language.
  * Returns the markdown content if a matching snippet exists, or null if not.
  */
 export function getStackSnippet(language: string): string | null {
-  const key = language.toLowerCase().trim();
-  const filename = LANGUAGE_MAP[key];
-
-  if (!filename) return null;
-
-  const filePath = path.join(getStacksDir(), filename);
-  if (!fs.pathExistsSync(filePath)) return null;
-
-  return fs.readFileSync(filePath, "utf-8");
+  return getStackSnippetInfo(language)?.content ?? null;
 }
 
 /**

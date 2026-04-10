@@ -100,16 +100,16 @@ YOLO delegates to these sub-agents at each phase. When executing a phase, follow
 
 | Phase | Sub-Agent | Prompt File |
 |-------|-----------|-------------|
-| 1 | Planner | [planner.md](planner.md) |
-| 1b | Data Modeller (optional) | [data_modeller.md](data_modeller.md) |
+| 1 | Planner | [plan.md](plan.md) |
+| 1b | Data Modeller (optional) | [build_data_model.md](build_data_model.md) |
 | 2a | Feature | [feature.md](feature.md) |
 | 2b | Implement | [implement.md](implement.md) |
-| 3 | Code Review | [code_review.md](code_review.md) |
-| 4 | Performance Review | [performance_review.md](performance_review.md) |
-| 5 | Security Audit | [security_audit.md](security_audit.md) |
+| 3 | Code Review | [review_code.md](review_code.md) |
+| 4 | Performance Review | [review_performance.md](review_performance.md) |
+| 5 | Security Audit | [review_security.md](review_security.md) |
 | 6 | Implement (Review Mode) | [implement.md](implement.md) |
-| 7 | Integration Tests | [integration_tests.md](integration_tests.md) |
-| 8 | README | [readme.md](readme.md) |
+| 7 | Integration Tests | [write_integration_tests.md](write_integration_tests.md) |
+| 8 | README | [write_readme.md](write_readme.md) |
 
 ---
 
@@ -234,12 +234,12 @@ _Populated when planning begins._
 
 ### Phase 1 — Planning (per plan)
 
-> **Delegate to**: [planner.md](planner.md) — follow its full process, output format, and constraints.
+> **Delegate to**: [plan.md](plan.md) — follow its full process, output format, and constraints.
 
 For each plan in the state's Plans table, in order:
 
-1. Announce: *"Starting Phase 1 — creating `plan_<name>.md` using the Planner sub-agent ([planner.md](planner.md))..."*
-2. Follow [planner.md](planner.md) to produce `.spec-lite/plan_<name>.md`.
+1. Announce: *"Starting Phase 1 — creating `plan_<name>.md` using the Planner sub-agent ([plan.md](plan.md))..."*
+2. Follow [plan.md](plan.md) to produce `.spec-lite/plan_<name>.md`.
    - Pass the user's goal and the relevant scope boundary as the Planner's input.
    - The plan must include a `High-Level Features` table with FEAT-IDs and a `Status` column.
    - `.spec-lite/memory.md` (if present) is the baseline for all conventions — the plan adds only plan-specific decisions.
@@ -254,15 +254,15 @@ After all plan files are created, announce: *"Phase 1 complete. Plans created: [
 
 ### Phase 1b — Data Modelling (optional, per plan)
 
-> **Delegate to**: [data_modeller.md](data_modeller.md) — follow its full process, output format, and constraints.
+> **Delegate to**: [build_data_model.md](build_data_model.md) — follow its full process, output format, and constraints.
 
 **Applicability criteria**: Only run if the plan includes a **Data Model (High-Level)** section with domain concepts and storage strategy (i.e., the project persists data). If the plan explicitly skips the data model section or the project has no persistent data, skip this phase.
 
 If **not applicable**: announce *"Skipping Phase 1b (Data Modelling) — no persistent data layer in this plan."* Move to Phase 2.
 
 If **applicable**:
-1. Announce: *"Starting Phase 1b — Data Modelling ([data_modeller.md](data_modeller.md)) for `plan_<name>.md`..."*
-2. Follow [data_modeller.md](data_modeller.md) to produce `.spec-lite/data_model.md`.
+1. Announce: *"Starting Phase 1b — Data Modelling ([build_data_model.md](build_data_model.md)) for `plan_<name>.md`..."*
+2. Follow [build_data_model.md](build_data_model.md) to produce `.spec-lite/data_model.md`.
    - Input: the plan's conceptual data model + `.spec-lite/memory.md`.
    - The data model becomes the authoritative schema for all downstream Feature and Implement phases.
 3. Update the state file session log.
@@ -330,12 +330,12 @@ Once all features for this plan are complete, proceed to Phase 3 for this plan.
 
 ### Phase 3 — Code Review (optional, per plan)
 
-> **Delegate to**: [code_review.md](code_review.md) — follow its full process, output format, and quality criteria.
+> **Delegate to**: [review_code.md](review_code.md) — follow its full process, output format, and quality criteria.
 
 **Optional phase gate**: If Code Review is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 3 (Code Review) — disabled by user preference."* Update state: mark `code-review` as `N/A` for all features in this plan. Move to Phase 4.
 
-1. Announce: *"All features in `plan_<name>.md` implemented. Starting Phase 3 — Code Review ([code_review.md](code_review.md))..."*
-2. Follow [code_review.md](code_review.md).
+1. Announce: *"All features in `plan_<name>.md` implemented. Starting Phase 3 — Code Review ([review_code.md](review_code.md))..."*
+2. Follow [review_code.md](review_code.md).
    - Input: all feature specs + implemented source code for this plan.
 3. Output: `.spec-lite/reviews/code_review_<plan_name>.md`.
 4. Update `.spec-lite/yolo_state.md`: mark `code-review` as `[x]`.
@@ -344,7 +344,7 @@ Once all features for this plan are complete, proceed to Phase 3 for this plan.
 
 ### Phase 4 — Performance Review (optional, per plan)
 
-> **Delegate to**: [performance_review.md](performance_review.md) — follow its full process, output format, and severity classification.
+> **Delegate to**: [review_performance.md](review_performance.md) — follow its full process, output format, and severity classification.
 
 **Optional phase gate**: If Performance Review is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 4 (Performance Review) — disabled by user preference."* Update state: mark `perf-review` as `N/A`. Move to Phase 5.
 
@@ -357,8 +357,8 @@ Once all features for this plan are complete, proceed to Phase 3 for this plan.
 If **not applicable**: announce *"Skipping Phase 4 (Performance Review) — no data-intensive or high-concurrency paths."* Update state: mark `perf-review` as `N/A`. Move to Phase 5.
 
 If **applicable**:
-1. Announce: *"Starting Phase 4 — Performance Review ([performance_review.md](performance_review.md)) for `plan_<name>.md`..."*
-2. Follow [performance_review.md](performance_review.md).
+1. Announce: *"Starting Phase 4 — Performance Review ([review_performance.md](review_performance.md)) for `plan_<name>.md`..."*
+2. Follow [review_performance.md](review_performance.md).
    - Input: feature specs + implemented source code for this plan.
 3. Output: `.spec-lite/reviews/performance_review_<plan_name>.md`.
 4. Update `.spec-lite/yolo_state.md`: mark `perf-review` as `[x]`.
@@ -367,7 +367,7 @@ If **applicable**:
 
 ### Phase 5 — Security Audit (optional, per plan)
 
-> **Delegate to**: [security_audit.md](security_audit.md) — follow its full process, output format, and severity classification.
+> **Delegate to**: [review_security.md](review_security.md) — follow its full process, output format, and severity classification.
 
 **Optional phase gate**: If Security Audit is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 5 (Security Audit) — disabled by user preference."* Update state: mark `sec-review` as `N/A`. Move to Phase 6.
 
@@ -381,8 +381,8 @@ If **applicable**:
 If **not applicable**: announce *"Skipping Phase 5 (Security Audit) — no auth, user data, or external integrations."* Update state: mark `sec-review` as `N/A`. Move to Phase 6.
 
 If **applicable**:
-1. Announce: *"Starting Phase 5 — Security Audit ([security_audit.md](security_audit.md)) for `plan_<name>.md`..."*
-2. Follow [security_audit.md](security_audit.md).
+1. Announce: *"Starting Phase 5 — Security Audit ([review_security.md](review_security.md)) for `plan_<name>.md`..."*
+2. Follow [review_security.md](review_security.md).
    - Input: feature specs + implemented source code + deployment configs for this plan.
 3. Output: `.spec-lite/reviews/security_audit_<plan_name>.md`.
 4. Update `.spec-lite/yolo_state.md`: mark `sec-review` as `[x]`.
@@ -410,12 +410,12 @@ If Critical or High findings exist:
 
 ### Phase 7 — Integration Tests (optional, per plan)
 
-> **Delegate to**: [integration_tests.md](integration_tests.md) — follow its full process, scenario format, and traceability requirements.
+> **Delegate to**: [write_integration_tests.md](write_integration_tests.md) — follow its full process, scenario format, and traceability requirements.
 
 **Optional phase gate**: If Integration Tests is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 7 (Integration Tests) — disabled by user preference."* Update state: mark `integ-tests` as `N/A` for all features in this plan. Move to Phase 8.
 
-1. Announce: *"Starting Phase 7 — Integration Tests ([integration_tests.md](integration_tests.md)) for `plan_<name>.md`..."*
-2. Follow [integration_tests.md](integration_tests.md).
+1. Announce: *"Starting Phase 7 — Integration Tests ([write_integration_tests.md](write_integration_tests.md)) for `plan_<name>.md`..."*
+2. Follow [write_integration_tests.md](write_integration_tests.md).
    - Input: all feature specs for this plan + implemented source code.
 3. Write integration test code to the project's `tests/` directory (or as designated in the plan/memory).
 4. Run integration tests and fix any failures.
@@ -427,10 +427,10 @@ If Critical or High findings exist:
 
 **Optional phase gate**: If README is marked `no` in the state file's `## Optional Phases` table, announce *"Skipping Phase 8 (README) — disabled by user preference."* Update state: mark `README` as `N/A`. Move to Between Plans (or Run Complete if this is the last plan).
 
-> **Delegate to**: [readme.md](readme.md) — follow its full process and output format.
+> **Delegate to**: [write_readme.md](write_readme.md) — follow its full process and output format.
 
-1. Announce: *"Starting Phase 8 — README ([readme.md](readme.md)) — all plans complete..."*
-2. Follow [readme.md](readme.md).
+1. Announce: *"Starting Phase 8 — README ([write_readme.md](write_readme.md)) — all plans complete..."*
+2. Follow [write_readme.md](write_readme.md).
    - Input: all plan files + all feature specs + the full implemented project.
 3. Output: `README.md` (created or updated).
 4. Update `.spec-lite/yolo_state.md`: README marked `[x]`.

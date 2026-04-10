@@ -31,7 +31,7 @@ export interface PromptFile {
 // ---------------------------------------------------------------------------
 
 export interface PromptNameEntry {
-  /** Verb-form name used for prompt files (e.g., "plan", "review_code") */
+  /** Verb-form name used for prompt files (e.g., "plan", "review_code"). Matches the bundled .md filename. */
   promptName: string;
   /** Noun-form name used for agent files (e.g., "planner", "code_reviewer"). Same as promptName for prompt-only items. */
   agentName: string;
@@ -40,37 +40,37 @@ export interface PromptNameEntry {
 }
 
 /**
- * Maps internal prompt names (matching the bundled .md filenames) to their
+ * Maps prompt names (matching the bundled .md filenames) to their
  * verb-form (prompt) and noun-form (agent) output names, plus a flag for prompt-only items.
  */
 export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
-  spec_help:          { promptName: "help",                         agentName: "help",                   promptOnly: true  },
-  brainstorm:         { promptName: "brainstorm",                   agentName: "brainstormer",           promptOnly: false },
-  planner:            { promptName: "plan",                         agentName: "planner",                promptOnly: false },
-  todo:               { promptName: "todo",                         agentName: "todo",                   promptOnly: false },
-  feature:            { promptName: "feature",                      agentName: "feature",                promptOnly: false },
-  plan_feature:       { promptName: "plan_feature",                 agentName: "feature_planner",        promptOnly: false },
-  implement:          { promptName: "implement",                    agentName: "implementer",            promptOnly: false },
-  code_review:        { promptName: "review_code",                  agentName: "code_reviewer",          promptOnly: false },
-  security_audit:     { promptName: "review_security",              agentName: "security_reviewer",      promptOnly: false },
-  performance_review: { promptName: "review_performance",           agentName: "performance_reviewer",   promptOnly: false },
-  integration_tests:  { promptName: "write_integration_tests",      agentName: "integration_tester",     promptOnly: false },
-  unit_tests:         { promptName: "write_unit_tests",             agentName: "unit_tester",            promptOnly: false },
-  devops:             { promptName: "devops",                       agentName: "devops",                 promptOnly: false },
-  fix:                { promptName: "fix",                          agentName: "fixer",                  promptOnly: false },
-  memorize:           { promptName: "memorize",                     agentName: "memorize",               promptOnly: true  },
-  readme:             { promptName: "write_readme",                 agentName: "readme_writer",          promptOnly: true  },
-  architect:          { promptName: "architect",                    agentName: "architect",              promptOnly: false },
-  data_modeller:      { promptName: "build_data_model",             agentName: "data_model_builder",     promptOnly: false },
-  yolo:               { promptName: "yolo",                         agentName: "yolo",                   promptOnly: false },
-  explore:            { promptName: "explore",                      agentName: "explorer",               promptOnly: false },
-  tool_help:          { promptName: "tool_help",                    agentName: "tool_helper",            promptOnly: false },
+  help:                       { promptName: "help",                         agentName: "help",                   promptOnly: true  },
+  brainstorm:                 { promptName: "brainstorm",                   agentName: "brainstormer",           promptOnly: false },
+  plan:                       { promptName: "plan",                         agentName: "planner",                promptOnly: false },
+  plan_critic:                { promptName: "plan_critic",                  agentName: "plan_critic",            promptOnly: false },
+  todo:                       { promptName: "todo",                         agentName: "todo",                   promptOnly: false },
+  feature:                    { promptName: "feature",                      agentName: "feature",                promptOnly: false },
+  plan_feature:               { promptName: "plan_feature",                 agentName: "feature_planner",        promptOnly: false },
+  implement:                  { promptName: "implement",                    agentName: "implementer",            promptOnly: false },
+  review_code:                { promptName: "review_code",                  agentName: "code_reviewer",          promptOnly: false },
+  review_security:            { promptName: "review_security",              agentName: "security_reviewer",      promptOnly: false },
+  review_performance:         { promptName: "review_performance",           agentName: "performance_reviewer",   promptOnly: false },
+  write_integration_tests:    { promptName: "write_integration_tests",      agentName: "integration_tester",     promptOnly: false },
+  write_unit_tests:           { promptName: "write_unit_tests",             agentName: "unit_tester",            promptOnly: false },
+  devops:                     { promptName: "devops",                       agentName: "devops",                 promptOnly: false },
+  fix:                        { promptName: "fix",                          agentName: "fixer",                  promptOnly: false },
+  memorize:                   { promptName: "memorize",                     agentName: "memorize",               promptOnly: true  },
+  write_readme:               { promptName: "write_readme",                 agentName: "readme_writer",          promptOnly: true  },
+  architect:                  { promptName: "architect",                    agentName: "architect",              promptOnly: false },
+  build_data_model:           { promptName: "build_data_model",             agentName: "data_model_builder",     promptOnly: false },
+  yolo:                       { promptName: "yolo",                         agentName: "yolo",                   promptOnly: false },
+  explore:                    { promptName: "explore",                      agentName: "explorer",               promptOnly: false },
+  tool_help:                  { promptName: "tool_help",                    agentName: "tool_helper",            promptOnly: false },
 };
 
-/** Get the verb-form output name for a prompt file. Falls back to stripping "spec_" prefix. */
+/** Get the verb-form output name for a prompt file. Falls back to the name itself. */
 export function getPromptOutputName(internalName: string): string {
-  return PROMPT_NAMES[internalName]?.promptName
-    ?? (internalName.startsWith("spec_") ? internalName.slice("spec_".length) : internalName);
+  return PROMPT_NAMES[internalName]?.promptName ?? internalName;
 }
 
 /** Get the noun-form output name for an agent file. Falls back to prompt name. */
@@ -89,7 +89,7 @@ export function isPromptOnly(internalName: string): boolean {
 
 /** Map of prompt names to their human titles and descriptions */
 export const PROMPT_CATALOG: Record<string, { title: string; description: string; output?: string }> = {
-  spec_help: {
+  help: {
     title: "Spec Help",
     description: "Lists available sub-agents, their purpose, inputs, and outputs",
     output: "(interactive guide)",
@@ -99,10 +99,15 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     description: "Refines a vague idea into a clear, actionable vision",
     output: ".spec-lite/brainstorm.md",
   },
-  planner: {
+  plan: {
     title: "Planner",
     description: "Creates a detailed technical blueprint from requirements",
     output: ".spec-lite/plan.md or .spec-lite/plan_<name>.md",
+  },
+  plan_critic: {
+    title: "Plan Critic",
+    description: "Pressure-tests a plan for feasibility, technical risk, product improvements, and future adaptability",
+    output: ".spec-lite/reviews/plan_critique_<scope>.md",
   },
   todo: {
     title: "TODO",
@@ -124,27 +129,27 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
     description: "Picks up a feature spec and executes its tasks with code",
     output: "Working code + updated feature spec",
   },
-  code_review: {
+  review_code: {
     title: "Code Review",
     description: "Reviews code for correctness, architecture, and readability",
     output: ".spec-lite/reviews/code_review_<name>.md",
   },
-  security_audit: {
+  review_security: {
     title: "Security Audit",
     description: "Scans for vulnerabilities, misconfigurations, and security risks",
     output: ".spec-lite/reviews/security_audit_<scope>.md",
   },
-  performance_review: {
+  review_performance: {
     title: "Performance Review",
     description: "Identifies bottlenecks and optimization opportunities",
     output: ".spec-lite/reviews/performance_review_<scope>.md",
   },
-  integration_tests: {
+  write_integration_tests: {
     title: "Integration Tests",
     description: "Writes traceable integration test scenarios from feature specs",
     output: "tests/",
   },
-  unit_tests: {
+  write_unit_tests: {
     title: "Unit Tests",
     description: "Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions",
     output: ".spec-lite/features/unit_tests_<name>.md",
@@ -165,7 +170,7 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
       "Stores standing instructions that all sub-agents enforce. Use `/spec.memorize bootstrap` to auto-generate from project analysis.",
     output: ".spec-lite/memory.md",
   },
-  readme: {
+  write_readme: {
     title: "README",
     description: "Writes the project README and optional user guide",
     output: "README.md + docs/user_guide.md",
@@ -176,7 +181,7 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
       "Designs cloud infrastructure, database strategy, and scaling architecture with Mermaid diagrams",
     output: ".spec-lite/architect_<name>.md",
   },
-  data_modeller: {
+  build_data_model: {
     title: "Data Modeller",
     description:
       "Designs optimized relational data models with tables, relationships, indexes, and constraints",

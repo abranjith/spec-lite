@@ -42,6 +42,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 | **Memorize** | `spec.memorize` | Store standing instructions enforced by all sub-agents | User instructions | `.spec-lite/memory.md` |
 | **Brainstorm** | `spec.brainstorm` | Refine a vague idea into a clear, actionable vision | User's idea | `.spec-lite/brainstorm.md` |
 | **Planner** | `spec.plan` | Create a detailed technical blueprint from requirements | Brainstorm or requirements | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
+| **Plan Critic** | `spec.plan_critic` | Manually pressure-test a plan for feasibility, technical risk, product improvements, and adaptability before implementation | Plan file, optional brainstorm or feature specs | `.spec-lite/reviews/plan_critique_<scope>.md` |
 | **TODO** | `spec.todo` | Add user-requested backlog items to TODO.md in the correct category | TODO item text (optional category) | `.spec-lite/TODO.md` |
 | **Architect** | `spec.architect` | Design cloud infrastructure, database strategy, and scaling architecture | Plan + user requirements | `.spec-lite/architect_<name>.md` |
 | **Data Modeller** | `spec.build_data_model` | Design optimized relational data models with tables, relationships, indexes, and constraints | Plan or user description | `.spec-lite/data_model.md` |
@@ -73,6 +74,8 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
                           │   Planner    │ ← Core (every project needs a plan)
                           └──────┬───────┘
                                  │
+                                   ├── Optional manual checkpoint → Plan Critic
+                                   │
                      ┌───────────┼─────────────┐
                      ▼                         ▼
                ┌──────────┐       ┌──────────────┐
@@ -129,6 +132,7 @@ Help the user understand and navigate the spec-lite sub-agent system. Answer que
 |---|---|
 | "I have a vague idea" | **Brainstorm** — refine it into a clear vision |
 | "I know what I want to build" | **Planner** — create the technical blueprint |
+| "I want to sanity-check the plan before coding" | **Plan Critic** — review feasibility, risks, product quality, and adaptability |
 | "Track this for later" | **TODO** — add an item to `.spec-lite/TODO.md` under the right category |
 | "I have a focused feature or enhancement" | **Feature Planner** — clarify and spec it directly, skip the full plan |
 | "I have a plan, time to spec a feature" | **Feature** — break it into verifiable tasks |
@@ -173,6 +177,7 @@ Sub-agents produce and consume artifacts in the `.spec-lite/` directory:
 │   ├── unit_tests_<name>.md         ← Unit test plans
 │   └── ...
 ├── reviews/
+│   ├── plan_critique_<scope>.md
 │   ├── code_review_<name>.md
 │   ├── security_audit_<scope>.md
 │   ├── performance_review_<scope>.md
@@ -222,9 +227,11 @@ The brainstorm (`.spec-lite/brainstorm.md`) is **not** automatically fed into th
 |------|----------------|
 | Brainstorm an idea | Invoke **brainstorm**: *"I want to build a..."* |
 | Plan from scratch | Invoke **planner**: *"Create a plan for a task management API"* |
+| Critique a plan before coding | Invoke **plan_critic**: *"Review `.spec-lite/plan.md` critically before implementation starts"* |
 | Track a backlog item | Invoke **todo**: *"Add TODO: optimize query caching in the API layer"* |
 | Plan using brainstorm | Invoke **planner**: *"Create a plan based on the brainstorm"* |
 | Plan a specific domain | Invoke **planner**: *"Create a plan for order management"* → outputs `plan_order_management.md` |
+| Critique a named plan with context | Invoke **plan_critic**: *"Review `.spec-lite/plan_order_management.md` using `.spec-lite/brainstorm.md` and the order feature specs as context"* |
 | Design a data model | Invoke **data_modeller**: *"Design a data model for the order management domain"* |
 | Design from plan | Invoke **data_modeller**: *"Design a detailed data model based on the plan"* |
 | Spec a feature | Invoke **feature**: *"Break down user management from the plan"* |
@@ -266,7 +273,7 @@ The brainstorm (`.spec-lite/brainstorm.md`) is **not** automatically fed into th
 
 **User**: "I just finished the plan. What's next?"
 
-**Sub-agent**: "Great! Now pick a feature from your plan and use the **Feature** sub-agent to break it into granular, verifiable tasks. Tell it something like: 'Break down user management from the plan.' It will create a task breakdown in `.spec-lite/features/feature_<name>.md`. Once the spec is ready, use the **Implement** sub-agent to start coding: 'Implement `.spec-lite/features/feature_user_management.md`'."
+**Sub-agent**: "You have two good options. If you want to pressure-test the plan first, run **Plan Critic** on it before coding. If the plan already looks solid, pick a feature and use the **Feature** sub-agent to break it into granular, verifiable tasks. For example: 'Review `.spec-lite/plan.md` critically before implementation starts' or 'Break down user management from the plan.'"
 
 **User**: "I have a bug in my code."
 

@@ -7,13 +7,23 @@ import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
 import { loadPrompts, replaceProjectContext } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
-import { getStackSnippet } from "../utils/stacks.js";
+import { getStackSnippetInfo } from "../utils/stacks.js";
 
 interface InitOptions {
   ai?: string;
   exclude?: string;
   force?: boolean;
   skipProfile?: boolean;
+}
+
+interface ProjectProfileAnswers {
+  languages: string[];
+  languageOther?: string;
+  frameworks: string;
+  testFrameworks: string;
+  architectures: string[];
+  architectureOther?: string;
+  conventions: string;
 }
 
 const LANGUAGE_CHOICES = [
@@ -34,6 +44,38 @@ const ARCHITECTURE_CHOICES = [
   { name: "Other (specify below)", value: "__other__" },
 ];
 
+function parseCommaSeparatedList(input: string): string[] {
+  return input
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function dedupeValues(values: string[]): string[] {
+  const seen = new Set<string>();
+  const uniqueValues: string[] = [];
+
+  for (const value of values) {
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniqueValues.push(value);
+  }
+
+  return uniqueValues;
+}
+
+function mergeSelectedValues(selected: string[], otherInput?: string): string[] {
+  return dedupeValues([
+    ...selected.filter((value) => value !== "__other__"),
+    ...parseCommaSeparatedList(otherInput ?? ""),
+  ]);
+}
+
+function formatProfileValues(values: string[], fallback: string): string {
+  return values.length > 0 ? values.join(", ") : fallback;
+}
+
 /**
  * Collect project profile via interactive questionnaire.
  * Returns a ProjectProfile with the user's answers.
@@ -45,48 +87,54 @@ async function collectProjectProfile(): Promise<ProjectProfile> {
     )
   );
 
-  const answers = await inquirer.prompt([
+  const answers = await inquirer.prompt<ProjectProfileAnswers>([
     {
-      type: "list",
-      name: "language",
-      message: "Primary programming language?",
+      type: "checkbox",
+      name: "languages",
+      message: "Programming language(s) used in this repo?",
       choices: LANGUAGE_CHOICES,
+      validate: (input: string[]) =>
+        input.length > 0 ? true : "Select at least one language.",
     },
     {
       type: "input",
       name: "languageOther",
-      message: "Specify your primary language:",
-      when: (prev: Record<string, string>) => prev.language === "__other__",
+      message: "Specify any other language(s), comma-separated:",
+      when: (prev: ProjectProfileAnswers) =>
+        Array.isArray(prev.languages) && prev.languages.includes("__other__"),
       validate: (input: string) =>
-        input.trim() ? true : "Please enter a language.",
+        input.trim() ? true : "Please enter at least one language.",
     },
     {
       type: "input",
       name: "frameworks",
       message:
-        'Framework(s) in use? (e.g., "Express + React", "FastAPI", "ASP.NET Core")',
-      default: "None / not sure yet",
+        'Framework(s) in use? Enter one or more, comma-separated (e.g., "Express, React", "FastAPI", "ASP.NET Core")',
+      default: "",
     },
     {
       type: "input",
-      name: "testFramework",
+      name: "testFrameworks",
       message:
-        'Testing framework? (e.g., "Jest", "Vitest", "pytest", "xUnit")',
-      default: "Not decided yet",
+        'Testing framework(s)? Enter one or more, comma-separated (e.g., "Jest", "Vitest", "pytest", "xUnit")',
+      default: "",
     },
     {
-      type: "list",
-      name: "architecture",
-      message: "Architectural pattern?",
+      type: "checkbox",
+      name: "architectures",
+      message: "Architecture pattern(s) present in this repo?",
       choices: ARCHITECTURE_CHOICES,
+      validate: (input: string[]) =>
+        input.length > 0 ? true : "Select at least one architecture pattern.",
     },
     {
       type: "input",
       name: "architectureOther",
-      message: "Specify your architectural pattern:",
-      when: (prev: Record<string, string>) => prev.architecture === "__other__",
+      message: "Specify any other architecture pattern(s), comma-separated:",
+      when: (prev: ProjectProfileAnswers) =>
+        Array.isArray(prev.architectures) && prev.architectures.includes("__other__"),
       validate: (input: string) =>
-        input.trim() ? true : "Please enter a pattern.",
+        input.trim() ? true : "Please enter at least one pattern.",
     },
     {
       type: "input",
@@ -98,16 +146,15 @@ async function collectProjectProfile(): Promise<ProjectProfile> {
   ]);
 
   return {
-    language:
-      answers.language === "__other__"
-        ? answers.languageOther.trim()
-        : answers.language,
-    frameworks: answers.frameworks.trim(),
-    testFramework: answers.testFramework.trim(),
-    architecture:
-      answers.architecture === "__other__"
-        ? answers.architectureOther.trim()
-        : answers.architecture,
+    languages: mergeSelectedValues(answers.languages ?? [], answers.languageOther),
+    frameworks: dedupeValues(parseCommaSeparatedList(answers.frameworks)),
+    testFrameworks: dedupeValues(
+      parseCommaSeparatedList(answers.testFrameworks)
+    ),
+    architectures: mergeSelectedValues(
+      answers.architectures ?? [],
+      answers.architectureOther
+    ),
     conventions: answers.conventions.trim(),
   };
 }
@@ -123,10 +170,10 @@ function buildProjectContextBlock(profile: ProjectProfile): string {
     "",
     "> Auto-populated by spec-lite init. Edit these values as your project evolves.",
     "",
-    `- **Language(s)**: ${profile.language}`,
-    `- **Framework(s)**: ${profile.frameworks}`,
-    `- **Test Framework**: ${profile.testFramework}`,
-    `- **Architecture**: ${profile.architecture}`,
+    `- **Language(s)**: ${formatProfileValues(profile.languages, "Not specified")}`,
+    `- **Framework(s)**: ${formatProfileValues(profile.frameworks, "None / not sure yet")}`,
+    `- **Test Framework(s)**: ${formatProfileValues(profile.testFrameworks, "Not decided yet")}`,
+    `- **Architecture Pattern(s)**: ${formatProfileValues(profile.architectures, "Not specified")}`,
   ];
   if (profile.conventions) {
     lines.push(`- **Conventions**: ${profile.conventions}`);
@@ -414,29 +461,36 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green(`  ✓ .spec-lite/TODO.md`));
   }
 
-  // 9. Copy bundled stack snippet to .spec-lite/stacks/ (if profile was collected)
+  // 9. Copy bundled stack snippets to .spec-lite/stacks/ (if profile was collected)
   if (projectProfile) {
-    const snippet = getStackSnippet(projectProfile.language);
-    if (snippet) {
-      const stacksTargetDir = path.join(cwd, ".spec-lite", "stacks");
+    const stacksTargetDir = path.join(cwd, ".spec-lite", "stacks");
+    const installedSnippetFiles = new Set<string>();
+
+    for (const language of projectProfile.languages) {
+      const snippet = getStackSnippetInfo(language);
+
+      if (!snippet || installedSnippetFiles.has(snippet.fileName)) {
+        continue;
+      }
+
+      installedSnippetFiles.add(snippet.fileName);
       await fs.ensureDir(stacksTargetDir);
-      const snippetFileName = `${projectProfile.language.toLowerCase().replace(/[^a-z0-9]/g, "-")}.md`;
-      const snippetPath = path.join(stacksTargetDir, snippetFileName);
+
+      const snippetPath = path.join(stacksTargetDir, snippet.fileName);
 
       if (await fs.pathExists(snippetPath) && !options.force) {
         console.log(
-          chalk.dim(`  – .spec-lite/stacks/${snippetFileName} already exists (kept your edits)`)
+          chalk.dim(`  – .spec-lite/stacks/${snippet.fileName} already exists (kept your edits)`)
         );
-      } else {
-        await fs.writeFile(snippetPath, snippet, "utf-8");
-        console.log(
-          chalk.green(`  ✓ .spec-lite/stacks/${snippetFileName}`)
-        );
-        console.log(
-          chalk.dim("     ↳ Edit this file to customize defaults before running /memorize bootstrap")
-        );
-        written++;
+        continue;
       }
+
+      await fs.writeFile(snippetPath, snippet.content, "utf-8");
+      console.log(chalk.green(`  ✓ .spec-lite/stacks/${snippet.fileName}`));
+      console.log(
+        chalk.dim("     ↳ Edit this file to customize defaults before running /memorize bootstrap")
+      );
+      written++;
     }
   }
 
@@ -488,6 +542,33 @@ export async function initCommand(options: InitOptions): Promise<void> {
     )
   );
   console.log(provider.getPostInitMessage());
+
+  if (installedPrompts.includes("plan_critic")) {
+    let planCriticNote: string | undefined;
+
+    switch (provider.alias) {
+      case "copilot":
+        planCriticNote =
+          "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Copilot Chat before implementation to pressure-test the plan.";
+        break;
+      case "claude-code":
+        planCriticNote =
+          "  💡 Optional checkpoint: ask Claude Code to use .claude/agents/spec.plan_critic.md against .spec-lite/plan.md before implementation.";
+        break;
+      case "pi":
+        planCriticNote =
+          "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Pi Chat before implementation.";
+        break;
+      case "generic":
+        planCriticNote =
+          "  💡 Optional checkpoint: copy .spec-lite/prompts/spec.plan_critic.md into your LLM and review .spec-lite/plan.md before implementation.";
+        break;
+    }
+
+    if (planCriticNote) {
+      console.log(chalk.cyan(`\n${planCriticNote}`));
+    }
+  }
 
   // 12. Bootstrap next-step guidance
   if (projectProfile || memorySeedWritten) {

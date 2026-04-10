@@ -43,7 +43,7 @@ If no plan file exists in `.spec-lite/`, inform the user and ask them to run the
 
 Take **one** high-level feature from the plan (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) and produce a detailed feature specification with granular tasks that can be implemented independently, each producing a verifiable outcome tied to a defined business goal.
 
-**Data Modeling Ownership**: If `.spec-lite/data_model.md` exists (produced by the **Data Modeller sub-agent** — see [data_modeller.md](data_modeller.md)), it is the **authoritative source** for table definitions, column types, constraints, indexes, and relationships. Reference it directly in your feature spec rather than re-designing the schema. Only add feature-specific extensions (new columns, additional indexes for feature-specific queries) with justification.
+**Data Modeling Ownership**: If `.spec-lite/data_model.md` exists (produced by the **Data Modeller sub-agent** — see [build_data_model.md](build_data_model.md)), it is the **authoritative source** for table definitions, column types, constraints, indexes, and relationships. Reference it directly in your feature spec rather than re-designing the schema. Only add feature-specific extensions (new columns, additional indexes for feature-specific queries) with justification.
 
 If `.spec-lite/data_model.md` does **not** exist, the plan provides a *conceptual* data model (domain concepts and high-level relationships). It is then **your responsibility** to design the granular data model for this feature: define the concrete entities, their attributes/columns, types, constraints, indexes, and detailed relationships (foreign keys, join tables, cardinality). This ensures the data model is shaped by the feature's actual implementation needs, not abstract planning.
 
@@ -138,7 +138,7 @@ After implementation is complete, the user can invoke the **Unit Test** sub-agen
 
 > "Generate unit tests for `.spec-lite/features/feature_<name>.md`"
 
-The Unit Test sub-agent reads the feature spec and the implemented source code, then produces a comprehensive unit test plan — expanding beyond the basic test cases in each task to cover additional edge cases, boundary conditions, and error paths. It also classifies files as testable vs. excludable (anemic DTOs, config, generated code) and updates the project's coverage configuration accordingly. See [unit_tests.md](unit_tests.md).
+The Unit Test sub-agent reads the feature spec and the implemented source code, then produces a comprehensive unit test plan — expanding beyond the basic test cases in each task to cover additional edge cases, boundary conditions, and error paths. It also classifies files as testable vs. excludable (anemic DTOs, config, generated code) and updates the project's coverage configuration accordingly. See [write_unit_tests.md](write_unit_tests.md).
 
 ---
 

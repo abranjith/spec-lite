@@ -250,8 +250,8 @@ When the user invokes `/memorize bootstrap`, you switch to **project-discovery m
 
 #### Step 1: Read Project Profile
 
-- Read **`.spec-lite.json`** to get the project profile: language, frameworks, test framework, architecture, and any stated conventions.
-- If `.spec-lite.json` doesn't exist or has no `projectProfile`, ask the user for: primary language, framework(s), test framework, architecture pattern, and any specific conventions.
+- Read **`.spec-lite.json`** to get the project profile: languages, frameworks, test frameworks, architecture patterns, and any stated conventions.
+- If `.spec-lite.json` doesn't exist or has no `projectProfile`, ask the user for: language(s), framework(s), test framework(s), architecture pattern(s), and any specific conventions.
 
 #### Step 2: Read Project Manifest & Config (Lightweight)
 
@@ -267,7 +267,7 @@ Read **only** root-level manifest and configuration files — do NOT scan source
 
 #### Step 3: Read Bundled Stack Snippet
 
-- Check for **`.spec-lite/stacks/<language>.md`** — this file contains curated best practices for the detected language/framework.
+- Check **`.spec-lite/stacks/`** for one or more snippet files matching the detected language(s) and framework(s) — these files contain curated best practices for the active stack.
 - **The user may have edited this file.** Treat any user edits as intentional overrides — they take priority over the bundled defaults. If the user removed a section, don't re-add it. If they changed a recommendation, use their version.
 - If found, read it and use it as the **baseline** for generating conventions. Don't copy it verbatim — adapt it to what you discovered about the project in Step 2, but respect user customizations.
 - If not found, use your knowledge of the language/framework idioms as the baseline.

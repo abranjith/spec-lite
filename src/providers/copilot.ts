@@ -18,7 +18,7 @@ interface Handoff {
 }
 
 const AGENT_HANDOFFS: Record<string, Handoff[]> = {
-  spec_help: [],
+  help: [],
   brainstorm: [
     {
       label: "Create Plan",
@@ -31,7 +31,12 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Bootstrap memory from the project context established in the brainstorm.",
     },
   ],
-  planner: [
+  plan: [
+    {
+      label: "Critique Plan",
+      agent: "spec.plan_critic",
+      prompt: "Critique this plan for feasibility, technical risks, product improvements, and future enhancements before implementation starts.",
+    },
     {
       label: "Break Down Features",
       agent: "spec.feature",
@@ -109,7 +114,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Write integration test scenarios for the feature just implemented.",
     },
   ],
-  unit_tests: [
+  write_unit_tests: [
     {
       label: "Review Code",
       agent: "spec.code_reviewer",
@@ -121,7 +126,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Write integration test scenarios to complement the unit tests.",
     },
   ],
-  code_review: [
+  review_code: [
     {
       label: "Fix Issues",
       agent: "spec.fixer",
@@ -133,7 +138,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Run a security audit on the code reviewed above.",
     },
   ],
-  integration_tests: [
+  write_integration_tests: [
     {
       label: "Security Audit",
       agent: "spec.security_reviewer",
@@ -145,7 +150,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Review performance of the features covered by integration tests.",
     },
   ],
-  performance_review: [
+  review_performance: [
     {
       label: "Fix Critical Issues",
       agent: "spec.fixer",
@@ -157,7 +162,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Run a security audit alongside the performance improvements.",
     },
   ],
-  security_audit: [
+  review_security: [
     {
       label: "Fix Vulnerabilities",
       agent: "spec.fixer",
@@ -204,7 +209,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     },
   ],
 
-  readme: [
+  write_readme: [
     {
       label: "Set Up DevOps",
       agent: "spec.devops",
@@ -228,7 +233,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Update the README with deployment and infrastructure instructions.",
     },
   ],
-  data_modeller: [
+  build_data_model: [
     {
       label: "Break Down Features",
       agent: "spec.feature",
@@ -498,6 +503,17 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
   for (const name of installedPrompts) {
     const promptName = getPromptOutputName(name);
     lines.push(`- [spec.${promptName}](.github/prompts/spec.${promptName}.prompt.md)`);
+  }
+
+  if (installedPrompts.includes("plan_critic")) {
+    lines.push(
+      "",
+      "Suggested manual checkpoint after planning:",
+      "",
+      "- `/spec.plan_critic .spec-lite/plan.md`",
+      "- `/spec.plan_critic .spec-lite/plan_<name>.md .spec-lite/brainstorm.md`",
+      "- `/spec.plan_critic .spec-lite/plan_<name>.md .spec-lite/features/feature_<name>.md`",
+    );
   }
 
   lines.push(
