@@ -13,8 +13,8 @@ import { getAgentOutputName, getPromptOutputName, isPromptOnly } from "../utils/
  *
  * Strategy:
  * - Agent files  → `.claude/agents/spec.<agentName>.md`   (noun-form)
- * - Prompt files → `.claude/prompts/spec.<promptName>.md`  (verb-form)
- * - For prompt-only items, only the prompts directory is used (verb-form)
+ * - Prompt/Command files → `.claude/commands/spec.<promptName>.md`  (verb-form)
+ * - For prompt-only items, only the commands directory is used (verb-form)
  * - Create/update a root `CLAUDE.md` that references the spec-lite agent collection
  */
 export class ClaudeCodeProvider implements Provider {
@@ -26,7 +26,7 @@ export class ClaudeCodeProvider implements Provider {
 
   getOutputPaths(promptName: string): { agent?: string; prompt: string } {
     const promptOutName = getPromptOutputName(promptName);
-    const promptPath = path.join(".claude", "prompts", `spec.${promptOutName}.md`);
+    const promptPath = path.join(".claude", "commands", `spec.${promptOutName}.md`);
 
     if (isPromptOnly(promptName)) {
       return { prompt: promptPath };
@@ -46,7 +46,7 @@ export class ClaudeCodeProvider implements Provider {
     if (isPromptOnly(promptName)) {
       const promptOutName = getPromptOutputName(promptName);
       return {
-        prompt: path.join(homeDir, ".claude", "prompts", `spec.${promptOutName}.md`),
+        prompt: path.join(homeDir, ".claude", "commands", `spec.${promptOutName}.md`),
       };
     }
 
@@ -90,13 +90,13 @@ export class ClaudeCodeProvider implements Provider {
       }
     }
 
-    // Check for prompt files in .claude/prompts/
-    const claudePromptsDir = path.join(workspaceRoot, ".claude", "prompts");
-    if (await fs.pathExists(claudePromptsDir)) {
-      const files = await fs.readdir(claudePromptsDir);
+    // Check for command files in .claude/commands/
+    const claudeCommandsDir = path.join(workspaceRoot, ".claude", "commands");
+    if (await fs.pathExists(claudeCommandsDir)) {
+      const files = await fs.readdir(claudeCommandsDir);
       for (const f of files) {
         if (f.startsWith("spec.") && f.endsWith(".md")) {
-          existing.push(path.join(".claude", "prompts", f));
+          existing.push(path.join(".claude", "commands", f));
         }
       }
     }
@@ -126,7 +126,7 @@ export class ClaudeCodeProvider implements Provider {
       "📋 Claude Code setup complete!",
       "",
       "  Agent files  : .claude/agents/spec.<name>.md  (noun-form — e.g. spec.planner)",
-      "  Prompt files : .claude/prompts/spec.<name>.md  (verb-form — e.g. spec.plan)",
+      "  Command files: .claude/commands/spec.<name>.md  (verb-form — e.g. spec.plan)",
       "",
       "  How to use:",
       "  1. Claude Code automatically reads CLAUDE.md for project context",
@@ -178,11 +178,11 @@ export function generateClaudeRootMd(
     }
   }
 
-  lines.push("", "**Prompt files** (`.claude/prompts/`):", "");
+  lines.push("", "**Command files** (`.claude/commands/`):", "");
 
   for (const name of installedPrompts) {
     const promptName = getPromptOutputName(name);
-    lines.push(`- [spec.${promptName}](.claude/prompts/spec.${promptName}.md)`);
+    lines.push(`- [spec.${promptName}](.claude/commands/spec.${promptName}.md)`);
   }
 
   lines.push(
