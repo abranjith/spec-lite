@@ -1,15 +1,23 @@
 import path from "path";
 import fs from "fs-extra";
 import { fileURLToPath } from "url";
+import type { SourceItem, SourceItemKind } from "../providers/base.js";
+import { loadAllAgents } from "./agents.js";
+import { loadAllSkills } from "./skills.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Path to the bundled prompts directory (shipped with the npm package) */
+/** Path to the bundled prompts directory (legacy — shipped with the npm package) */
 export function getPromptsDir(): string {
   // In the built output (tsup bundles to dist/index.js),
   // __dirname resolves to dist/ — prompts/ is one level up at the package root
   return path.resolve(__dirname, "..", "prompts");
+}
+
+/** Path to the bundled references directory (shipped with the npm package) */
+export function getReferencesDir(): string {
+  return path.resolve(__dirname, "..", "references");
 }
 
 /** Metadata extracted from prompt files */
@@ -70,17 +78,21 @@ export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
 
 /** Get the verb-form output name for a prompt file. Falls back to the name itself. */
 export function getPromptOutputName(internalName: string): string {
-  return PROMPT_NAMES[internalName]?.promptName ?? internalName;
+  // Try exact match first, then try underscore variant (for hyphenated new-style names)
+  const entry = PROMPT_NAMES[internalName] ?? PROMPT_NAMES[internalName.replace(/-/g, "_")];
+  return entry?.promptName ?? internalName.replace(/-/g, "_");
 }
 
 /** Get the noun-form output name for an agent file. Falls back to prompt name. */
 export function getAgentOutputName(internalName: string): string {
-  return PROMPT_NAMES[internalName]?.agentName ?? getPromptOutputName(internalName);
+  const entry = PROMPT_NAMES[internalName] ?? PROMPT_NAMES[internalName.replace(/-/g, "_")];
+  return entry?.agentName ?? getPromptOutputName(internalName);
 }
 
 /** Check whether a prompt is prompt-only (no dedicated agent file in non-Copilot providers). */
 export function isPromptOnly(internalName: string): boolean {
-  return PROMPT_NAMES[internalName]?.promptOnly ?? false;
+  const entry = PROMPT_NAMES[internalName] ?? PROMPT_NAMES[internalName.replace(/-/g, "_")];
+  return entry?.promptOnly ?? false;
 }
 
 // ---------------------------------------------------------------------------
@@ -298,4 +310,170 @@ export function replaceProjectContext(
     newContext +
     content.substring(endIdx)
   );
+}
+
+// ---------------------------------------------------------------------------
+// References loader (standalone docs like orchestrator, help)
+// ---------------------------------------------------------------------------
+
+/** Non-agent reference files (loaded from references/ directory or legacy prompts/) */
+const REFERENCE_FILES = new Set(["orchestrator", "help"]);
+
+/**
+ * Classification of existing prompts into agent vs skill categories.
+ * This is used for display purposes until items are migrated to their own directories.
+ */
+const AGENT_ITEMS = new Set([
+  "brainstorm", "plan", "plan_feature", "architect", "explore", "yolo",
+]);
+
+const SKILL_ITEMS = new Set([
+  "implement", "feature", "review_code", "review_security", "review_performance",
+  "write_unit_tests", "write_integration_tests", "fix", "write_readme",
+  "build_data_model", "devops", "tool_help", "memorize", "plan_critic", "todo",
+]);
+
+/**
+ * Classify a prompt name into its source item kind.
+ */
+function classifyItem(name: string): SourceItemKind {
+  if (REFERENCE_FILES.has(name)) return "reference";
+  if (SKILL_ITEMS.has(name)) return "skill";
+  return "agent";
+}
+
+/**
+ * Load reference documents from the bundled references/ directory.
+ * Falls back to legacy prompts/ if references/ doesn't exist.
+ */
+async function loadReferences(exclude: string[] = []): Promise<SourceItem[]> {
+  const excludeSet = new Set(exclude);
+  const references: SourceItem[] = [];
+
+  // Try new references/ directory first
+  const refsDir = getReferencesDir();
+  if (await fs.pathExists(refsDir)) {
+    const files = await fs.readdir(refsDir);
+    for (const file of files) {
+      if (!file.endsWith(".md")) continue;
+      const name = file.replace(".md", "");
+      if (excludeSet.has(name)) continue;
+
+      const filePath = path.join(refsDir, file);
+      const content = await fs.readFile(filePath, "utf-8");
+      const catalog = PROMPT_CATALOG[name];
+      const nameEntry = PROMPT_NAMES[name];
+
+      references.push({
+        kind: "reference",
+        name,
+        rootPath: filePath,
+        content,
+        title: catalog?.title ?? name,
+        description: catalog?.description ?? "",
+        promptName: nameEntry?.promptName ?? name,
+        agentName: nameEntry?.agentName ?? name,
+        promptOnly: true, // references are always prompt-only
+      });
+    }
+  }
+
+  return references;
+}
+
+// ---------------------------------------------------------------------------
+// Unified source loader (agents + skills + references, with legacy fallback)
+// ---------------------------------------------------------------------------
+
+/**
+ * Load all source items: agents from agents/, skills from skills/, references from references/.
+ * Falls back to legacy prompts/ for any items not found in the new structure.
+ *
+ * This is the primary entry point for init/install/update commands.
+ */
+export async function loadAllSources(
+  exclude: string[] = []
+): Promise<SourceItem[]> {
+  const excludeSet = new Set(exclude);
+
+  // Load from new structure
+  const agents = await loadAllAgents();
+  const skills = await loadAllSkills();
+  const references = await loadReferences(exclude);
+
+  // Collect names already loaded from new structure
+  const loadedNames = new Set<string>([
+    ...agents.map((a) => a.name),
+    ...skills.map((s) => s.name),
+    ...references.map((r) => r.name),
+  ]);
+
+  // Also map hyphenated names to underscored to match legacy names
+  // e.g. "review-code" (new) covers "review_code" (legacy)
+  const loadedLegacyNames = new Set<string>();
+  for (const name of loadedNames) {
+    loadedLegacyNames.add(name);
+    loadedLegacyNames.add(name.replace(/-/g, "_"));
+  }
+
+  // Fall back to legacy prompts/ for anything not yet loaded
+  const legacyPrompts = await loadPrompts(exclude);
+  const legacyItems: SourceItem[] = [];
+
+  for (const prompt of legacyPrompts) {
+    if (loadedLegacyNames.has(prompt.name)) continue;
+    if (excludeSet.has(prompt.name)) continue;
+
+    const nameEntry = PROMPT_NAMES[prompt.name];
+    const kind = classifyItem(prompt.name);
+
+    legacyItems.push({
+      kind,
+      name: prompt.name,
+      rootPath: prompt.filePath,
+      content: prompt.content,
+      title: prompt.title,
+      description: prompt.description,
+      promptName: nameEntry?.promptName ?? prompt.name,
+      agentName: nameEntry?.agentName ?? prompt.name,
+      promptOnly: nameEntry?.promptOnly ?? false,
+    });
+  }
+
+  // Combine: new agents/skills/references + legacy fallbacks
+  const all = [
+    ...agents.filter((a) => !excludeSet.has(a.name) && !excludeSet.has(a.name.replace(/-/g, "_"))),
+    ...skills.filter((s) => !excludeSet.has(s.name) && !excludeSet.has(s.name.replace(/-/g, "_"))),
+    ...references,
+    ...legacyItems,
+  ];
+
+  return all;
+}
+
+/**
+ * Get the catalog for display, enhanced with kind information from loaded sources.
+ * This merges the static PROMPT_CATALOG with dynamic source item data.
+ */
+export function getSourceCatalog(): Record<string, {
+  title: string;
+  description: string;
+  output?: string;
+  kind?: SourceItemKind;
+}> {
+  // Start with the static catalog and add kind info from PROMPT_NAMES
+  const catalog: Record<string, {
+    title: string;
+    description: string;
+    output?: string;
+    kind?: SourceItemKind;
+  }> = {};
+
+  for (const [name, meta] of Object.entries(PROMPT_CATALOG)) {
+    const kind = classifyItem(name);
+
+    catalog[name] = { ...meta, kind };
+  }
+
+  return catalog;
 }

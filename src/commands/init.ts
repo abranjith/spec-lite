@@ -4,7 +4,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
-import { loadPrompts, replaceProjectContext } from "../utils/prompts.js";
+import { loadPrompts, loadAllSources, replaceProjectContext } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { getStackSnippetInfo } from "../utils/stacks.js";
@@ -335,19 +335,19 @@ export async function initCommand(options: InitOptions): Promise<void> {
     ? buildProjectContextBlock(projectProfile)
     : null;
 
-  // 6. Load and write prompts
-  const prompts = await loadPrompts(exclude);
+  // 6. Load and write prompts (new agents/skills structure with legacy fallback)
+  const sources = await loadAllSources(exclude);
   let written = 0;
   let skipped = 0;
   const installedPrompts: string[] = [];
 
-  for (const prompt of prompts) {
+  for (const source of sources) {
     const meta = {
-      name: prompt.name,
-      title: prompt.title,
-      description: prompt.description,
+      name: source.promptName,
+      title: source.title,
+      description: source.description,
     };
-    const paths = provider.getOutputPaths(prompt.name);
+    const paths = provider.getOutputPaths(source.name);
 
     // --- Agent file (if provider supports agents and path is present) ---
     if (paths.agent && provider.supportsAgents && provider.transformAgent) {
@@ -359,7 +359,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
         globalAction === "skip";
 
       if (!shouldSkipAgent) {
-        let content = prompt.content;
+        let content = source.content;
         if (contextBlock) {
           content = replaceProjectContext(content, contextBlock);
         }
@@ -382,7 +382,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
       globalAction === "skip";
 
     if (!shouldSkipPrompt) {
-      let content = prompt.content;
+      let content = source.content;
       if (contextBlock) {
         content = replaceProjectContext(content, contextBlock);
       }
@@ -395,7 +395,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
       skipped++;
     }
 
-    installedPrompts.push(prompt.name);
+    installedPrompts.push(source.name);
   }
 
   // 7. Provider-specific extras
@@ -525,6 +525,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   const pkg = await loadPackageVersion();
   const config: SpecLiteConfig = {
     version: pkg,
+    format: "v2",
     provider: provider.alias,
     installedPrompts,
     installedAt: new Date().toISOString(),

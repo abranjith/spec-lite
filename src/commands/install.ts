@@ -5,7 +5,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteGlobalConfig } from "../providers/base.js";
-import { loadPrompts } from "../utils/prompts.js";
+import { loadAllSources } from "../utils/prompts.js";
 
 interface InstallOptions {
   ai?: string;
@@ -103,22 +103,22 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     }
   }
 
-  // 4. Load and write prompts
-  const prompts = await loadPrompts(exclude);
+  // 4. Load and write prompts (new agents/skills structure with legacy fallback)
+  const sources = await loadAllSources(exclude);
   let written = 0;
   const installedPrompts: string[] = [];
 
-  for (const prompt of prompts) {
+  for (const source of sources) {
     const meta = {
-      name: prompt.name,
-      title: prompt.title,
-      description: prompt.description,
+      name: source.promptName,
+      title: source.title,
+      description: source.description,
     };
-    const paths = provider.getGlobalOutputPaths(prompt.name);
+    const paths = provider.getGlobalOutputPaths(source.name);
 
     // --- Agent file (global) ---
     if (paths.agent && provider.supportsAgents && provider.transformAgent) {
-      const transformed = provider.transformAgent(prompt.content, meta);
+      const transformed = provider.transformAgent(source.content, meta);
       await fs.ensureDir(path.dirname(paths.agent));
       await fs.writeFile(paths.agent, transformed, "utf-8");
       written++;
@@ -127,14 +127,14 @@ export async function installCommand(options: InstallOptions): Promise<void> {
 
     // --- Prompt file (global) ---
     if (paths.prompt) {
-      const transformed = provider.transformPrompt(prompt.content, meta);
+      const transformed = provider.transformPrompt(source.content, meta);
       await fs.ensureDir(path.dirname(paths.prompt));
       await fs.writeFile(paths.prompt, transformed, "utf-8");
       written++;
       console.log(chalk.green(`  ✓ ${paths.prompt}`));
     }
 
-    installedPrompts.push(prompt.name);
+    installedPrompts.push(source.name);
   }
 
   // 5. Write global config

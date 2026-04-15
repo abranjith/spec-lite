@@ -108,6 +108,8 @@ export interface ProjectProfile {
  */
 export interface SpecLiteConfig {
   version: string;
+  /** Format version: "v1" (legacy prompts/) or "v2" (agents/skills/references) */
+  format?: string;
   provider: string;
   installedPrompts: string[];
   installedAt: string;
@@ -124,4 +126,59 @@ export interface SpecLiteGlobalConfig {
   installedPrompts: string[];
   installedAt: string;
   updatedAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Source item types for the new agents/skills/references structure
+// ---------------------------------------------------------------------------
+
+/** The kind of source item: agent, skill, or reference. */
+export type SourceItemKind = "agent" | "skill" | "reference";
+
+/**
+ * Parsed frontmatter from an AGENT.md or SKILL.md file.
+ */
+export interface SourceFrontmatter {
+  name: string;
+  description: string;
+  metadata?: Record<string, string>;
+  license?: string;
+  compatibility?: string;
+  "allowed-tools"?: string;
+}
+
+/**
+ * A loaded source item — either an agent, skill, or reference.
+ * This is the unified type that replaces PromptFile for the new structure.
+ */
+export interface SourceItem {
+  /** The kind: agent, skill, or reference */
+  kind: SourceItemKind;
+
+  /** Internal name (folder name for agents/skills, filename without ext for references) */
+  name: string;
+
+  /** Absolute path to the root directory (for agents/skills) or file (for references) */
+  rootPath: string;
+
+  /** Parsed YAML frontmatter (agents/skills only) */
+  frontmatter?: SourceFrontmatter;
+
+  /** The assembled markdown content (AGENT.md/SKILL.md body + inlined references) */
+  content: string;
+
+  /** Human-readable title */
+  title: string;
+
+  /** Brief description */
+  description: string;
+
+  /** Verb-form name for prompt/command files */
+  promptName: string;
+
+  /** Noun-form name for agent files */
+  agentName: string;
+
+  /** If true, only a prompt file is created (no agent file in non-Copilot providers) */
+  promptOnly: boolean;
 }

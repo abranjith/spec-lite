@@ -10,6 +10,9 @@
   "files": [
     "dist",
     "prompts",
+    "agents",
+    "skills",
+    "references",
     "README.md",
     "LICENSE"
   ],
@@ -44,6 +47,7 @@
     "chalk": "^5.3.0",
     "commander": "^12.1.0",
     "fs-extra": "^11.2.0",
+    "gray-matter": "^4.0.3",
     "inquirer": "^9.2.0"
   },
   "devDependencies": {

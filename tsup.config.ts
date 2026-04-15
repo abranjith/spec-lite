@@ -1,6 +1,26 @@
 import { defineConfig } from "tsup";
-import { copyFileSync, mkdirSync, readdirSync } from "fs";
+import { copyFileSync, mkdirSync, readdirSync, existsSync, statSync } from "fs";
 import { join } from "path";
+
+/**
+ * Recursively copy a directory tree.
+ */
+function copyDirRecursive(src: string, dest: string): number {
+  if (!existsSync(src)) return 0;
+  mkdirSync(dest, { recursive: true });
+  let count = 0;
+  for (const entry of readdirSync(src)) {
+    const srcPath = join(src, entry);
+    const destPath = join(dest, entry);
+    if (statSync(srcPath).isDirectory()) {
+      count += copyDirRecursive(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
+      count++;
+    }
+  }
+  return count;
+}
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -23,5 +43,13 @@ export default defineConfig({
       copyFileSync(join(srcDir, file), join(destDir, file));
     }
     console.log(`Copied ${files.length} stack snippets to dist/stacks/`);
+
+    // Copy new agents/, skills/, references/ directories if they exist
+    for (const dir of ["agents", "skills", "references"]) {
+      const count = copyDirRecursive(dir, join("dist", dir));
+      if (count > 0) {
+        console.log(`Copied ${count} files to dist/${dir}/`);
+      }
+    }
   },
 });

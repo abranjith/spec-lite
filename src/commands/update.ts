@@ -4,7 +4,7 @@ import chalk from "chalk";
 import { getProvider } from "../providers/index.js";
 import type { SpecLiteConfig } from "../providers/base.js";
 import {
-  loadPrompts,
+  loadAllSources,
   extractProjectContext,
   replaceProjectContext,
 } from "../utils/prompts.js";
@@ -86,26 +86,29 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     chalk.dim(`  Installed: ${config.installedPrompts.length} prompts`)
   );
 
-  // 2. Load latest prompts (only the ones that were previously installed)
-  const allPrompts = await loadPrompts();
+  // 2. Load latest sources (only the ones that were previously installed)
+  const allSources = await loadAllSources();
   const installedSet = new Set(config.installedPrompts);
-  const prompts = allPrompts.filter((p) => installedSet.has(p.name));
+  // Match by both the source name and the underscore variant
+  const sources = allSources.filter(
+    (s) => installedSet.has(s.name) || installedSet.has(s.name.replace(/-/g, "_"))
+  );
 
   let updated = 0;
   let preserved = 0;
   let unchanged = 0;
 
-  for (const prompt of prompts) {
+  for (const source of sources) {
     const meta = {
-      name: prompt.name,
-      title: prompt.title,
-      description: prompt.description,
+      name: source.promptName,
+      title: source.title,
+      description: source.description,
     };
-    const paths = provider.getOutputPaths(prompt.name);
+    const paths = provider.getOutputPaths(source.name);
 
     // --- Agent file ---
     if (paths.agent && provider.supportsAgents && provider.transformAgent) {
-      const newContent = provider.transformAgent(prompt.content, meta);
+      const newContent = provider.transformAgent(source.content, meta);
       const result = await updateFile(
         path.join(cwd, paths.agent),
         paths.agent,
@@ -118,7 +121,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     }
 
     // --- Prompt file ---
-    const newPromptContent = provider.transformPrompt(prompt.content, meta);
+    const newPromptContent = provider.transformPrompt(source.content, meta);
     const result = await updateFile(
       path.join(cwd, paths.prompt),
       paths.prompt,
