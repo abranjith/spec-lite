@@ -22,6 +22,7 @@ export class ClaudeCodeProvider implements Provider {
   alias = "claude-code";
   description = "Claude Code (Anthropic's coding agent)";
   supportsAgents = true;
+  supportsNativeSkills = false;
   supportsGlobal = true;
 
   getOutputPaths(promptName: string): { agent?: string; prompt: string } {
@@ -130,7 +131,7 @@ export class ClaudeCodeProvider implements Provider {
       "",
       "  How to use:",
       "  1. Claude Code automatically reads CLAUDE.md for project context",
-      '  2. Reference specific sub-agents: "Use the planner from .claude/agents/spec.planner.md"',
+      '  2. Reference specific agents: "Use the planner from .claude/agents/spec.planner.md"',
       "  3. Customize the Project Context block in each file for your project",
       "",
     ].join("\n");
@@ -150,7 +151,7 @@ export class ClaudeCodeProvider implements Provider {
 }
 
 /**
- * Generate the root CLAUDE.md content that references spec-lite sub-agents.
+ * Generate the root CLAUDE.md content that references spec-lite agents and skills.
  */
 export function generateClaudeRootMd(
   installedPrompts: string[]
@@ -160,12 +161,12 @@ export function generateClaudeRootMd(
     "",
     "# Project Instructions",
     "",
-    "This project uses [spec-lite](https://github.com/abranjith/spec-lite) sub-agent prompts",
+    "This project uses [spec-lite](https://github.com/abranjith/spec-lite) agent and skill prompts",
     "for structured software engineering workflows.",
     "",
-    "## Available Sub-Agents",
+    "## Available Agents & Skills",
     "",
-    "The following specialist sub-agents are available:",
+    "The following specialist agents and skills are available:",
     "",
     "**Agent files** (`.claude/agents/`):",
     "",
@@ -189,7 +190,7 @@ export function generateClaudeRootMd(
     "",
     "## Usage",
     "",
-    "To use a sub-agent, reference its prompt file in your conversation:",
+    "To use an agent, reference its prompt file in your conversation:",
     "",
     '```text',
     "Use the planner from .claude/agents/spec.planner.md to create a technical plan for this project.",
@@ -211,7 +212,7 @@ export function generateClaudeRootMd(
     "",
     "## Output Directory",
     "",
-    "Sub-agent outputs are written to the `.spec-lite/` directory:",
+    "Agent and skill outputs are written to the `.spec-lite/` directory:",
     "",
     "```text",
     ".spec-lite/",

@@ -14,6 +14,7 @@ export class GenericProvider implements Provider {
   alias = "generic";
   description = "Raw prompts in .spec-lite/prompts/ (copy-paste into any LLM)";
   supportsAgents = false;
+  supportsNativeSkills = false;
   supportsGlobal = false;
 
   getOutputPaths(promptName: string): { prompt: string } {
@@ -59,7 +60,7 @@ export class GenericProvider implements Provider {
       "",
       "📋 Generic setup complete!",
       "",
-      "  Your sub-agent prompts are in .spec-lite/prompts/",
+      "  Your agent and skill prompts are in .spec-lite/prompts/",
       "",
       "  How to use:",
       "  1. Open any prompt file and copy its content",

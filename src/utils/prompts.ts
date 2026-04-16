@@ -1,5 +1,6 @@
 import path from "path";
 import fs from "fs-extra";
+import chalk from "chalk";
 import { fileURLToPath } from "url";
 import type { SourceItem, SourceItemKind } from "../providers/base.js";
 import { loadAllAgents } from "./agents.js";
@@ -8,30 +9,9 @@ import { loadAllSkills } from "./skills.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/** Path to the bundled prompts directory (legacy — shipped with the npm package) */
-export function getPromptsDir(): string {
-  // In the built output (tsup bundles to dist/index.js),
-  // __dirname resolves to dist/ — prompts/ is one level up at the package root
-  return path.resolve(__dirname, "..", "prompts");
-}
-
 /** Path to the bundled references directory (shipped with the npm package) */
 export function getReferencesDir(): string {
   return path.resolve(__dirname, "..", "references");
-}
-
-/** Metadata extracted from prompt files */
-export interface PromptFile {
-  /** File name without extension */
-  name: string;
-  /** Full file path */
-  filePath: string;
-  /** Raw markdown content */
-  content: string;
-  /** Extracted title */
-  title: string;
-  /** Extracted description */
-  description: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,8 +47,8 @@ export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
   write_unit_tests:           { promptName: "write_unit_tests",             agentName: "unit_tester",            promptOnly: false },
   devops:                     { promptName: "devops",                       agentName: "devops",                 promptOnly: false },
   fix:                        { promptName: "fix",                          agentName: "fixer",                  promptOnly: false },
-  memorize:                   { promptName: "memorize",                     agentName: "memorize",               promptOnly: true  },
-  write_readme:               { promptName: "write_readme",                 agentName: "readme_writer",          promptOnly: true  },
+  memorize:                   { promptName: "memorize",                     agentName: "memorize",               promptOnly: false },
+  write_readme:               { promptName: "write_readme",                 agentName: "readme_writer",          promptOnly: false },
   architect:                  { promptName: "architect",                    agentName: "architect",              promptOnly: false },
   build_data_model:           { promptName: "build_data_model",             agentName: "data_model_builder",     promptOnly: false },
   yolo:                       { promptName: "yolo",                         agentName: "yolo",                   promptOnly: false },
@@ -103,7 +83,7 @@ export function isPromptOnly(internalName: string): boolean {
 export const PROMPT_CATALOG: Record<string, { title: string; description: string; output?: string }> = {
   help: {
     title: "Spec Help",
-    description: "Lists available sub-agents, their purpose, inputs, and outputs",
+    description: "Lists available agents, skills, and their purpose, inputs, and outputs",
     output: "(interactive guide)",
   },
   brainstorm: {
@@ -179,7 +159,7 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   memorize: {
     title: "Memorize",
     description:
-      "Stores standing instructions that all sub-agents enforce. Use `/spec.memorize bootstrap` to auto-generate from project analysis.",
+      "Stores standing instructions that all agents and skills enforce. Use `/spec.memorize bootstrap` to auto-generate from project analysis.",
     output: ".spec-lite/memory.md",
   },
   write_readme: {
@@ -214,48 +194,10 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   tool_help: {
     title: "Tool Helper",
     description:
-      "Creates and edits efficient bash tools in .spec-lite/tools/ that sub-agents auto-discover and execute",
+      "Creates and edits efficient bash tools in .spec-lite/tools/ that agents and skills auto-discover and execute",
     output: ".spec-lite/tools/<tool-name>.sh",
   },
 };
-
-/** Non-agent files to skip */
-const SKIP_FILES = new Set(["orchestrator"]);
-
-/**
- * Load all available prompt files from the bundled prompts directory.
- * Excludes non-agent files (orchestrator).
- */
-export async function loadPrompts(
-  exclude: string[] = []
-): Promise<PromptFile[]> {
-  const promptsDir = getPromptsDir();
-  const excludeSet = new Set([...exclude, ...SKIP_FILES]);
-
-  const files = await fs.readdir(promptsDir);
-  const prompts: PromptFile[] = [];
-
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-
-    const name = file.replace(".md", "");
-    if (excludeSet.has(name)) continue;
-
-    const filePath = path.join(promptsDir, file);
-    const content = await fs.readFile(filePath, "utf-8");
-    const catalog = PROMPT_CATALOG[name];
-
-    prompts.push({
-      name,
-      filePath,
-      content,
-      title: catalog?.title ?? name,
-      description: catalog?.description ?? "",
-    });
-  }
-
-  return prompts;
-}
 
 /**
  * Get the list of all available prompt names.
@@ -313,6 +255,67 @@ export function replaceProjectContext(
 }
 
 // ---------------------------------------------------------------------------
+// Native skill directory copying (shared by init + install commands)
+// ---------------------------------------------------------------------------
+
+/**
+ * Copy a native Agent Skills skill directory to the target location.
+ * Updates the `name` field in SKILL.md frontmatter to match the target directory name.
+ * Optionally injects the project context block into the SKILL.md body.
+ * Copies references/, assets/, and scripts/ subdirectories as-is.
+ *
+ * @returns the number of files written.
+ */
+export async function copyNativeSkillDir(
+  sourceDir: string,
+  targetDir: string,
+  options: { contextBlock?: string | null }
+): Promise<number> {
+  let filesCopied = 0;
+  const targetName = path.basename(targetDir);
+
+  // 1. Read SKILL.md and update the name field to match output directory
+  const skillMdPath = path.join(sourceDir, "SKILL.md");
+  let skillContent = await fs.readFile(skillMdPath, "utf-8");
+
+  // Update the name field in frontmatter (must match parent directory per Agent Skills spec)
+  skillContent = skillContent.replace(
+    /^(name:\s*).+$/m,
+    `$1${targetName}`
+  );
+
+  // Inject project context if provided
+  if (options.contextBlock) {
+    skillContent = replaceProjectContext(skillContent, options.contextBlock);
+  }
+
+  await fs.ensureDir(targetDir);
+  await fs.writeFile(path.join(targetDir, "SKILL.md"), skillContent, "utf-8");
+  filesCopied++;
+  const relTargetDir = path.relative(process.cwd(), targetDir);
+  console.log(chalk.green(`  \u2713 ${path.join(relTargetDir, "SKILL.md")}`));
+
+  // 2. Copy subdirectories (references/, assets/, scripts/)
+  for (const subdir of ["references", "assets", "scripts"]) {
+    const srcSubdir = path.join(sourceDir, subdir);
+    if (!(await fs.pathExists(srcSubdir))) continue;
+
+    const entries = await fs.readdir(srcSubdir);
+    if (entries.length === 0) continue;
+
+    const destSubdir = path.join(targetDir, subdir);
+    await fs.copy(srcSubdir, destSubdir);
+
+    for (const entry of entries) {
+      filesCopied++;
+      console.log(chalk.green(`  \u2713 ${path.join(relTargetDir, subdir, entry)}`));
+    }
+  }
+
+  return filesCopied;
+}
+
+// ---------------------------------------------------------------------------
 // References loader (standalone docs like orchestrator, help)
 // ---------------------------------------------------------------------------
 
@@ -336,7 +339,7 @@ const SKILL_ITEMS = new Set([
 /**
  * Classify a prompt name into its source item kind.
  */
-function classifyItem(name: string): SourceItemKind {
+export function classifyItem(name: string): SourceItemKind {
   if (REFERENCE_FILES.has(name)) return "reference";
   if (SKILL_ITEMS.has(name)) return "skill";
   return "agent";
@@ -382,12 +385,11 @@ async function loadReferences(exclude: string[] = []): Promise<SourceItem[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Unified source loader (agents + skills + references, with legacy fallback)
+// Unified source loader (agents + skills + references)
 // ---------------------------------------------------------------------------
 
 /**
  * Load all source items: agents from agents/, skills from skills/, references from references/.
- * Falls back to legacy prompts/ for any items not found in the new structure.
  *
  * This is the primary entry point for init/install/update commands.
  */
@@ -396,56 +398,14 @@ export async function loadAllSources(
 ): Promise<SourceItem[]> {
   const excludeSet = new Set(exclude);
 
-  // Load from new structure
   const agents = await loadAllAgents();
   const skills = await loadAllSkills();
   const references = await loadReferences(exclude);
 
-  // Collect names already loaded from new structure
-  const loadedNames = new Set<string>([
-    ...agents.map((a) => a.name),
-    ...skills.map((s) => s.name),
-    ...references.map((r) => r.name),
-  ]);
-
-  // Also map hyphenated names to underscored to match legacy names
-  // e.g. "review-code" (new) covers "review_code" (legacy)
-  const loadedLegacyNames = new Set<string>();
-  for (const name of loadedNames) {
-    loadedLegacyNames.add(name);
-    loadedLegacyNames.add(name.replace(/-/g, "_"));
-  }
-
-  // Fall back to legacy prompts/ for anything not yet loaded
-  const legacyPrompts = await loadPrompts(exclude);
-  const legacyItems: SourceItem[] = [];
-
-  for (const prompt of legacyPrompts) {
-    if (loadedLegacyNames.has(prompt.name)) continue;
-    if (excludeSet.has(prompt.name)) continue;
-
-    const nameEntry = PROMPT_NAMES[prompt.name];
-    const kind = classifyItem(prompt.name);
-
-    legacyItems.push({
-      kind,
-      name: prompt.name,
-      rootPath: prompt.filePath,
-      content: prompt.content,
-      title: prompt.title,
-      description: prompt.description,
-      promptName: nameEntry?.promptName ?? prompt.name,
-      agentName: nameEntry?.agentName ?? prompt.name,
-      promptOnly: nameEntry?.promptOnly ?? false,
-    });
-  }
-
-  // Combine: new agents/skills/references + legacy fallbacks
   const all = [
     ...agents.filter((a) => !excludeSet.has(a.name) && !excludeSet.has(a.name.replace(/-/g, "_"))),
     ...skills.filter((s) => !excludeSet.has(s.name) && !excludeSet.has(s.name.replace(/-/g, "_"))),
     ...references,
-    ...legacyItems,
   ];
 
   return all;

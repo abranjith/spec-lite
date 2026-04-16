@@ -5,7 +5,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteGlobalConfig } from "../providers/base.js";
-import { loadAllSources } from "../utils/prompts.js";
+import { loadAllSources, copyNativeSkillDir } from "../utils/prompts.js";
 
 interface InstallOptions {
   ai?: string;
@@ -115,6 +115,18 @@ export async function installCommand(options: InstallOptions): Promise<void> {
       description: source.description,
     };
     const paths = provider.getGlobalOutputPaths(source.name);
+    const isNativeSkill = source.kind === "skill" && !!source.frontmatter && provider.supportsNativeSkills && !!provider.getGlobalSkillOutputDir;
+
+    // --- Native skill directory (global, if provider supports Agent Skills format) ---
+    if (isNativeSkill) {
+      const skillOutDir = provider.getGlobalSkillOutputDir!(source.name);
+      const filesCopied = await copyNativeSkillDir(
+        source.rootPath,
+        skillOutDir,
+        { contextBlock: null }
+      );
+      written += filesCopied;
+    }
 
     // --- Agent file (global) ---
     if (paths.agent && provider.supportsAgents && provider.transformAgent) {
@@ -125,8 +137,8 @@ export async function installCommand(options: InstallOptions): Promise<void> {
       console.log(chalk.green(`  ✓ ${paths.agent}`));
     }
 
-    // --- Prompt file (global) ---
-    if (paths.prompt) {
+    // --- Prompt file (global, skip for native skills) ---
+    if (!isNativeSkill && paths.prompt) {
       const transformed = provider.transformPrompt(source.content, meta);
       await fs.ensureDir(path.dirname(paths.prompt));
       await fs.writeFile(paths.prompt, transformed, "utf-8");

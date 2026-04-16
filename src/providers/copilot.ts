@@ -2,7 +2,16 @@ import path from "path";
 import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-import { getAgentOutputName, getPromptOutputName, isPromptOnly } from "../utils/prompts.js";
+import { getAgentOutputName, getPromptOutputName, isPromptOnly, classifyItem } from "../utils/prompts.js";
+
+/**
+ * Convert an internal skill name to its native Agent Skills output directory name.
+ * Replaces underscores with hyphens and adds `spec-` prefix.
+ * e.g., "implement" → "spec-implement", "review_code" → "spec-review-code"
+ */
+export function getSkillDirName(name: string): string {
+  return `spec-${name.replace(/_/g, "-")}`;
+}
 
 // ---------------------------------------------------------------------------
 // Handoffs map — derived from the orchestrator pipeline.
@@ -259,7 +268,7 @@ const AGENT_HANDOFFS: Record<string, Handoff[]> = {
     {
       label: "Check Pipeline Status",
       agent: "spec.help",
-      prompt: "Show me the current spec-lite pipeline status and available sub-agents.",
+      prompt: "Show me the current spec-lite pipeline status and available agents and skills.",
     },
   ],
   explore: [
@@ -348,6 +357,7 @@ export class CopilotProvider implements Provider {
   alias = "copilot";
   description = "GitHub Copilot (VS Code, JetBrains, Neovim)";
   supportsAgents = true;
+  supportsNativeSkills = true;
   supportsGlobal = true;
 
   getOutputPaths(promptName: string): { agent: string; prompt: string } {
@@ -373,6 +383,15 @@ export class CopilotProvider implements Provider {
       agent: path.join(homeDir, ".copilot", "agents", `spec.${agentName}.agent.md`),
       prompt: path.join(homeDir, ".copilot", "prompts", `spec.${promptOutName}.prompt.md`),
     };
+  }
+
+  getSkillOutputDir(skillName: string): string {
+    return path.join(".github", "skills", getSkillDirName(skillName));
+  }
+
+  getGlobalSkillOutputDir(skillName: string): string {
+    const homeDir = os.homedir();
+    return path.join(homeDir, ".copilot", "skills", getSkillDirName(skillName));
   }
 
   /** Transform content into an agent file: YAML frontmatter + prompt body. */
@@ -421,6 +440,20 @@ export class CopilotProvider implements Provider {
       existing.push(".github/copilot-instructions.md");
     }
 
+    // Check for native skill directories in .github/skills/
+    const skillsDir = path.join(workspaceRoot, ".github", "skills");
+    if (await fs.pathExists(skillsDir)) {
+      const dirs = await fs.readdir(skillsDir, { withFileTypes: true });
+      for (const d of dirs) {
+        if (d.isDirectory() && d.name.startsWith("spec-")) {
+          const skillMd = path.join(skillsDir, d.name, "SKILL.md");
+          if (await fs.pathExists(skillMd)) {
+            existing.push(path.join(".github", "skills", d.name, "SKILL.md"));
+          }
+        }
+      }
+    }
+
     return existing;
   }
 
@@ -440,14 +473,16 @@ export class CopilotProvider implements Provider {
       "📋 GitHub Copilot setup complete!",
       "",
       "  Agent files  : .github/agents/spec.<name>.agent.md  (noun-form — e.g. spec.planner)",
+      "  Skill dirs   : .github/skills/spec-<name>/SKILL.md  (auto-discovered by Copilot)",
       "  Prompt files : .github/prompts/spec.<name>.prompt.md (verb-form — e.g. spec.plan)",
       "",
       "  How to use:",
       "  1. Open GitHub Copilot Chat in VS Code",
-      "  2. Select a sub-agent from the agents dropdown (e.g., spec.planner)",
+      "  2. Select an agent from the agents dropdown (e.g., spec.planner)",
       "     — or — reference a prompt file with #file or type / to browse",
-      "  3. Agent files include handoff buttons to guide you through the pipeline",
-      "  4. Customize the Project Context block in each file for your project",
+      "  3. Skills are auto-discovered — just describe the task and Copilot activates the right skill",
+      "  4. Agent files include handoff buttons to guide you through the pipeline",
+      "  5. Customize the Project Context block in each file for your project",
       "",
     ].join("\n");
   }
@@ -458,6 +493,7 @@ export class CopilotProvider implements Provider {
       "📋 GitHub Copilot global install complete!",
       "",
       `  Agent files  : ~/.copilot/agents/spec.<name>.agent.md`,
+      `  Skill dirs   : ~/.copilot/skills/spec-<name>/SKILL.md`,
       `  Prompt files : ~/.copilot/prompts/spec.<name>.prompt.md`,
       "",
       "  These are available across all your workspaces in Copilot Chat.",
@@ -473,15 +509,18 @@ const SPEC_LITE_MARKER_END = "<!-- spec-lite:end -->";
  * Generate the spec-lite block to inject into (or create as) copilot-instructions.md.
  * Links point to agent files (noun-form) and prompt files (verb-form).
  */
-export function generateSpecLiteBlock(installedPrompts: string[]): string {
+export function generateSpecLiteBlock(installedPrompts: string[], nativeSkillNames: Set<string> = new Set()): string {
+  const nativeSkills = installedPrompts.filter((name) => nativeSkillNames.has(name));
+  const promptFileNames = installedPrompts.filter((name) => !nativeSkillNames.has(name));
+
   const lines = [
     SPEC_LITE_MARKER_START,
-    "## spec-lite Sub-Agents",
+    "## spec-lite Agents & Skills",
     "",
-    "This project uses [spec-lite](https://github.com/abranjith/spec-lite) sub-agent prompts",
+    "This project uses [spec-lite](https://github.com/abranjith/spec-lite) agent and skill prompts",
     "for structured software engineering workflows.",
     "",
-    "The following specialist sub-agents are available:",
+    "The following specialist agents and skills are available:",
     "",
     "**Agent files** (`.github/agents/`) — select from the agents dropdown in Copilot Chat:",
     "",
@@ -494,15 +533,30 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
     lines.push(`- [spec.${agentName}](.github/agents/spec.${agentName}.agent.md)`);
   }
 
-  lines.push(
-    "",
-    "**Prompt files** (`.github/prompts/`) — reference with `#file` or browse with `/`:",
-    "",
-  );
+  if (nativeSkills.length > 0) {
+    lines.push(
+      "",
+      "**Skill directories** (`.github/skills/`) — auto-discovered by Copilot based on task:",
+      "",
+    );
 
-  for (const name of installedPrompts) {
-    const promptName = getPromptOutputName(name);
-    lines.push(`- [spec.${promptName}](.github/prompts/spec.${promptName}.prompt.md)`);
+    for (const name of nativeSkills) {
+      const dirName = getSkillDirName(name);
+      lines.push(`- [${dirName}](.github/skills/${dirName}/SKILL.md)`);
+    }
+  }
+
+  if (promptFileNames.length > 0) {
+    lines.push(
+      "",
+      "**Prompt files** (`.github/prompts/`) — reference with `#file` or browse with `/`:",
+      "",
+    );
+
+    for (const name of promptFileNames) {
+      const promptName = getPromptOutputName(name);
+      lines.push(`- [spec.${promptName}](.github/prompts/spec.${promptName}.prompt.md)`);
+    }
   }
 
   if (installedPrompts.includes("plan_critic")) {
@@ -518,7 +572,8 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
 
   lines.push(
     "",
-    "To invoke a sub-agent, select it from the agents dropdown or use `#file` to reference a prompt file.",
+    "To invoke an agent, select it from the agents dropdown, reference a prompt file with `#file`,",
+    "or describe the task and Copilot will auto-discover the right skill.",
     SPEC_LITE_MARKER_END
   );
 
@@ -532,9 +587,10 @@ export function generateSpecLiteBlock(installedPrompts: string[]): string {
  */
 export function mergeCopilotInstructions(
   existingContent: string | null,
-  installedPrompts: string[]
+  installedPrompts: string[],
+  nativeSkillNames: Set<string> = new Set()
 ): string {
-  const block = generateSpecLiteBlock(installedPrompts);
+  const block = generateSpecLiteBlock(installedPrompts, nativeSkillNames);
 
   if (!existingContent) {
     return block + "\n";

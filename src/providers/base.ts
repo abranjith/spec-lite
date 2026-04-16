@@ -19,6 +19,9 @@ export interface Provider {
   /** Whether this provider supports separate agent files (e.g., Copilot, Claude Code) */
   supportsAgents: boolean;
 
+  /** Whether this provider supports native Agent Skills format (SKILL.md directories) */
+  supportsNativeSkills: boolean;
+
   /** Whether this provider supports global (user-level) installation */
   supportsGlobal: boolean;
 
@@ -35,6 +38,19 @@ export interface Provider {
    * Returns absolute paths. Only available when supportsGlobal is true.
    */
   getGlobalOutputPaths?(promptName: string): { agent?: string; prompt?: string };
+
+  /**
+   * Get the output directory for a skill when using native Agent Skills format.
+   * Path is relative to workspace root.
+   * Only used when supportsNativeSkills is true.
+   */
+  getSkillOutputDir?(skillName: string): string;
+
+  /**
+   * Get the global (user-level) output directory for a skill.
+   * Returns absolute path. Only used when supportsNativeSkills and supportsGlobal are true.
+   */
+  getGlobalSkillOutputDir?(skillName: string): string;
 
   /**
    * Transform the raw markdown prompt content into the provider's prompt file format.
