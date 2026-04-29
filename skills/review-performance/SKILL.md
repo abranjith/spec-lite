@@ -6,7 +6,6 @@ description: >
   prioritized, actionable recommendations backed by evidence or reasoning.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Review Performance

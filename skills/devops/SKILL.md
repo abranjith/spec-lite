@@ -6,7 +6,6 @@ description: >
   security, reproducibility, and developer experience.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # DevOps

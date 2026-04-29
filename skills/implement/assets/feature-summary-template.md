@@ -17,7 +17,7 @@ After completing implementation (Feature Mode, Plan Mode, or Review Mode — if 
 ### Template
 
 ```markdown
-<!-- Maintained by spec-lite v0.0.8 | updated by: implement, fix skills -->
+<!-- Maintained by spec-lite | updated by: implement, fix skills -->
 
 # Feature Summary
 

@@ -6,7 +6,6 @@ description: >
   the definitive entry point for a project.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Write Readme

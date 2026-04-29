@@ -6,7 +6,6 @@ description: >
   and execute automatically via the standard header convention.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Tool Help

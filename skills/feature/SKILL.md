@@ -7,7 +7,6 @@ description: >
   feature spec at .spec-lite/features/feature_<name>.md.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Feature

@@ -3,7 +3,6 @@ name: explore
 description: "Codebase discovery & documentation — systematically explores codebases and produces structured technical documentation"
 metadata:
   author: spec-lite
-  version: 0.0.8
   type: agent
 ---
 

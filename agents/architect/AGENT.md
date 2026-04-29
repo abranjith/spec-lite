@@ -7,7 +7,6 @@ description: >
   design, cloud topology, database strategy, or general architecture consultation.
 metadata:
   author: spec-lite
-  version: "1.0"
   type: agent
 ---
 

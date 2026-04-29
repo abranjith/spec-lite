@@ -7,7 +7,6 @@ description: >
   actionable feedback.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Review Code

@@ -7,7 +7,6 @@ description: >
   data model, and interface design.
 metadata:
   author: spec-lite
-  version: "1.0"
   type: agent
 ---
 

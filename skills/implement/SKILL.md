@@ -6,7 +6,6 @@ description: >
   (all features from a plan), and Review Mode (implementing audit findings).
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Implement

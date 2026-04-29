@@ -3,7 +3,6 @@ name: yolo
 description: "Autonomous pipeline orchestrator — drives the entire spec-lite workflow from goal to fully implemented, reviewed, and documented project"
 metadata:
   author: spec-lite
-  version: 0.0.8
   type: agent
 ---
 

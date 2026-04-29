@@ -6,7 +6,6 @@ description: >
   indexes, and design decisions at .spec-lite/data_model.md.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Build Data Model

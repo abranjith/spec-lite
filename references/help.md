@@ -6,7 +6,6 @@ description: >
   development workflow effectively.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Help — Navigator & Guide

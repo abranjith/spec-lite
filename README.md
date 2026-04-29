@@ -12,8 +12,8 @@ spec-lite is a curated collection of **precise, modular agents and skills** — 
 
 - **Surgical prompts for spec-driven development.** Each agent or skill targets a specific SDLC activity — planning, feature design, implementation, code review, testing, security audit, DevOps, and more. They are precise, finite-scoped, and produce concrete output artifacts.
 - **No tools attached.** spec-lite ships zero tools on purpose. Modern AI agents are excellent at creating tools themselves, and every project's tooling needs are different. Instead, spec-lite includes a **Tool Helper** skill (`/spec.tool_help`) that helps you create project-specific bash tools in `.spec-lite/tools/` — which other agents and skills can then discover and use to inject project context.
-- **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, and **Pi** — prompts are written as both prompt files and agent files where the provider supports it (e.g., Copilot gets `.prompt.md` + `.agent.md` files with handoff support plus native skill directories; Claude Code gets files in `.claude/agents/` and `.claude/prompts/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
-- **Global installation support.** Install prompts once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, and Pi.
+- **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, and **Pi** — agents and skills are written using each provider's native primitives (e.g., Copilot gets `.agent.md` files with handoff support in `.github/agents/` plus native skill directories in `.github/skills/`; Claude Code gets agent files in `.claude/agents/` with both source agents and skills mapped onto its agent surface; Pi gets native skill directories in `.pi/skills/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
+- **Global installation support.** Install agents and skills once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, and Pi.
 - **Slash-command invocation.** Once installed, agents and skills are invoked with `/` commands (e.g., `/spec.plan`, `/spec.feature`) or via your provider's agent selection UI.
 - **YOLO mode.** For when you want to go fully autonomous — the YOLO agent drives the entire spec-lite pipeline end to end, from planning through implementation, reviews, and documentation. Pausable, resumable, with checkpoints at every phase.
 - **Memory support.** `.spec-lite/memory.md` is a user-controlled file of standing instructions (coding standards, architecture decisions, testing conventions) read by every agent and skill. Bootstrap it automatically with `/spec.memorize bootstrap`, or edit it directly. Some skills also auto-update memory when they discover new conventions.
@@ -55,8 +55,8 @@ spec-lite init --ai generic
 
 The CLI will walk you through a short **project profile questionnaire** (languages, frameworks, test frameworks, architecture patterns, and coding conventions). Language(s) and architecture pattern(s) are selected interactively, while frameworks and test frameworks are entered as comma-separated lists. Your answers are used to:
 
-1. Write prompt and agent files to the correct location for your AI tool
-2. Inject your tech-stack context into every prompt's `<!-- project-context -->` block
+1. Write agent and skill files to the correct location for your AI tool
+2. Inject your tech-stack context into each file's `<!-- project-context -->` block
 3. Copy one or more curated **best-practice snippets** for your stack into `.spec-lite/stacks/`
 4. Create the `.spec-lite/` directory structure for agent outputs
 5. Save a `.spec-lite.json` config (including your project profile as arrays for mixed-stack repositories) to track your setup
@@ -97,14 +97,14 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 
 ## Supported AI Providers
 
-| Provider | Flag | Prompt Files | Agent Files | Global Support |
-|----------|------|-------------|-------------|----------------|
-| GitHub Copilot | `--ai copilot` | `.github/prompts/spec.*.prompt.md` | `.github/agents/spec.*.agent.md` | ✅ |
-| Claude Code | `--ai claude-code` | `.claude/prompts/spec.*.md` | `.claude/agents/spec.*.md` + `CLAUDE.md` | ✅ |
-| Pi | `--ai pi` | `.pi/prompts/spec.*.md` | — (prompts only) | ✅ |
-| Generic | `--ai generic` | `.spec-lite/prompts/spec.*.md` | — | — |
+| Provider | Flag | Agent Files | Skill Directories | Global Support |
+|----------|------|-------------|-------------------|----------------|
+| GitHub Copilot | `--ai copilot` | `.github/agents/spec.*.agent.md` | `.github/skills/spec-*/SKILL.md` | ✅ |
+| Claude Code | `--ai claude-code` | `.claude/agents/spec.*.md` + `CLAUDE.md` | — (skills delivered as agents) | ✅ |
+| Pi | `--ai pi` | — (agents delivered as skills) | `.pi/skills/spec-*/SKILL.md` | ✅ |
+| Generic | `--ai generic` | — | — | — |
 
-For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the prompt files into your tool's expected location.
+Providers use whichever native primitives they support: Copilot writes both agents and skills, Claude Code maps both source agents and source skills to its agent surface, and Pi expresses agents as native skills. The Generic provider emits raw markdown for copy-paste into any LLM. For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the markdown files into your tool's expected location.
 
 ## Memory-First Architecture
 
@@ -380,10 +380,6 @@ spec-lite list
 See [spec-lite-demo](https://github.com/abranjith/spec-lite-demo) for walkthroughs and example projects built with spec-lite.
 
 ---
-
-## Versioning
-
-spec-lite relies on **git** for artifact versioning. When a plan or review is updated, commit with a meaningful message. Each prompt includes a version metadata comment (`<!-- spec-lite v0.0.8 | ... -->`) for traceability.
 
 ## Adapting & Contributing
 

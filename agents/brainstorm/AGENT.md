@@ -6,7 +6,6 @@ description: >
   or needing strategic product thinking.
 metadata:
   author: spec-lite
-  version: "1.0"
   type: agent
 ---
 

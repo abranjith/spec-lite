@@ -5,7 +5,6 @@ description: >
   Single source of truth for the pipeline, conventions, and conflict resolution rules.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Orchestrator — Agent & Skill Pipeline Reference

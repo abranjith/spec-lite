@@ -6,7 +6,6 @@ description: >
   category inference.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # TODO

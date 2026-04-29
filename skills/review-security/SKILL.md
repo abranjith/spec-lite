@@ -7,7 +7,6 @@ description: >
   actionable remediation steps.
 metadata:
   author: spec-lite
-  version: 0.0.8
 ---
 
 # Review Security
