@@ -7,6 +7,7 @@ import {
   loadAllSources,
   extractProjectContext,
   replaceProjectContext,
+  copyNativeSkillDir,
 } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
@@ -97,6 +98,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   let updated = 0;
   let preserved = 0;
   let unchanged = 0;
+  const nativeSkillNames = new Set<string>();
 
   for (const source of sources) {
     const meta = {
@@ -105,6 +107,31 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       description: source.description,
     };
     const paths = provider.getOutputPaths(source.name);
+    const isNativeSkill =
+      source.kind === "skill" &&
+      !!source.frontmatter &&
+      provider.supportsNativeSkills &&
+      !!provider.getSkillOutputDir;
+
+    // --- Native skill directory (preserve user edits to Project Context block) ---
+    if (isNativeSkill) {
+      const skillOutDir = provider.getSkillOutputDir!(source.name);
+      const skillAbsDir = path.join(cwd, skillOutDir);
+      const skillMdAbs = path.join(skillAbsDir, "SKILL.md");
+
+      let contextBlock: string | null = null;
+      if (!options.force && (await fs.pathExists(skillMdAbs))) {
+        const existing = await fs.readFile(skillMdAbs, "utf-8");
+        contextBlock = extractProjectContext(existing);
+      }
+
+      const filesCopied = await copyNativeSkillDir(source.rootPath, skillAbsDir, {
+        contextBlock,
+      });
+      updated += filesCopied;
+      if (contextBlock) preserved += 1;
+      nativeSkillNames.add(source.name);
+    }
 
     // --- Agent file ---
     if (paths.agent && provider.supportsAgents && provider.transformAgent) {
@@ -120,17 +147,19 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       unchanged += result.unchanged;
     }
 
-    // --- Prompt file ---
-    const newPromptContent = provider.transformPrompt(source.content, meta);
-    const result = await updateFile(
-      path.join(cwd, paths.prompt),
-      paths.prompt,
-      newPromptContent,
-      !!options.force
-    );
-    updated += result.updated;
-    preserved += result.preserved;
-    unchanged += result.unchanged;
+    // --- Prompt file (skip for native skills — the skill directory replaces it) ---
+    if (!isNativeSkill) {
+      const newPromptContent = provider.transformPrompt(source.content, meta);
+      const result = await updateFile(
+        path.join(cwd, paths.prompt),
+        paths.prompt,
+        newPromptContent,
+        !!options.force
+      );
+      updated += result.updated;
+      preserved += result.preserved;
+      unchanged += result.unchanged;
+    }
   }
 
   // 3. Update provider-specific extras
@@ -147,7 +176,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     const existingContent = (await fs.pathExists(copilotInstructionsPath))
       ? await fs.readFile(copilotInstructionsPath, "utf-8")
       : null;
-    const merged = mergeCopilotInstructions(existingContent, config.installedPrompts);
+    const merged = mergeCopilotInstructions(existingContent, config.installedPrompts, nativeSkillNames);
     await fs.writeFile(copilotInstructionsPath, merged, "utf-8");
     console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated)`));
   }
