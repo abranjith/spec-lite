@@ -10,7 +10,7 @@ import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { getStackSnippetInfo } from "../utils/stacks.js";
 
 interface InitOptions {
-  ai?: string;
+  ai?: string | string[];
   exclude?: string;
   force?: boolean;
   skipProfile?: boolean;
@@ -74,6 +74,31 @@ function mergeSelectedValues(selected: string[], otherInput?: string): string[] 
 
 function formatProfileValues(values: string[], fallback: string): string {
   return values.length > 0 ? values.join(", ") : fallback;
+}
+
+function parseProviderAliases(input?: string | string[]): string[] {
+  const rawValues = Array.isArray(input) ? input : input ? [input] : [];
+  return dedupeValues(
+    rawValues
+      .flatMap((value) => value.split(/[\s,]+/))
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
+  );
+}
+
+function getPlanCriticNote(providerAlias: string): string | undefined {
+  switch (providerAlias) {
+    case "copilot":
+      return "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Copilot Chat before implementation to pressure-test the plan.";
+    case "claude-code":
+      return "  💡 Optional checkpoint: ask Claude Code to use .claude/agents/spec.plan_critic.md against .spec-lite/plan.md before implementation.";
+    case "pi":
+      return "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Pi Chat before implementation.";
+    case "generic":
+      return "  💡 Optional checkpoint: copy .spec-lite/prompts/spec.plan_critic.md into your LLM and review .spec-lite/plan.md before implementation.";
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -225,38 +250,43 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   console.log(chalk.bold("\n⚡ spec-lite init\n"));
 
-  // 1. Resolve provider
-  let providerAlias = options.ai;
+  // 1. Resolve provider(s)
+  let providerAliases = parseProviderAliases(options.ai);
 
-  if (!providerAlias) {
-    const providers = getAllProviders();
+  if (providerAliases.length === 0) {
+    const availableProviders = getAllProviders();
     const answer = await inquirer.prompt([
       {
-        type: "list",
-        name: "provider",
-        message: "Which AI coding assistant are you using?",
-        choices: providers.map((p) => ({
+        type: "checkbox",
+        name: "providers",
+        message: "Which AI coding assistant(s) are you using?",
+        choices: availableProviders.map((p) => ({
           name: `${p.name} — ${p.description}`,
           value: p.alias,
         })),
+        validate: (input: string[]) =>
+          input.length > 0 ? true : "Select at least one provider.",
       },
     ]);
-    providerAlias = answer.provider as string;
+    providerAliases = dedupeValues((answer.providers as string[]) ?? []);
   }
 
-  const provider = getProvider(providerAlias!);
-  if (!provider) {
-    console.error(
-      chalk.red(
-        `Unknown provider: "${providerAlias}". Available: ${getAllProviders()
-          .map((p) => p.alias)
-          .join(", ")}`
-      )
-    );
-    process.exit(1);
-  }
+  const providers = providerAliases.map((providerAlias) => {
+    const provider = getProvider(providerAlias);
+    if (!provider) {
+      console.error(
+        chalk.red(
+          `Unknown provider: "${providerAlias}". Available: ${getAllProviders()
+            .map((p) => p.alias)
+            .join(", ")}`
+        )
+      );
+      process.exit(1);
+    }
+    return provider;
+  });
 
-  console.log(chalk.cyan(`  Provider: ${provider.name}`));
+  console.log(chalk.cyan(`  Providers: ${providers.map((p) => p.name).join(", ")}`));
 
   // 2. Collect project profile (unless --skip-profile)
   let projectProfile: ProjectProfile | undefined;
@@ -276,58 +306,81 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.dim(`  Excluding: ${exclude.join(", ")}`));
   }
 
-  // 3b. Capture pre-existing seed content (before we write anything to the provider's instructions file)
-  const memorySeedSource = await provider.getMemorySeedSource(cwd);
-  let preSeedContent: string | null = null;
-  if (memorySeedSource) {
+  // 3b. Capture pre-existing seed content from selected provider(s)
+  const memorySeedCandidates: Array<{
+    providerAlias: string;
+    label: string;
+    path: string;
+    content: string;
+  }> = [];
+
+  for (const provider of providers) {
+    const memorySeedSource = await provider.getMemorySeedSource(cwd);
+    if (!memorySeedSource) continue;
+
     const seedAbsPath = path.join(cwd, memorySeedSource.path);
-    if (await fs.pathExists(seedAbsPath)) {
-      preSeedContent = await fs.readFile(seedAbsPath, "utf-8");
-    }
+    if (!(await fs.pathExists(seedAbsPath))) continue;
+
+    const preSeedContent = await fs.readFile(seedAbsPath, "utf-8");
+    memorySeedCandidates.push({
+      providerAlias: provider.alias,
+      label: memorySeedSource.label,
+      path: memorySeedSource.path,
+      content: preSeedContent,
+    });
   }
 
-  // 4. Check for existing files
-  const existingFiles = await provider.detectExisting(cwd);
-  let globalAction: "overwrite" | "skip" | null = null;
+  // 4. Check for existing files per provider
+  const providerActions = new Map<string, "overwrite" | "skip" | null>();
+  const providerExistingFiles = new Map<string, string[]>();
 
-  if (existingFiles.length > 0 && !options.force) {
-    console.log(
-      chalk.yellow(
-        `\n  Found existing instruction files:\n${existingFiles
-          .map((f) => `    - ${f}`)
-          .join("\n")}`
-      )
-    );
+  for (const provider of providers) {
+    const existingFiles = await provider.detectExisting(cwd);
+    providerExistingFiles.set(provider.alias, existingFiles);
 
-    const answer = await inquirer.prompt([
-      {
-        type: "list",
-        name: "action",
-        message: "How should we handle existing files?",
-        choices: [
-          {
-            name: "Overwrite — replace all existing files",
-            value: "overwrite",
-          },
-          {
-            name: "Skip — only write files that don't exist yet",
-            value: "skip",
-          },
-          { name: "Abort — cancel initialization", value: "abort" },
-        ],
-      },
-    ]);
+    let action: "overwrite" | "skip" | null = null;
 
-    if (answer.action === "abort") {
-      console.log(chalk.dim("  Aborted."));
-      return;
+    if (existingFiles.length > 0 && !options.force) {
+      console.log(
+        chalk.yellow(
+          `\n  [${provider.name}] Found existing instruction files:\n${existingFiles
+            .map((f) => `    - ${f}`)
+            .join("\n")}`
+        )
+      );
+
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "action",
+          message: `How should we handle existing ${provider.name} files?`,
+          choices: [
+            {
+              name: "Overwrite — replace all existing files",
+              value: "overwrite",
+            },
+            {
+              name: "Skip — only write files that don't exist yet",
+              value: "skip",
+            },
+            { name: "Abort — cancel initialization", value: "abort" },
+          ],
+        },
+      ]);
+
+      if (answer.action === "abort") {
+        console.log(chalk.dim("  Aborted."));
+        return;
+      }
+
+      action = answer.action as "overwrite" | "skip";
+
+      if (action === "skip") {
+        console.log(chalk.dim(`  [${provider.name}] Skipping existing files.`));
+      }
     }
 
-    globalAction = answer.action as "overwrite" | "skip";
-
-    if (globalAction === "skip") {
-      console.log(chalk.dim("  Skipping existing files."));
-    }
+    providerActions.set(provider.alias, action);
   }
 
   // 5. Build project context block (if profile was collected)
@@ -339,116 +392,130 @@ export async function initCommand(options: InitOptions): Promise<void> {
   const sources = await loadAllSources(exclude);
   let written = 0;
   let skipped = 0;
-  const installedPrompts: string[] = [];
-  const nativeSkillNames = new Set<string>();
+  const installedPrompts = sources.map((source) => source.name);
 
-  for (const source of sources) {
-    const meta = {
-      name: source.promptName,
-      title: source.title,
-      description: source.description,
-    };
-    const paths = provider.getOutputPaths(source.name);
-    const isNativeSkill = source.kind === "skill" && !!source.frontmatter && provider.supportsNativeSkills && !!provider.getSkillOutputDir;
+  for (const provider of providers) {
+    console.log(chalk.cyan(`\n  Installing prompts for ${provider.name}...`));
 
-    // --- Native skill directory (if provider supports Agent Skills format) ---
-    if (isNativeSkill) {
-      const skillOutDir = provider.getSkillOutputDir!(source.name);
-      const skillMdRelPath = path.join(skillOutDir, "SKILL.md");
+    const existingFiles = providerExistingFiles.get(provider.alias) ?? [];
+    const existingPathSet = new Set(existingFiles.map((filePath) => path.normalize(filePath)));
+    const globalAction = providerActions.get(provider.alias);
+    const nativeSkillNames = new Set<string>();
 
-      const shouldSkipSkill =
-        !options.force &&
-        existingFiles.includes(skillMdRelPath) &&
-        globalAction === "skip";
+    for (const source of sources) {
+      const meta = {
+        name: source.promptName,
+        title: source.title,
+        description: source.description,
+      };
+      const paths = provider.getOutputPaths(source.name);
+      const isNativeSkill =
+        source.kind === "skill" &&
+        !!source.frontmatter &&
+        provider.supportsNativeSkills &&
+        !!provider.getSkillOutputDir;
 
-      if (!shouldSkipSkill) {
-        const filesCopied = await copyNativeSkillDir(
-          source.rootPath,
-          path.join(cwd, skillOutDir),
-          { contextBlock }
-        );
-        written += filesCopied;
-        nativeSkillNames.add(source.name);
-      } else {
-        skipped++;
-      }
-    }
+      // --- Native skill directory (if provider supports Agent Skills format) ---
+      if (isNativeSkill) {
+        const skillOutDir = provider.getSkillOutputDir!(source.name);
+        const skillMdRelPath = path.join(skillOutDir, "SKILL.md");
 
-    // --- Agent file (if provider supports agents and path is present) ---
-    if (paths.agent && provider.supportsAgents && provider.transformAgent) {
-      const agentAbsPath = path.join(cwd, paths.agent);
+        const shouldSkipSkill =
+          !options.force &&
+          existingPathSet.has(path.normalize(skillMdRelPath)) &&
+          globalAction === "skip";
 
-      const shouldSkipAgent =
-        !options.force &&
-        existingFiles.includes(paths.agent) &&
-        globalAction === "skip";
-
-      if (!shouldSkipAgent) {
-        let content = source.content;
-        if (contextBlock) {
-          content = replaceProjectContext(content, contextBlock);
+        if (!shouldSkipSkill) {
+          const filesCopied = await copyNativeSkillDir(
+            source.rootPath,
+            path.join(cwd, skillOutDir),
+            { contextBlock }
+          );
+          written += filesCopied;
+          nativeSkillNames.add(source.name);
+        } else {
+          skipped++;
         }
-        const transformed = provider.transformAgent(content, meta);
-        await fs.ensureDir(path.dirname(agentAbsPath));
-        await fs.writeFile(agentAbsPath, transformed, "utf-8");
-        written++;
-        console.log(chalk.green(`  ✓ ${paths.agent}`));
-      } else {
-        skipped++;
       }
-    }
 
-    // --- Prompt file (skip for native skills — the skill directory replaces it) ---
-    if (!isNativeSkill) {
-      const promptAbsPath = path.join(cwd, paths.prompt);
+      // --- Agent file (if provider supports agents and path is present) ---
+      if (paths.agent && provider.supportsAgents && provider.transformAgent) {
+        const agentAbsPath = path.join(cwd, paths.agent);
 
-      const shouldSkipPrompt =
-        !options.force &&
-        existingFiles.includes(paths.prompt) &&
-        globalAction === "skip";
+        const shouldSkipAgent =
+          !options.force &&
+          existingPathSet.has(path.normalize(paths.agent)) &&
+          globalAction === "skip";
 
-      if (!shouldSkipPrompt) {
-        let content = source.content;
-        if (contextBlock) {
-          content = replaceProjectContext(content, contextBlock);
+        if (!shouldSkipAgent) {
+          let content = source.content;
+          if (contextBlock) {
+            content = replaceProjectContext(content, contextBlock);
+          }
+          const transformed = provider.transformAgent(content, meta);
+          await fs.ensureDir(path.dirname(agentAbsPath));
+          await fs.writeFile(agentAbsPath, transformed, "utf-8");
+          written++;
+          console.log(chalk.green(`  ✓ ${paths.agent}`));
+        } else {
+          skipped++;
         }
-        const transformed = provider.transformPrompt(content, meta);
-        await fs.ensureDir(path.dirname(promptAbsPath));
-        await fs.writeFile(promptAbsPath, transformed, "utf-8");
-        written++;
-        console.log(chalk.green(`  ✓ ${paths.prompt}`));
-      } else {
-        skipped++;
+      }
+
+      // --- Prompt file (skip for native skills — the skill directory replaces it) ---
+      if (!isNativeSkill) {
+        const promptAbsPath = path.join(cwd, paths.prompt);
+
+        const shouldSkipPrompt =
+          !options.force &&
+          existingPathSet.has(path.normalize(paths.prompt)) &&
+          globalAction === "skip";
+
+        if (!shouldSkipPrompt) {
+          let content = source.content;
+          if (contextBlock) {
+            content = replaceProjectContext(content, contextBlock);
+          }
+          const transformed = provider.transformPrompt(content, meta);
+          await fs.ensureDir(path.dirname(promptAbsPath));
+          await fs.writeFile(promptAbsPath, transformed, "utf-8");
+          written++;
+          console.log(chalk.green(`  ✓ ${paths.prompt}`));
+        } else {
+          skipped++;
+        }
       }
     }
 
-    installedPrompts.push(source.name);
-  }
-
-  // 7. Provider-specific extras
-  if (provider.alias === "claude-code") {
-    const claudeMdPath = path.join(cwd, "CLAUDE.md");
-    const claudeMdContent = generateClaudeRootMd(installedPrompts);
-    await fs.writeFile(claudeMdPath, claudeMdContent, "utf-8");
-    console.log(chalk.green(`  ✓ CLAUDE.md`));
-    written++;
-  }
-
-  if (provider.alias === "copilot") {
-    // Write / update .github/copilot-instructions.md
-    const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
-    await fs.ensureDir(path.join(cwd, ".github"));
-    const existingContent = (await fs.pathExists(copilotInstructionsPath))
-      ? await fs.readFile(copilotInstructionsPath, "utf-8")
-      : null;
-    const merged = mergeCopilotInstructions(existingContent, installedPrompts, nativeSkillNames);
-    await fs.writeFile(copilotInstructionsPath, merged, "utf-8");
-    if (existingContent) {
-      console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated with spec-lite block)`));
-    } else {
-      console.log(chalk.green(`  ✓ .github/copilot-instructions.md`));
+    // 7. Provider-specific extras
+    if (provider.alias === "claude-code") {
+      const claudeMdPath = path.join(cwd, "CLAUDE.md");
+      const claudeMdContent = generateClaudeRootMd(installedPrompts);
+      await fs.writeFile(claudeMdPath, claudeMdContent, "utf-8");
+      console.log(chalk.green(`  ✓ CLAUDE.md`));
+      written++;
     }
-    written++;
+
+    if (provider.alias === "copilot") {
+      // Write / update .github/copilot-instructions.md
+      const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
+      await fs.ensureDir(path.join(cwd, ".github"));
+      const existingContent = (await fs.pathExists(copilotInstructionsPath))
+        ? await fs.readFile(copilotInstructionsPath, "utf-8")
+        : null;
+      const merged = mergeCopilotInstructions(
+        existingContent,
+        installedPrompts,
+        nativeSkillNames
+      );
+      await fs.writeFile(copilotInstructionsPath, merged, "utf-8");
+      if (existingContent) {
+        console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated with spec-lite block)`));
+      } else {
+        console.log(chalk.green(`  ✓ .github/copilot-instructions.md`));
+      }
+      written++;
+    }
   }
 
   // 8. Create .spec-lite/ directory structure for agent outputs
@@ -524,26 +591,62 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // 9b. Offer to seed .spec-lite/memory.md from pre-existing provider instructions
   let memorySeedWritten = false;
   const memoryPath = path.join(cwd, ".spec-lite", "memory.md");
-  if (preSeedContent && memorySeedSource && !(await fs.pathExists(memoryPath))) {
-    console.log(
-      chalk.cyan(`\n  💡 Found existing ${memorySeedSource.label} (${memorySeedSource.path}).`)
-    );
-    const seedAnswer = await inquirer.prompt([
-      {
-        type: "confirm",
-        name: "seedMemory",
-        message: `Seed .spec-lite/memory.md from it so /memorize bootstrap can refine your existing conventions?`,
-        default: true,
-      },
-    ]);
-    if (seedAnswer.seedMemory) {
+  if (memorySeedCandidates.length > 0 && !(await fs.pathExists(memoryPath))) {
+    let selectedSeed: (typeof memorySeedCandidates)[number] | null = null;
+
+    if (memorySeedCandidates.length === 1) {
+      const candidate = memorySeedCandidates[0];
+      console.log(
+        chalk.cyan(`\n  💡 Found existing ${candidate.label} (${candidate.path}).`)
+      );
+      const seedAnswer = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "seedMemory",
+          message: "Seed .spec-lite/memory.md from it so /memorize bootstrap can refine your existing conventions?",
+          default: true,
+        },
+      ]);
+      if (seedAnswer.seedMemory) {
+        selectedSeed = candidate;
+      }
+    } else {
+      const answer = await inquirer.prompt([
+        {
+          type: "list",
+          name: "seedSource",
+          message: "Select an existing instruction source to seed .spec-lite/memory.md:",
+          choices: [
+            ...memorySeedCandidates.map((candidate) => ({
+              name: `[${candidate.providerAlias}] ${candidate.label} (${candidate.path})`,
+              value: candidate.path,
+            })),
+            {
+              name: "Skip seeding memory for now",
+              value: "__skip__",
+            },
+          ],
+        },
+      ]);
+
+      if (answer.seedSource !== "__skip__") {
+        selectedSeed =
+          memorySeedCandidates.find((candidate) => candidate.path === answer.seedSource) ?? null;
+      }
+    }
+
+    if (selectedSeed) {
       const seedPkg = await loadPackageVersion();
-      const seededContent = buildSeededMemory(preSeedContent, memorySeedSource.path, seedPkg);
+      const seededContent = buildSeededMemory(
+        selectedSeed.content,
+        selectedSeed.path,
+        seedPkg
+      );
       await fs.ensureDir(path.join(cwd, ".spec-lite"));
       await fs.writeFile(memoryPath, seededContent, "utf-8");
       memorySeedWritten = true;
       written++;
-      console.log(chalk.green(`  ✓ .spec-lite/memory.md (seeded from ${memorySeedSource.path})`));
+      console.log(chalk.green(`  ✓ .spec-lite/memory.md (seeded from ${selectedSeed.path})`));
       console.log(chalk.dim("     ↳ Run /memorize bootstrap to organize and refine into standing instructions"));
     }
   }
@@ -553,7 +656,8 @@ export async function initCommand(options: InitOptions): Promise<void> {
   const config: SpecLiteConfig = {
     version: pkg,
     format: "v2",
-    provider: provider.alias,
+    provider: providers[0].alias,
+    providers: providers.map((provider) => provider.alias),
     installedPrompts,
     installedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -566,34 +670,20 @@ export async function initCommand(options: InitOptions): Promise<void> {
   // 11. Summary
   console.log(
     chalk.bold(
-      `\n  Done! ${written} files written, ${skipped} skipped.`
+      `\n  Done! ${written} files written, ${skipped} skipped across ${providers.length} provider(s).`
     )
   );
-  console.log(provider.getPostInitMessage());
+  for (const provider of providers) {
+    console.log(provider.getPostInitMessage());
+  }
 
   if (installedPrompts.includes("plan_critic")) {
-    let planCriticNote: string | undefined;
-
-    switch (provider.alias) {
-      case "copilot":
-        planCriticNote =
-          "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Copilot Chat before implementation to pressure-test the plan.";
-        break;
-      case "claude-code":
-        planCriticNote =
-          "  💡 Optional checkpoint: ask Claude Code to use .claude/agents/spec.plan_critic.md against .spec-lite/plan.md before implementation.";
-        break;
-      case "pi":
-        planCriticNote =
-          "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Pi Chat before implementation.";
-        break;
-      case "generic":
-        planCriticNote =
-          "  💡 Optional checkpoint: copy .spec-lite/prompts/spec.plan_critic.md into your LLM and review .spec-lite/plan.md before implementation.";
-        break;
-    }
-
-    if (planCriticNote) {
+    const planCriticNotes = dedupeValues(
+      providers
+        .map((provider) => getPlanCriticNote(provider.alias))
+        .filter((note): note is string => !!note)
+    );
+    for (const planCriticNote of planCriticNotes) {
       console.log(chalk.cyan(`\n${planCriticNote}`));
     }
   }

@@ -51,6 +51,11 @@ spec-lite init --ai pi
 
 # For any other LLM (raw prompts you can copy-paste)
 spec-lite init --ai generic
+
+# Configure multiple providers in one workspace
+spec-lite init --ai copilot --ai claude-code
+# or
+spec-lite init --ai copilot,claude-code
 ```
 
 The CLI will walk you through a short **project profile questionnaire** (languages, frameworks, test frameworks, architecture patterns, and coding conventions). Language(s) and architecture pattern(s) are selected interactively, while frameworks and test frameworks are entered as comma-separated lists. Your answers are used to:
@@ -81,6 +86,11 @@ spec-lite init --ai copilot --skip-profile
 
 ```bash
 spec-lite install --global --ai copilot
+
+# Install for multiple providers
+spec-lite install --global --ai copilot --ai claude-code
+# or
+spec-lite install --global --ai copilot,claude-code
 ```
 
 Global prompts are available across all your workspaces without running `init` in each one.
@@ -89,6 +99,11 @@ Global prompts are available across all your workspaces without running `init` i
 
 ```bash
 spec-lite update
+
+# Update specific provider(s)
+spec-lite update --ai copilot --ai claude-code
+# or
+spec-lite update --ai copilot,claude-code
 ```
 
 This pulls the latest prompt versions while **preserving your Project Context edits**.
@@ -323,7 +338,7 @@ Initialize spec-lite prompts in your workspace.
 
 ```
 Options:
-  --ai <provider>      AI provider: copilot, claude-code, pi, generic
+  --ai <provider>      AI provider(s): copilot, claude-code, pi, generic (repeat --ai or pass comma-separated values)
   --exclude <prompts>  Comma-separated prompts to skip (e.g., brainstorm,write_readme)
   --skip-profile       Skip the interactive multi-stack project profile questionnaire
   --force              Overwrite existing files without prompting
@@ -335,17 +350,18 @@ Install prompts globally (user-level) for use across all workspaces.
 
 ```
 Options:
-  --ai <provider>      AI provider: copilot, claude-code, pi
+  --ai <provider>      AI provider(s): copilot, claude-code, pi (repeat --ai or pass comma-separated values)
   --exclude <prompts>  Comma-separated prompts to skip
   --force              Overwrite existing global files without prompting
 ```
 
 ### `spec-lite update`
 
-Update prompts to the latest version. Reads `.spec-lite.json` to know your provider and installed prompts. Preserves your Project Context edits.
+Update prompts to the latest version. Reads `.spec-lite.json` to know your provider(s) and installed prompts. Preserves your Project Context edits.
 
 ```
 Options:
+  --ai <provider>  Provider(s) to update; defaults to .spec-lite.json (repeat --ai or pass comma-separated values)
   --force    Overwrite all files including user-modified ones
 ```
 

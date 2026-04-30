@@ -126,7 +126,10 @@ export interface SpecLiteConfig {
   version: string;
   /** Format version: "v1" (legacy prompts/) or "v2" (agents/skills/references) */
   format?: string;
+  /** Primary provider alias (legacy compatibility) */
   provider: string;
+  /** All configured provider aliases for this workspace */
+  providers?: string[];
   installedPrompts: string[];
   installedAt: string;
   updatedAt: string;
@@ -138,7 +141,10 @@ export interface SpecLiteConfig {
  */
 export interface SpecLiteGlobalConfig {
   version: string;
+  /** Primary provider alias (legacy compatibility) */
   provider: string;
+  /** All configured provider aliases for global install */
+  providers?: string[];
   installedPrompts: string[];
   installedAt: string;
   updatedAt: string;

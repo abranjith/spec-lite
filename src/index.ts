@@ -10,6 +10,10 @@ const pkg = require("../package.json");
 
 const program = new Command();
 
+function collectOptionValue(value: string, previous: string[]): string[] {
+  return [...previous, value];
+}
+
 program
   .name("spec-lite")
   .description(
@@ -22,7 +26,9 @@ program
   .description("Initialize spec-lite sub-agent prompts in your workspace")
   .option(
     "--ai <provider>",
-    "AI provider to configure for (copilot, claude-code, pi, generic)"
+    "AI provider(s) to configure for; repeat flag or use comma-separated values (copilot, claude-code, pi, generic)",
+    collectOptionValue,
+    []
   )
   .option(
     "--exclude <prompts>",
@@ -40,6 +46,12 @@ program
   .description(
     "Update spec-lite prompts to the latest version, preserving your Project Context edits"
   )
+  .option(
+    "--ai <provider>",
+    "Provider(s) to update; defaults to providers in .spec-lite.json. Repeat flag or use comma-separated values",
+    collectOptionValue,
+    []
+  )
   .option("--force", "Overwrite all files including user-modified ones", false)
   .action(updateCommand);
 
@@ -48,7 +60,9 @@ program
   .description("Install spec-lite prompts globally for use across all workspaces")
   .option(
     "--ai <provider>",
-    "AI provider to install for (copilot, claude-code, pi)"
+    "AI provider(s) to install for; repeat flag or use comma-separated values (copilot, claude-code, pi)",
+    collectOptionValue,
+    []
   )
   .option("--global", "Install prompts globally", false)
   .option(
