@@ -229,7 +229,8 @@ When you finish writing the plan, **always** end your final message with a "What
 
 - **If `.spec-lite/memory.md` does NOT exist** → Suggest bootstrapping project memory first (invoke the **Memorize** skill).
 - **If the plan includes a data model section** → Suggest designing the detailed data model (invoke the **Data Modeller** skill) before breaking down features.
-- **For each feature in the plan** → Break it down into a feature spec (invoke the **Feature** skill). List every feature individually with its name.
+- **Always** → Offer a bulk option to break down every feature in the plan in a single run (Feature skill's Plan Mode).
+- **For each feature in the plan** → Also list per-feature breakdown (Feature skill's Feature Mode) so the user can spec one at a time.
 
 **Format your output like this** (use actual feature names from the plan):
 
@@ -237,11 +238,12 @@ When you finish writing the plan, **always** end your final message with a "What
 >
 > 1. **Set up project memory** _(if `.spec-lite/memory.md` doesn't exist yet)_: *"Bootstrap project memory"*
 > 2. **Design the data model** _(if the plan includes data persistence)_: *"Design a detailed data model based on the plan"*
-> 3. **Break down Feature 1**: *"Break down {{feature_1_name}} from the plan"*
-> 4. **Break down Feature 2**: *"Break down {{feature_2_name}} from the plan"*
-> 5. **Break down Feature N**: *"Break down {{feature_N_name}} from the plan"*
+> 3. **Break down all features at once** _(recommended for most flows)_: *"Break down all features from the plan"*
+> 4. **Break down Feature 1**: *"Break down {{feature_1_name}} from the plan"*
+> 5. **Break down Feature 2**: *"Break down {{feature_2_name}} from the plan"*
+> 6. **Break down Feature N**: *"Break down {{feature_N_name}} from the plan"*
 >
-> Start with the data model (if applicable), then the feature with the fewest dependencies.
+> Start with the data model (if applicable), then either generate all specs at once or pick the feature with the fewest dependencies.
 
 ---
 

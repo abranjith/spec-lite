@@ -81,7 +81,7 @@ Take a completed feature spec (`.spec-lite/features/feature_<name>.md`) and exec
 - **Quality-Driven**: Every task is done when its implementation, tests, and docs are complete. No shortcuts.
 - **Transparent**: You update the feature spec's State Tracking section as you go. Anyone can see where you are.
 - **Pragmatic**: You write clean, idiomatic code that follows memory's coding standards and the plan's conventions. No over-engineering, no gold-plating.
-- **Plan-Driven**: When given a plan file instead of a specific feature spec, you become a sequential implementation engine — iterating through every incomplete feature in the plan's order, one at a time, clearing context before each. You finish one feature fully (code, tests, docs, verification) before starting the next. You do not parallelize or skip ahead.
+- **Plan-Driven**: When given a plan file instead of a specific feature spec, you become an **orchestrator** — you spawn a fresh subagent (via the Agent tool) for each incomplete feature in the plan's order, so each implementation runs in clean context. You wait for one subagent to finish before spawning the next. You do not parallelize, skip ahead, or implement features yourself in Plan Mode.
 
 ---
 
@@ -181,35 +181,55 @@ After all queued findings are addressed:
 
 Triggered when the user asks to implement all features from a plan (e.g., *"Implement all features from the plan"*, *"Implement the plan"*, *"Implement everything in plan_order_management.md"*).
 
-### 1. Read the Plan
+In Plan Mode you act as an **orchestrator**: you do **not** implement features in your own context. Instead, you spawn a fresh subagent (via the **Agent** tool) for each feature, so every implementation runs with completely clean context. This eliminates token bleed and context rot between features and keeps the orchestrator's context small.
+
+### 1. Read the Plan and Build the Queue
 
 - Read the target plan file (`.spec-lite/plan.md` or the named plan).
-- Read `.spec-lite/memory.md` — this is your standing coding standard for the entire run.
 - Extract the ordered feature list from the plan's `## 2. High-Level Features` table (or equivalent section).
 - Identify all features whose status is `[ ] Not started` or `[/] In progress`. Skip `[x] Complete` features.
-- Announce the queue to the user: "I'll implement the following features in order: FEAT-001 (User Management), FEAT-002 (Order Processing), ..."
+- For each queued feature, **locate the feature spec file** referenced by the plan's `Spec File` column. If a spec is **missing or unreadable**, pause and ask the user how to proceed — options: (a) run the **Feature** skill now to create the missing spec(s), (b) skip this feature and continue, (c) abort the run. **Do not guess, do not auto-create, do not silently skip.**
+- Announce the queue to the user, e.g. *"I'll implement: FEAT-001 (User Management), FEAT-002 (Order Processing), FEAT-003 (Inventory). Each feature runs in an isolated subagent."*
 
-### 2. Implement Each Feature
+### 2. Spawn One Subagent Per Feature
 
-For each feature in the queue, in order:
+For each FEAT-ID in the queue, **in order**, spawn a subagent using the Agent tool with `subagent_type: "general-purpose"`. The subagent prompt MUST be **fully self-contained** (the subagent has zero memory of this conversation) and MUST include:
 
-1. **Clear prior context** — Before starting each feature, explicitly discard all implementation details, data models, and decisions from previously implemented features in this run. Your only inputs are: the feature spec file, the plan, and `memory.md`.
-2. **Locate the feature spec** — Find `.spec-lite/features/feature_<name>.md` for this feature. If it does not exist, pause and notify the user: *"No spec found for FEAT-{{ID}} ({{feature_name}}). Please run the Feature skill to create the spec, then continue."* Do not skip or guess.
-3. **Mark In Progress** — Update the feature's status in the plan from `[ ]` to `[/]`.
-4. **Execute Feature Mode** — Follow the full [Feature Mode Process](#process) (Prepare → Execute Tasks → Finalize) for this feature spec.
-5. **Mark Complete** — After Finalize, update the feature's status in the plan from `[/]` to `[x]`.
-6. **Announce progress** — Notify the user: *"FEAT-{{ID}} ({{feature_name}}) complete. Moving to FEAT-{{next-ID}}..."*
-7. **Repeat** for the next feature in the queue.
+1. The absolute path to the **feature spec file** for this single FEAT-ID, plus the absolute path to the plan file.
+2. An instruction to read this skill file (`<repo>/skills/implement/SKILL.md`) and follow its **Feature Mode Process** end-to-end (Prepare → Execute Tasks → Finalize) for that single spec.
+3. An instruction to read all relevant context files before starting: `.spec-lite/memory.md`, `.spec-lite/plan.md` (or the named plan), `.spec-lite/data_model.md`, `.spec-lite/feature-summary.md` (each only if present).
+4. The mandatory deliverables: (a) implement every task in the feature spec with code + comprehensive unit tests + doc updates, (b) run the test suite and verify passing, (c) update the feature spec's State Tracking section, (d) update the parent plan's `Status` cell for this FEAT-ID from `[/]` to `[x]`, (e) update `.spec-lite/feature-summary.md`, (f) update `docs/explore/` if it exists.
+5. A request to return a **brief one-line summary** of the result (e.g., `"FEAT-002 implemented: 8 tasks complete, 24 tests passing"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
+
+**Before spawning each subagent**, mark the feature's status in the plan from `[ ]` to `[/]` so it shows as in-progress. (The subagent flips it to `[x]` on success.)
+
+**Do not run multiple feature subagents in parallel** — sequential only. Features may share files and the test suite, and the plan-status writes must be serialized.
+
+After each subagent returns, briefly announce to the user: *"FEAT-{{ID}} done — {{one-line summary from subagent}}. Moving to FEAT-{{next-ID}}..."* If the subagent reports failure, pause and ask the user whether to retry, skip, or abort before continuing.
 
 ### 3. Plan Finalize
 
-After all queued features are implemented:
+After all queued subagents have returned:
 
-- Run the full test suite across the entire codebase.
-- Confirm all feature statuses in the plan are `[x]`.
-- **Verify `.spec-lite/feature-summary.md`** — Confirm all implemented features have entries. Each feature should have been added during its individual Finalize step.
+- Run the full test suite across the entire codebase one final time.
+- Verify all queued feature statuses in the plan are `[x]` (or note any that were left `[/]` due to skips/failures).
+- **Verify `.spec-lite/feature-summary.md`** — Confirm all implemented features have entries. Each subagent should have added one during its Finalize step.
 - **Verify `docs/explore/` documentation** — If the directory exists, do a final pass across `docs/explore/INDEX.md` and the project doc(s) to confirm they accurately reflect the now-complete implementation. Fix any stale sections. If the directory does not exist, skip.
-- Notify the user: *"All features in `{{plan_file}}` are implemented and verified."*
+- Print a **concise one-line-per-feature** summary, e.g.:
+  ```
+  ✅ FEAT-001 — User Management (12 tasks, 38 tests)
+  ✅ FEAT-002 — Order Processing (8 tasks, 24 tests)
+  ❌ FEAT-003 — Inventory (skipped: missing spec)
+
+  2/3 features implemented successfully.
+  ```
+
+### Plan Mode Constraints
+
+- **Do NOT** implement features in the orchestrator's own context. Always delegate to a per-feature subagent. The whole point of Plan Mode is context isolation.
+- **Do NOT** carry per-feature implementation details from one subagent's return value into the next subagent's prompt. The next prompt must only reference the spec/plan/memory files, never another feature's content.
+- **Do NOT** parallelize feature subagents — sequential only.
+- **Do NOT** auto-create missing specs. If a spec is missing, pause and ask the user.
 
 ---
 
@@ -368,5 +388,5 @@ When you finish implementing all tasks in the feature spec, **always** end your 
 ---
 
 **Feature Mode**: Start by reading the feature spec the user points you to, then execute tasks in order.
-**Plan Mode**: Start by reading the plan, announce the implementation queue, then implement each feature sequentially — clearing context between each one.
+**Plan Mode**: Start by reading the plan, locating each feature spec (pause and ask the user if any are missing), announcing the implementation queue, and then spawning one subagent per feature in sequence — never implementing features in the orchestrator's own context.
 **Review Mode**: Start by reading the review report, announce the findings queue (filtered by severity if specified), then implement each remediation in order — annotating the report as you go.
