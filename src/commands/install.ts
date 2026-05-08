@@ -44,6 +44,8 @@ function getPlanCriticNote(providerAlias: string): string | undefined {
       return "  💡 Optional checkpoint after planning: /spec.plan_critic .spec-lite/plan.md";
     case "claude-code":
       return "  💡 Optional checkpoint after planning: use spec.plan_critic against .spec-lite/plan.md in Claude Code.";
+    case "codex":
+      return "  💡 Optional checkpoint after planning: ask Codex to use spec.plan_critic against .spec-lite/plan.md.";
     case "pi":
       return "  💡 Optional checkpoint after planning: /spec.plan_critic .spec-lite/plan.md";
     default:
@@ -169,6 +171,11 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     console.log(chalk.cyan(`\n  Installing global prompts for ${provider.name}...`));
 
     for (const source of sources) {
+      // Codex has no native primitive for prompt-only reference docs.
+      if (provider.alias === "codex" && source.kind === "reference") {
+        continue;
+      }
+
       const meta = {
         name: source.promptName,
         title: source.title,

@@ -1,8 +1,9 @@
 import path from "path";
 import fs from "fs-extra";
 import chalk from "chalk";
+import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
-import type { SpecLiteConfig } from "../providers/base.js";
+import type { SpecLiteConfig, SourceItem } from "../providers/base.js";
 import {
   loadAllSources,
   extractProjectContext,
@@ -11,6 +12,7 @@ import {
 } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
+import { mergeCodexAgentsMd } from "../providers/codex.js";
 
 interface UpdateOptions {
   ai?: string | string[];
@@ -158,23 +160,65 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     chalk.dim(`  Installed: ${config.installedPrompts.length} prompts`)
   );
 
-  // 2. Load latest sources (only the ones that were previously installed)
+  // 2. Load all available sources, then let user pick which to include
   const allSources = await loadAllSources();
   const installedAliasSet = new Set(
     config.installedPrompts.flatMap((promptName) => getPromptAliases(promptName))
   );
-  const sources = allSources.filter((source) => {
-    const sourceAliases = new Set<string>();
+
+  function isInstalled(source: SourceItem): boolean {
     for (const candidate of [source.name, source.promptName, source.agentName]) {
       for (const alias of getPromptAliases(candidate)) {
-        sourceAliases.add(alias);
+        if (installedAliasSet.has(alias)) return true;
       }
     }
-    return Array.from(sourceAliases).some((alias) => installedAliasSet.has(alias));
-  });
-  const resolvedInstalledPrompts = Array.from(
-    new Set(sources.map((source) => source.name))
-  );
+    return false;
+  }
+
+  const installedSources = allSources.filter(isInstalled);
+  const missingSources = allSources.filter((s) => !isInstalled(s));
+
+  // Build grouped checkbox choices
+  type CheckboxChoice = { name: string; value: string; checked: boolean } | inquirer.Separator;
+
+  const choices: CheckboxChoice[] = [];
+
+  for (const [label, group] of [
+    ["Agents", allSources.filter((s) => s.kind === "agent")],
+    ["Skills", allSources.filter((s) => s.kind === "skill")],
+    ["References", allSources.filter((s) => s.kind === "reference")],
+  ] as [string, SourceItem[]][]) {
+    if (group.length === 0) continue;
+    choices.push(new inquirer.Separator(`── ${label} ──`));
+    for (const source of group) {
+      const installed = isInstalled(source);
+      const tag = installed ? "" : chalk.dim(" (new)");
+      choices.push({
+        name: `${source.title}${tag}${chalk.dim(" — " + source.description)}`,
+        value: source.name,
+        checked: installed,
+      });
+    }
+  }
+
+  const { selectedNames } = await inquirer.prompt<{ selectedNames: string[] }>([
+    {
+      type: "checkbox",
+      name: "selectedNames",
+      message: `Select prompts to update/install ${chalk.dim(`(${installedSources.length} installed, ${missingSources.length} available)`)}:`,
+      choices,
+      pageSize: 20,
+    },
+  ]);
+
+  if (selectedNames.length === 0) {
+    console.log(chalk.dim("\n  Nothing selected. Aborted."));
+    return;
+  }
+
+  const selectedSet = new Set(selectedNames);
+  const sources = allSources.filter((s) => selectedSet.has(s.name));
+  const resolvedInstalledPrompts = Array.from(selectedSet);
 
   let updated = 0;
   let preserved = 0;
@@ -185,6 +229,11 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     const nativeSkillNames = new Set<string>();
 
     for (const source of sources) {
+      // Codex has no native primitive for prompt-only reference docs.
+      if (provider.alias === "codex" && source.kind === "reference") {
+        continue;
+      }
+
       const meta = {
         name: source.promptName,
         title: source.title,
@@ -269,6 +318,25 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       );
       await fs.writeFile(copilotInstructionsPath, merged, "utf-8");
       console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated)`));
+    }
+
+    if (provider.alias === "codex") {
+      // Codex skips reference items, so omit them from the AGENTS.md listing.
+      const codexInstalledPrompts = sources
+        .filter((s) => s.kind !== "reference")
+        .map((s) => s.name);
+
+      const agentsMdPath = path.join(cwd, "AGENTS.md");
+      const existingContent = (await fs.pathExists(agentsMdPath))
+        ? await fs.readFile(agentsMdPath, "utf-8")
+        : null;
+      const merged = mergeCodexAgentsMd(
+        existingContent,
+        codexInstalledPrompts,
+        nativeSkillNames
+      );
+      await fs.writeFile(agentsMdPath, merged, "utf-8");
+      console.log(chalk.green(`  ✓ AGENTS.md (updated)`));
     }
   }
 

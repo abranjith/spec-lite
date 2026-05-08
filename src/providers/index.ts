@@ -1,6 +1,7 @@
 import type { Provider } from "./base.js";
 import { CopilotProvider } from "./copilot.js";
 import { ClaudeCodeProvider } from "./claude-code.js";
+import { CodexProvider } from "./codex.js";
 import { GenericProvider } from "./generic.js";
 import { PiProvider } from "./pi.js";
 
@@ -10,6 +11,7 @@ import { PiProvider } from "./pi.js";
 const providers: Provider[] = [
   new CopilotProvider(),
   new ClaudeCodeProvider(),
+  new CodexProvider(),
   new PiProvider(),
   new GenericProvider(),
 ];

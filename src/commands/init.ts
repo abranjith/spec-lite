@@ -7,6 +7,7 @@ import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
 import { loadAllSources, replaceProjectContext, copyNativeSkillDir } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
+import { mergeCodexAgentsMd } from "../providers/codex.js";
 import { getStackSnippetInfo } from "../utils/stacks.js";
 
 interface InitOptions {
@@ -92,6 +93,8 @@ function getPlanCriticNote(providerAlias: string): string | undefined {
       return "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Copilot Chat before implementation to pressure-test the plan.";
     case "claude-code":
       return "  💡 Optional checkpoint: ask Claude Code to use .claude/agents/spec.plan_critic.md against .spec-lite/plan.md before implementation.";
+    case "codex":
+      return "  💡 Optional checkpoint: ask Codex to use spec.plan_critic against .spec-lite/plan.md before implementation.";
     case "pi":
       return "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Pi Chat before implementation.";
     case "generic":
@@ -403,6 +406,11 @@ export async function initCommand(options: InitOptions): Promise<void> {
     const nativeSkillNames = new Set<string>();
 
     for (const source of sources) {
+      // Codex has no native primitive for prompt-only reference docs.
+      if (provider.alias === "codex" && source.kind === "reference") {
+        continue;
+      }
+
       const meta = {
         name: source.promptName,
         title: source.title,
@@ -513,6 +521,30 @@ export async function initCommand(options: InitOptions): Promise<void> {
         console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated with spec-lite block)`));
       } else {
         console.log(chalk.green(`  ✓ .github/copilot-instructions.md`));
+      }
+      written++;
+    }
+
+    if (provider.alias === "codex") {
+      // Codex skips reference items, so omit them from the AGENTS.md listing.
+      const codexInstalledPrompts = sources
+        .filter((s) => s.kind !== "reference")
+        .map((s) => s.name);
+
+      const agentsMdPath = path.join(cwd, "AGENTS.md");
+      const existingContent = (await fs.pathExists(agentsMdPath))
+        ? await fs.readFile(agentsMdPath, "utf-8")
+        : null;
+      const merged = mergeCodexAgentsMd(
+        existingContent,
+        codexInstalledPrompts,
+        nativeSkillNames
+      );
+      await fs.writeFile(agentsMdPath, merged, "utf-8");
+      if (existingContent) {
+        console.log(chalk.green(`  ✓ AGENTS.md (updated with spec-lite block)`));
+      } else {
+        console.log(chalk.green(`  ✓ AGENTS.md`));
       }
       written++;
     }

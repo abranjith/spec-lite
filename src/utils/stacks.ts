@@ -41,6 +41,9 @@ const LANGUAGE_MAP: Record<string, string> = {
   "spring-boot": "java.md",
   go: "go.md",
   golang: "go.md",
+  rust: "rust.md",
+  rs: "rust.md",
+  "rust-lang": "rust.md",
 };
 
 export interface StackSnippetInfo {

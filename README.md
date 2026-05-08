@@ -12,8 +12,8 @@ spec-lite is a curated collection of **precise, modular agents and skills** — 
 
 - **Surgical prompts for spec-driven development.** Each agent or skill targets a specific SDLC activity — planning, feature design, implementation, code review, testing, security audit, DevOps, and more. They are precise, finite-scoped, and produce concrete output artifacts.
 - **No tools attached.** spec-lite ships zero tools on purpose. Modern AI agents are excellent at creating tools themselves, and every project's tooling needs are different. Instead, spec-lite includes a **Tool Helper** skill (`/spec.tool_help`) that helps you create project-specific bash tools in `.spec-lite/tools/` — which other agents and skills can then discover and use to inject project context.
-- **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, and **Pi** — agents and skills are written using each provider's native primitives (e.g., Copilot gets `.agent.md` files with handoff support in `.github/agents/` plus native skill directories in `.github/skills/`; Claude Code gets agent files in `.claude/agents/` with both source agents and skills mapped onto its agent surface; Pi gets native skill directories in `.pi/skills/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
-- **Global installation support.** Install agents and skills once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, and Pi.
+- **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, **OpenAI Codex**, and **Pi** — agents and skills are written using each provider's native primitives (e.g., Copilot gets `.agent.md` files with handoff support in `.github/agents/` plus native skill directories in `.github/skills/`; Claude Code gets agent files in `.claude/agents/` with both source agents and skills mapped onto its agent surface; Codex gets TOML subagents in `.codex/agents/` plus native skill directories in `.agents/skills/` and a managed `AGENTS.md` at the repo root; Pi gets native skill directories in `.pi/skills/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
+- **Global installation support.** Install agents and skills once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, Codex, and Pi.
 - **Slash-command invocation.** Once installed, agents and skills are invoked with `/` commands (e.g., `/spec.plan`, `/spec.feature`) or via your provider's agent selection UI.
 - **YOLO mode.** For when you want to go fully autonomous — the YOLO agent drives the entire spec-lite pipeline end to end, from planning through implementation, reviews, and documentation. Pausable, resumable, with checkpoints at every phase.
 - **Memory support.** `.spec-lite/memory.md` is a user-controlled file of standing instructions (coding standards, architecture decisions, testing conventions) read by every agent and skill. Bootstrap it automatically with `/spec.memorize bootstrap`, or edit it directly. Some skills also auto-update memory when they discover new conventions.
@@ -45,6 +45,9 @@ spec-lite init --ai copilot
 
 # For Claude Code users
 spec-lite init --ai claude-code
+
+# For OpenAI Codex users
+spec-lite init --ai codex
 
 # For Pi users
 spec-lite init --ai pi
@@ -116,10 +119,13 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 |----------|------|-------------|-------------------|----------------|
 | GitHub Copilot | `--ai copilot` | `.github/agents/spec.*.agent.md` | `.github/skills/spec-*/SKILL.md` | ✅ |
 | Claude Code | `--ai claude-code` | `.claude/agents/spec.*.md` + `CLAUDE.md` | — (skills delivered as agents) | ✅ |
+| OpenAI Codex | `--ai codex` | `.codex/agents/spec.*.toml` (TOML subagents) + `AGENTS.md` | `.agents/skills/spec-*/SKILL.md` | ✅ |
 | Pi | `--ai pi` | — (agents delivered as skills) | `.pi/skills/spec-*/SKILL.md` | ✅ |
 | Generic | `--ai generic` | — | — | — |
 
-Providers use whichever native primitives they support: Copilot writes both agents and skills, Claude Code maps both source agents and source skills to its agent surface, and Pi expresses agents as native skills. The Generic provider emits raw markdown for copy-paste into any LLM. For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the markdown files into your tool's expected location.
+Providers use whichever native primitives they support: Copilot writes both agents and skills, Claude Code maps both source agents and source skills to its agent surface, Codex writes TOML subagents alongside native skill directories with a managed `AGENTS.md` at the repo root, and Pi expresses agents as native skills. The Generic provider emits raw markdown for copy-paste into any LLM. For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the markdown files into your tool's expected location.
+
+> **Codex notes:** Subagents follow the [Codex spec](https://developers.openai.com/codex/subagents) — required `name`, `description`, and `developer_instructions` fields in TOML. Skills follow the [Codex Skills spec](https://developers.openai.com/codex/skills) and live under `.agents/skills/` (Codex's documented project location, not `.codex/skills/`). The root [`AGENTS.md`](https://developers.openai.com/codex/guides/agents-md) is loaded automatically by Codex; spec-lite manages a `<!-- spec-lite:start -->` block inside it and preserves anything outside the markers. Reference-only items (help, orchestrator) are skipped because Codex has no matching primitive for them. Global install paths are `~/.codex/agents/` and `~/.agents/skills/`.
 
 ## Memory-First Architecture
 
@@ -338,7 +344,7 @@ Initialize spec-lite prompts in your workspace.
 
 ```
 Options:
-  --ai <provider>      AI provider(s): copilot, claude-code, pi, generic (repeat --ai or pass comma-separated values)
+  --ai <provider>      AI provider(s): copilot, claude-code, codex, pi, generic (repeat --ai or pass comma-separated values)
   --exclude <prompts>  Comma-separated prompts to skip (e.g., brainstorm,write_readme)
   --skip-profile       Skip the interactive multi-stack project profile questionnaire
   --force              Overwrite existing files without prompting
@@ -350,7 +356,7 @@ Install prompts globally (user-level) for use across all workspaces.
 
 ```
 Options:
-  --ai <provider>      AI provider(s): copilot, claude-code, pi (repeat --ai or pass comma-separated values)
+  --ai <provider>      AI provider(s): copilot, claude-code, codex, pi (repeat --ai or pass comma-separated values)
   --exclude <prompts>  Comma-separated prompts to skip
   --force              Overwrite existing global files without prompting
 ```
