@@ -6,6 +6,7 @@ import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteGlobalConfig } from "../providers/base.js";
 import { loadAllSources, copyNativeSkillDir } from "../utils/prompts.js";
+import { mergeCodexAgentsMd } from "../providers/codex.js";
 
 interface InstallOptions {
   ai?: string | string[];
@@ -169,6 +170,7 @@ export async function installCommand(options: InstallOptions): Promise<void> {
 
   for (const provider of providers) {
     console.log(chalk.cyan(`\n  Installing global prompts for ${provider.name}...`));
+    const nativeSkillNames = new Set<string>();
 
     for (const source of sources) {
       // Codex has no native primitive for prompt-only reference docs.
@@ -197,6 +199,7 @@ export async function installCommand(options: InstallOptions): Promise<void> {
           { contextBlock: null }
         );
         written += filesCopied;
+        nativeSkillNames.add(source.name);
       }
 
       // --- Agent file (global) ---
@@ -216,6 +219,26 @@ export async function installCommand(options: InstallOptions): Promise<void> {
         written++;
         console.log(chalk.green(`  ✓ ${paths.prompt}`));
       }
+    }
+
+    if (provider.alias === "codex") {
+      const codexInstalledPrompts = sources
+        .filter((source) => source.kind !== "reference")
+        .map((source) => source.name);
+      const agentsMdPath = path.join(os.homedir(), ".codex", "AGENTS.md");
+      const existingContent = (await fs.pathExists(agentsMdPath))
+        ? await fs.readFile(agentsMdPath, "utf-8")
+        : null;
+      const merged = mergeCodexAgentsMd(
+        existingContent,
+        codexInstalledPrompts,
+        nativeSkillNames,
+        { scope: "global" }
+      );
+      await fs.ensureDir(path.dirname(agentsMdPath));
+      await fs.writeFile(agentsMdPath, merged, "utf-8");
+      written++;
+      console.log(chalk.green(`  ✓ ${agentsMdPath}`));
     }
   }
 

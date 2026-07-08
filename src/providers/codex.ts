@@ -23,7 +23,8 @@ import { getSkillDirName } from "./copilot.js";
  *  - Source skills → `.agents/skills/spec-<name>/SKILL.md` (native Agent Skills).
  *  - Reference items (help, orchestrator) are skipped — Codex has no
  *    matching primitive for prompt-only docs.
- *  - A managed `AGENTS.md` is written at the project root and references the
+ *  - A managed `AGENTS.md` is written at the project root for local installs
+ *    and at `~/.codex/AGENTS.md` for global installs. It references the
  *    installed subagents and skills.
  */
 export class CodexProvider implements Provider {
@@ -163,6 +164,7 @@ export class CodexProvider implements Provider {
       "",
       `  Subagents : ~/.codex/agents/spec.<name>.toml`,
       `  Skills    : ~/.agents/skills/spec-<name>/SKILL.md`,
+      `  Root      : ~/.codex/AGENTS.md (Codex reads it automatically as global context)`,
       "",
       "  These are available across all your workspaces in Codex.",
       "",
@@ -184,17 +186,25 @@ export class CodexProvider implements Provider {
 const SPEC_LITE_MARKER_START = "<!-- spec-lite:start -->";
 const SPEC_LITE_MARKER_END = "<!-- spec-lite:end -->";
 
+interface CodexAgentsBlockOptions {
+  scope?: "project" | "global";
+}
+
 /**
  * Build the spec-lite block injected into AGENTS.md.
  * Skill names are passed in as a Set so we can list skills under their native
- * `.agents/skills/` location and subagents under `.codex/agents/`.
+ * location and subagents under the Codex agents directory.
  */
 export function generateCodexAgentsBlock(
   installedPrompts: string[],
-  nativeSkillNames: Set<string> = new Set()
+  nativeSkillNames: Set<string> = new Set(),
+  options: CodexAgentsBlockOptions = {}
 ): string {
+  const isGlobal = options.scope === "global";
   const subagentNames = installedPrompts.filter((name) => !nativeSkillNames.has(name));
   const skillNames = installedPrompts.filter((name) => nativeSkillNames.has(name));
+  const subagentsDir = isGlobal ? "~/.codex/agents/" : ".codex/agents/";
+  const skillsDir = isGlobal ? "~/.agents/skills/" : ".agents/skills/";
 
   const lines: string[] = [
     SPEC_LITE_MARKER_START,
@@ -207,26 +217,36 @@ export function generateCodexAgentsBlock(
 
   if (subagentNames.length > 0) {
     lines.push(
-      "**Subagents** (`.codex/agents/`) — invoke by name (e.g., `use spec.planner`):",
+      `**Subagents** (\`${subagentsDir}\`) — invoke by name (e.g., \`use spec.planner\`):`,
       ""
     );
     for (const name of subagentNames) {
       const subagent = isPromptOnly(name)
         ? getPromptOutputName(name)
         : getAgentOutputName(name);
-      lines.push(`- [spec.${subagent}](.codex/agents/spec.${subagent}.toml)`);
+      const subagentPath = `${subagentsDir}spec.${subagent}.toml`;
+      lines.push(
+        isGlobal
+          ? `- \`spec.${subagent}\` (${subagentPath})`
+          : `- [spec.${subagent}](${subagentPath})`
+      );
     }
   }
 
   if (skillNames.length > 0) {
     lines.push(
       "",
-      "**Skills** (`.agents/skills/`) — auto-discovered by Codex based on the task:",
+      `**Skills** (\`${skillsDir}\`) — auto-discovered by Codex based on the task:`,
       ""
     );
     for (const name of skillNames) {
       const dirName = getSkillDirName(name);
-      lines.push(`- [${dirName}](.agents/skills/${dirName}/SKILL.md)`);
+      const skillPath = `${skillsDir}${dirName}/SKILL.md`;
+      lines.push(
+        isGlobal
+          ? `- \`${dirName}\` (${skillPath})`
+          : `- [${dirName}](${skillPath})`
+      );
     }
   }
 
@@ -255,15 +275,24 @@ export function generateCodexAgentsBlock(
 export function mergeCodexAgentsMd(
   existingContent: string | null,
   installedPrompts: string[],
-  nativeSkillNames: Set<string> = new Set()
+  nativeSkillNames: Set<string> = new Set(),
+  options: CodexAgentsBlockOptions = {}
 ): string {
-  const block = generateCodexAgentsBlock(installedPrompts, nativeSkillNames);
+  const block = generateCodexAgentsBlock(installedPrompts, nativeSkillNames, options);
 
   if (!existingContent) {
+    const headerTitle =
+      options.scope === "global"
+        ? "# Codex Global Instructions"
+        : "# Project Instructions";
+    const headerDescription =
+      options.scope === "global"
+        ? "Codex reads this file automatically for user-level context."
+        : "Codex reads this file automatically for project-level context.";
     const header = [
-      "# Project Instructions",
+      headerTitle,
       "",
-      "Codex reads this file automatically for project-level context.",
+      headerDescription,
       "",
     ].join("\n");
     return header + block + "\n";

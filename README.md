@@ -90,10 +90,13 @@ spec-lite init --ai copilot --skip-profile
 ```bash
 spec-lite install --global --ai copilot
 
+# For OpenAI Codex users
+spec-lite install --global --ai codex
+
 # Install for multiple providers
-spec-lite install --global --ai copilot --ai claude-code
+spec-lite install --global --ai copilot --ai claude-code --ai codex
 # or
-spec-lite install --global --ai copilot,claude-code
+spec-lite install --global --ai copilot,claude-code,codex
 ```
 
 Global prompts are available across all your workspaces without running `init` in each one.
@@ -125,7 +128,7 @@ This pulls the latest prompt versions while **preserving your Project Context ed
 
 Providers use whichever native primitives they support: Copilot writes both agents and skills, Claude Code maps both source agents and source skills to its agent surface, Codex writes TOML subagents alongside native skill directories with a managed `AGENTS.md` at the repo root, and Pi expresses agents as native skills. The Generic provider emits raw markdown for copy-paste into any LLM. For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the markdown files into your tool's expected location.
 
-> **Codex notes:** Subagents follow the [Codex spec](https://developers.openai.com/codex/subagents) — required `name`, `description`, and `developer_instructions` fields in TOML. Skills follow the [Codex Skills spec](https://developers.openai.com/codex/skills) and live under `.agents/skills/` (Codex's documented project location, not `.codex/skills/`). The root [`AGENTS.md`](https://developers.openai.com/codex/guides/agents-md) is loaded automatically by Codex; spec-lite manages a `<!-- spec-lite:start -->` block inside it and preserves anything outside the markers. Reference-only items (help, orchestrator) are skipped because Codex has no matching primitive for them. Global install paths are `~/.codex/agents/` and `~/.agents/skills/`.
+> **Codex notes:** Subagents follow the [Codex spec](https://developers.openai.com/codex/subagents) — required `name`, `description`, and `developer_instructions` fields in TOML. Skills follow the [Codex Skills spec](https://developers.openai.com/codex/skills) and live under `.agents/skills/` (Codex's documented project location, not `.codex/skills/`). The root [`AGENTS.md`](https://developers.openai.com/codex/guides/agents-md) is loaded automatically by Codex; spec-lite manages a `<!-- spec-lite:start -->` block inside it and preserves anything outside the markers. Reference-only items (help, orchestrator) are skipped because Codex has no matching primitive for them. Global install paths are `~/.codex/agents/`, `~/.agents/skills/`, and `~/.codex/AGENTS.md`.
 
 ## Memory-First Architecture
 
