@@ -48,7 +48,7 @@ The harness is the interface; the repository is the durable source of truth. Com
 
 ## Recommended Installation
 
-Requires Node.js 20 or newer.
+Requires Node.js 22 or newer (current LTS).
 
 Install the CLI globally, then install the agents and skills globally for the harnesses you use. This is the recommended setup because the reusable roles become available in every workspace while their working state remains local to each project.
 

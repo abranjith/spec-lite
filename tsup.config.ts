@@ -25,7 +25,7 @@ function copyDirRecursive(src: string, dest: string): number {
 export default defineConfig({
   entry: ["src/index.ts"],
   format: ["esm"],
-  target: "node18",
+  target: "node22",
   clean: true,
   splitting: false,
   sourcemap: true,
