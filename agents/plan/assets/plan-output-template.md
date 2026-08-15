@@ -26,13 +26,13 @@ Fill in this template when producing your final output:
 
 ## 2. High-Level Features
 
-| FEAT-ID | Feature | Spec File | Status |
+| ID | Feature | Spec File | Status |
 |---------|---------|-----------|--------|
 | FEAT-001 | {{feature_1}} (e.g., "User Management — Sign up, Sign in, Profile, Roles") | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
 | FEAT-002 | {{feature_2}} | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
 | FEAT-003 | {{feature_3}} | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
 
-> **Note**: The `Spec File` column is populated by the **Feature** skill when it creates each feature spec. The `Status` column is owned exclusively by the **Implement** skill — it marks `[/] In progress` when implementation begins and `[x] Complete` when all tasks are verified. This ensures consistent, deterministic state transitions across the workflow.
+> **Note**: Plan assigns immutable IDs. **Feature** populates `Spec File`; **Implement** alone marks `[/] In progress` and `[x] Complete` in `Status`.
 
 ## 3. Tech Stack Additions
 

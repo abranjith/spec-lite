@@ -69,6 +69,9 @@ export interface Provider {
    */
   detectExisting(workspaceRoot: string): Promise<string[]>;
 
+  /** Detect whether this coding harness is used, independently of spec-lite outputs. */
+  detectHarnessUsage(workspaceRoot: string): Promise<HarnessDetection>;
+
   /**
    * Any post-init instructions to display to the user.
    */
@@ -119,6 +122,29 @@ export interface ProjectProfile {
   conventions: string;
 }
 
+export interface HarnessDetectionSignal {
+  scope: "project" | "user";
+  strength: "strong" | "weak";
+  marker: string;
+}
+
+export interface HarnessDetection {
+  detected: boolean;
+  signals: HarnessDetectionSignal[];
+}
+
+export type DocumentationLevel = "technical" | "full";
+
+/** Documentation behavior configured during init and migrated during update. */
+export interface DocumentationSettings {
+  /** Repository-relative directory for generated documentation. */
+  directory: string;
+  /** technical = architecture only; full = architecture, usage, and per-feature docs. */
+  level: DocumentationLevel;
+  /** Whether implementation and fix workflows should invoke document update mode. */
+  updateWithDevelopment: boolean;
+}
+
 /**
  * Config file written to the workspace root to track installed state.
  */
@@ -134,6 +160,7 @@ export interface SpecLiteConfig {
   installedAt: string;
   updatedAt: string;
   projectProfile?: ProjectProfile;
+  documentation: DocumentationSettings;
 }
 
 /**

@@ -9,7 +9,12 @@ const __dirname = path.dirname(__filename);
 
 /** Path to the bundled agents directory (shipped with the npm package) */
 export function getAgentsDir(): string {
-  return path.resolve(__dirname, "..", "agents");
+  const candidates = [
+    path.resolve(__dirname, "..", "agents"),
+    path.resolve(__dirname, "agents"),
+    path.resolve(__dirname, "..", "..", "agents"),
+  ];
+  return candidates.find((candidate) => fs.pathExistsSync(candidate)) ?? candidates[0];
 }
 
 /**

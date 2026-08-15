@@ -1,76 +1,59 @@
-# Python — Best Practices & Conventions
+# Python
 
-> Curated by spec-lite. **Edit this file freely** to match your project — your changes are preserved across `spec-lite update`. The `/memorize bootstrap` agent reads this file as its starting baseline.
+> Curated by spec-lite for Python 3.12+. Edit freely; `spec-lite update` preserves this file and `/memorize bootstrap` treats it as the stack baseline.
 
 ## Coding Standards
 
-- Follow **PEP 8** for style. Use a formatter (Black or Ruff) and linter (Ruff, flake8, or pylint) enforced in CI.
-- **Type hints** (PEP 484) on all function signatures and return types. Use `mypy` or `pyright` in strict mode.
-- **Naming**: `snake_case` for functions/variables/modules, `PascalCase` for classes, `UPPER_SNAKE_CASE` for constants.
-- **File naming**: `snake_case.py` for all modules.
-- Keep functions short and focused — one purpose per function.
-- Prefer **dataclasses** or **Pydantic models** over plain dicts for structured data.
-- Use `from __future__ import annotations` for forward references (Python 3.7–3.9) or target Python 3.10+.
-- Docstrings: Use Google or NumPy style consistently. All public functions, classes, and modules must have docstrings.
-- Avoid mutable default arguments (`def f(items=[])` → `def f(items=None)`).
+- Use `pyproject.toml`, Ruff/Black-compatible formatting, and strict Pyright or mypy on maintained code.
+- Type public functions with modern syntax (`list[str]`, `X | None`, protocols/generics where useful); avoid untyped dictionary contracts.
+- Use `snake_case`, `PascalCase`, immutable/frozen dataclasses where appropriate, and concise docstrings for public behavior.
+- Avoid mutable defaults and broad dynamic features when a clear typed construct exists.
 
-## Async & Error Handling
+## Error Handling
 
-- Use `async/await` with `asyncio` for I/O-bound operations (FastAPI, aiohttp, etc.).
-- Define custom exception classes inheriting from `Exception` for domain-specific errors. Include context.
-- Never use bare `except:` — always catch specific exceptions (`except ValueError`, `except HTTPError`).
-- Use context managers (`with` statement) for resource management (files, DB connections, locks).
-- For FastAPI: use exception handlers and `HTTPException` with appropriate status codes. Don't let raw Python exceptions leak to API responses.
+- Catch specific exceptions, add contextual domain exceptions, and never use bare `except` or silent handling.
+- Use context managers for files, sessions, transactions, and locks; translate failures at API/CLI boundaries.
+- Preserve exception chaining with `raise ... from ...` when wrapping.
 
 ## Architecture Patterns
 
-- **Layered architecture**: Separate routers/views → services/use-cases → repositories/data-access.
-- **Dependency Injection**: FastAPI has built-in DI via `Depends()`. Django uses middleware and signals. Flask uses extensions and blueprints.
-- **Repository Pattern**: Abstract data access behind a class/interface. Makes swapping databases or mocking trivial.
-- **Pydantic for validation**: All external input must be validated via Pydantic models at the API boundary.
-- For **Django**: follow the "fat models, thin views" pattern. Use Django's ORM idiomatically — don't fight it.
-- For **FastAPI**: use routers for route grouping, dependency injection for shared logic, and background tasks for async work.
-- For **Flask**: use Blueprints for modularization, Flask-SQLAlchemy for ORM, and Flask-Marshmallow for serialization.
+- Separate framework adapters from application/domain logic and persistence/integration adapters.
+- Use protocols or injected callables at boundaries instead of framework-coupled globals.
+- Use Pydantic/dataclasses for structured input and output; keep web handlers/views thin.
 
-## Testing Conventions
+## Concurrency / Async
 
-- **Framework**: pytest (preferred) with `pytest-asyncio` for async tests, `pytest-cov` for coverage.
-- **File organization**: `tests/` directory mirroring `src/` structure — `src/services/user.py` → `tests/services/test_user.py`.
-- **Naming**: `test_<behavior_description>` — e.g., `test_returns_404_when_user_not_found`.
-- Use **fixtures** (`@pytest.fixture`) for test setup and teardown. Prefer factory fixtures over static data.
-- Use `unittest.mock.patch` or `pytest-mock` to mock external dependencies. Never mock internal business logic.
-- Use `httpx.AsyncClient` (FastAPI) or Django's `TestClient` for API integration tests.
-- **Arrange-Act-Assert** pattern in every test.
+- Use `asyncio`/structured task groups for I/O concurrency and processes/native code for CPU-bound work.
+- Do not call blocking libraries inside the event loop; propagate cancellation and close async resources.
+- Bound fan-out, queues, retries, and background tasks.
 
-## Logging
+## Testing
 
-- Use Python's built-in `logging` module or `structlog` for structured logging.
-- Never use `print()` for logging in production code.
-- Configure logging in a central `logging_config.py` or via `dictConfig`.
-- Log levels: `ERROR`, `WARNING`, `INFO`, `DEBUG` — follow Python's standard definitions.
-- Include request/correlation IDs via contextvars or middleware.
-- Never log secrets, tokens, passwords, or PII.
+- Use pytest with deterministic fixtures, behavior-focused names, and async plugins only when needed.
+- Mock external I/O at clear seams; use factories over brittle global fixtures.
+- Cover exception paths, validation boundaries, and representative integration behavior.
+
+## Logging & Observability
+
+- Configure standard logging or structlog centrally with structured fields, correlation context, metrics/traces where useful, and no `print` in production.
+- Never log secrets, credentials, tokens, or sensitive personal data.
 
 ## Security
 
-- Validate all external input via Pydantic models or Django forms. Never trust raw `request.data`.
-- Use `python-dotenv` or environment variables for secrets. Never hardcode secrets.
-- For passwords: use `passlib` with `bcrypt` or `argon2`. Never store plaintext.
-- Keep dependencies updated — use `pip-audit` or `safety` to scan for known vulnerabilities.
-- Use `CORS` middleware with explicit allowed origins (never `*` in production).
-- For Django: enable CSRF protection, use `django.contrib.auth` for authentication, and follow Django's security checklist.
+- Validate external input, parameterize queries, constrain file paths/uploads, and use framework CSRF/CORS/auth protections intentionally.
+- Load secrets externally and use established password/cryptography libraries; never design custom crypto.
+- Run `pip-audit` (or equivalent) and review transitive dependencies.
 
-## Dependency Management
+## Dependencies
 
-- Use `pyproject.toml` (PEP 621) as the single source of truth for project metadata and dependencies.
-- Pin dependencies with a lockfile: `poetry.lock`, `pdm.lock`, or `pip-compile` output (`requirements.txt`).
-- Separate dev dependencies from production dependencies.
-- Use virtual environments (`venv`, `poetry`, `pdm`, or `conda`) — never install into the system Python.
+- Declare metadata/dependencies in `pyproject.toml`, commit a reproducible lock/constraints file, and isolate environments.
+- Prefer maintained packages with typed APIs and avoid duplicate libraries for the same role.
+
+## Performance
+
+- Profile before optimizing; watch N+1 queries, unnecessary object churn, repeated parsing, and unbounded materialization.
+- Stream/chunk large inputs and choose threads/processes/async according to measured workload.
 
 ## Common Pitfalls
 
-- **Mutable default arguments**: `def f(items=[])` shares the same list across calls. Use `None` and create inside.
-- **Circular imports**: Restructure modules or use lazy imports (`TYPE_CHECKING` for type hints only).
-- **Missing `await`**: Forgetting `await` on coroutines silently returns a coroutine object instead of the result.
-- **Overusing `*args, **kwargs`**: Hurts readability and type safety. Be explicit about parameters.
-- **Not closing resources**: Always use `with` or `async with` for files, connections, and sessions.
+- Mutable defaults, blocking calls in async code, circular imports, forgotten awaits, overuse of `Any`/`**kwargs`, and leaked resources.

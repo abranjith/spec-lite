@@ -3,6 +3,7 @@ import { initCommand } from "./commands/init.js";
 import { updateCommand } from "./commands/update.js";
 import { listCommand } from "./commands/list.js";
 import { installCommand } from "./commands/install.js";
+import { exportCommand } from "./commands/export.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -32,7 +33,7 @@ program
   )
   .option(
     "--exclude <prompts>",
-    "Comma-separated list of prompts to exclude (e.g., brainstorm,readme)"
+    "Comma-separated list of prompts to exclude (e.g., brainstorm,document-readme)"
   )
   .option("--force", "Overwrite existing files without prompting", false)
   .option(
@@ -76,5 +77,13 @@ program
   .command("list")
   .description("List all available spec-lite sub-agents and their purpose")
   .action(listCommand);
+
+program
+  .command("export [names...]")
+  .description("Bundle selected agents, skills, and references into one self-contained Markdown file")
+  .option("--all", "Export every available item", false)
+  .option("-o, --output <file>", 'Output file (default: "spec-lite-prompts.md"; use "-" for stdout)')
+  .option("--no-references", "Omit references when used with --all")
+  .action(exportCommand);
 
 program.parse();

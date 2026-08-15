@@ -2,12 +2,13 @@ import path from "path";
 import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-import { getAgentOutputName, getPromptOutputName, isPromptOnly, classifyItem } from "../utils/prompts.js";
+import { getAgentOutputName, getPromptOutputName, hasPromptName, isPromptOnly } from "../utils/prompts.js";
+import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
  * Convert an internal skill name to its native Agent Skills output directory name.
  * Replaces underscores with hyphens and adds `spec-` prefix.
- * e.g., "implement" → "spec-implement", "review_code" → "spec-review-code"
+ * e.g., "implement" → "spec-implement", "document_feature" → "spec-document-feature"
  */
 export function getSkillDirName(name: string): string {
   return `spec-${name.replace(/_/g, "-")}`;
@@ -20,302 +21,97 @@ export function getSkillDirName(name: string): string {
 // convention (noun-form, matching the .agent.md file).
 // ---------------------------------------------------------------------------
 
-interface Handoff {
+export interface Handoff {
   label: string;
   agent: string;
   prompt: string;
 }
 
-const AGENT_HANDOFFS: Record<string, Handoff[]> = {
+export const AGENT_HANDOFFS: Record<string, Handoff[]> = {
   help: [],
+  orchestrator: [],
   brainstorm: [
-    {
-      label: "Create Plan",
-      agent: "spec.planner",
-      prompt: "Create a detailed technical plan based on the brainstorm above.",
-    },
-    {
-      label: "Capture Conventions",
-      agent: "spec.memorize",
-      prompt: "Bootstrap memory from the project context established in the brainstorm.",
-    },
+    { label: "Create Plan", agent: "spec.planner", prompt: "Create a technical plan from this brainstorm." },
+    { label: "Capture Conventions", agent: "spec.memorize", prompt: "Capture durable project conventions discovered during brainstorming." },
   ],
   plan: [
-    {
-      label: "Critique Plan",
-      agent: "spec.plan_critic",
-      prompt: "Critique this plan for feasibility, technical risks, product improvements, and future enhancements before implementation starts.",
-    },
-    {
-      label: "Break Down Features",
-      agent: "spec.feature",
-      prompt: "Break the plan into individual feature specification files.",
-    },
-    {
-      label: "Design Architecture",
-      agent: "spec.architect",
-      prompt: "Create a detailed cloud and infrastructure architecture for the plan.",
-    },
-    {
-      label: "Design Data Model",
-      agent: "spec.data_model_builder",
-      prompt: "Design a detailed data model based on the plan.",
-    },
-    {
-      label: "Capture Conventions",
-      agent: "spec.memorize",
-      prompt: "Bootstrap memory from the plan's tech stack and conventions.",
-    },
-    {
-      label: "Track Enhancement",
-      agent: "spec.todo",
-      prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
-    },
+    { label: "Critique Plan", agent: "spec.plan_critic", prompt: "Critique this plan before implementation." },
+    { label: "Break Down Features", agent: "spec.feature", prompt: "Create feature specifications for this plan." },
+    { label: "Design Architecture", agent: "spec.architect", prompt: "Design the infrastructure architecture for this plan." },
+    { label: "Design Data Model", agent: "spec.data_model_builder", prompt: "Design the relational data model for this plan." },
+  ],
+  plan_critic: [
+    { label: "Revise Plan", agent: "spec.planner", prompt: "Revise the plan using this critique." },
+    { label: "Break Down Features", agent: "spec.feature", prompt: "Create feature specifications after applying the critique." },
   ],
   architect: [
-    {
-      label: "Break Down Features",
-      agent: "spec.feature",
-      prompt: "Break the plan into individual feature specification files.",
-    },
-    {
-      label: "Design Data Model",
-      agent: "spec.data_model_builder",
-      prompt: "Design a detailed data model based on the architecture.",
-    },
-    {
-      label: "Set Up Infrastructure",
-      agent: "spec.devops",
-      prompt: "Set up Docker, CI/CD, and deployment infrastructure based on the architecture.",
-    },
+    { label: "Design Data Model", agent: "spec.data_model_builder", prompt: "Design the data model for this architecture." },
+    { label: "Set Up Infrastructure", agent: "spec.devops", prompt: "Implement the infrastructure design." },
   ],
   feature: [
-    {
-      label: "Implement Feature",
-      agent: "spec.implementer",
-      prompt: "Implement the feature spec produced above.",
-    },
-    {
-      label: "Write Unit Tests",
-      agent: "spec.unit_tester",
-      prompt: "Write unit tests for the feature spec produced above.",
-    },
-    {
-      label: "Track Enhancement",
-      agent: "spec.todo",
-      prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
-    },
-  ],
-  implement: [
-    {
-      label: "Write Unit Tests",
-      agent: "spec.unit_tester",
-      prompt: "Write comprehensive unit tests for the code just implemented.",
-    },
-    {
-      label: "Review Code",
-      agent: "spec.code_reviewer",
-      prompt: "Review the code just implemented for correctness, architecture, and readability.",
-    },
-    {
-      label: "Write Integration Tests",
-      agent: "spec.integration_tester",
-      prompt: "Write integration test scenarios for the feature just implemented.",
-    },
-  ],
-  write_unit_tests: [
-    {
-      label: "Review Code",
-      agent: "spec.code_reviewer",
-      prompt: "Review the implementation and tests for correctness, architecture, and readability.",
-    },
-    {
-      label: "Write Integration Tests",
-      agent: "spec.integration_tester",
-      prompt: "Write integration test scenarios to complement the unit tests.",
-    },
-  ],
-  review_code: [
-    {
-      label: "Fix Issues",
-      agent: "spec.fixer",
-      prompt: "Fix the issues identified in the code review above.",
-    },
-    {
-      label: "Security Audit",
-      agent: "spec.security_reviewer",
-      prompt: "Run a security audit on the code reviewed above.",
-    },
-  ],
-  write_integration_tests: [
-    {
-      label: "Security Audit",
-      agent: "spec.security_reviewer",
-      prompt: "Run a security audit on the features covered by integration tests.",
-    },
-    {
-      label: "Performance Review",
-      agent: "spec.performance_reviewer",
-      prompt: "Review performance of the features covered by integration tests.",
-    },
-  ],
-  review_performance: [
-    {
-      label: "Fix Critical Issues",
-      agent: "spec.fixer",
-      prompt: "Fix the critical performance issues identified in the review above.",
-    },
-    {
-      label: "Security Audit",
-      agent: "spec.security_reviewer",
-      prompt: "Run a security audit alongside the performance improvements.",
-    },
-  ],
-  review_security: [
-    {
-      label: "Fix Vulnerabilities",
-      agent: "spec.fixer",
-      prompt: "Fix the vulnerabilities and security issues identified in the audit above.",
-    },
-    {
-      label: "Update README",
-      agent: "spec.write_readme",
-      prompt: "Update the README to reflect the hardened security posture.",
-    },
-  ],
-  fix: [
-    {
-      label: "Review Fix",
-      agent: "spec.code_reviewer",
-      prompt: "Review the fix applied above for correctness and regressions.",
-    },
-    {
-      label: "Write Regression Tests",
-      agent: "spec.unit_tester",
-      prompt: "Write regression tests to cover the bug fixed above.",
-    },
-  ],
-  memorize: [
-    {
-      label: "Create Plan",
-      agent: "spec.planner",
-      prompt: "Create a technical plan for the project using the conventions captured in memory.",
-    },
-    {
-      label: "Design Data Model",
-      agent: "spec.data_model_builder",
-      prompt: "Design a data model using the conventions captured in memory.",
-    },
-    {
-      label: "Add Feature",
-      agent: "spec.feature",
-      prompt: "Define a feature specification using the conventions captured in memory.",
-    },
-    {
-      label: "Explore Codebase",
-      agent: "spec.explorer",
-      prompt: "Explore the codebase to discover conventions and document the architecture.",
-    },
-  ],
-
-  write_readme: [
-    {
-      label: "Set Up DevOps",
-      agent: "spec.devops",
-      prompt: "Set up Docker, CI/CD, and deployment infrastructure for this project.",
-    },
-    {
-      label: "Security Audit",
-      agent: "spec.security_reviewer",
-      prompt: "Run a final security audit before releasing the project.",
-    },
-  ],
-  devops: [
-    {
-      label: "Security Audit",
-      agent: "spec.security_reviewer",
-      prompt: "Run a security audit on the infrastructure and deployment configuration.",
-    },
-    {
-      label: "Update README",
-      agent: "spec.write_readme",
-      prompt: "Update the README with deployment and infrastructure instructions.",
-    },
-  ],
-  build_data_model: [
-    {
-      label: "Break Down Features",
-      agent: "spec.feature",
-      prompt: "Break down features using the data model as the authoritative schema reference.",
-    },
-    {
-      label: "Implement Data Layer",
-      agent: "spec.implementer",
-      prompt: "Implement the data layer (migrations, models, repositories) from the data model.",
-    },
-    {
-      label: "Capture Conventions",
-      agent: "spec.memorize",
-      prompt: "Capture data modelling conventions in project memory.",
-    },
-  ],
-  yolo: [
-    {
-      label: "Resume YOLO",
-      agent: "spec.yolo",
-      prompt: "Resume YOLO from where we left off.",
-    },
-    {
-      label: "Check Pipeline Status",
-      agent: "spec.help",
-      prompt: "Show me the current spec-lite pipeline status and available agents and skills.",
-    },
-  ],
-  explore: [
-    {
-      label: "Capture Conventions",
-      agent: "spec.memorize",
-      prompt: "Refine the conventions discovered during exploration.",
-    },
-    {
-      label: "Create Plan",
-      agent: "spec.planner",
-      prompt: "Create a technical plan based on the explored codebase.",
-    },
-    {
-      label: "Code Review",
-      agent: "spec.code_reviewer",
-      prompt: "Review the improvement areas identified during exploration.",
-    },
-    {
-      label: "Security Audit",
-      agent: "spec.security_reviewer",
-      prompt: "Audit the security risks identified during exploration.",
-    },
+    { label: "Implement Feature", agent: "spec.implementer", prompt: "Implement this feature specification." },
+    { label: "Write Unit Tests", agent: "spec.unit_tester", prompt: "Design unit tests for this feature specification." },
   ],
   plan_feature: [
-    {
-      label: "Implement Feature",
-      agent: "spec.implementer",
-      prompt: "Implement the feature spec produced above.",
-    },
-    {
-      label: "Track Enhancement",
-      agent: "spec.todo",
-      prompt: "Add this out-of-scope enhancement to .spec-lite/TODO.md under the right category.",
-    },
+    { label: "Implement Feature", agent: "spec.implementer", prompt: "Implement this focused feature specification." },
+  ],
+  implement: [
+    { label: "Review Implementation", agent: "spec.reviewer", prompt: "Review this implemented feature for correctness, security, and performance." },
+    { label: "Write Integration Tests", agent: "spec.integration_tester", prompt: "Write integration tests for this implementation." },
+    { label: "Update Documentation", agent: "spec.documenter", prompt: "Update documentation for the implemented feature." },
+  ],
+  write_unit_tests: [
+    { label: "Review Implementation", agent: "spec.reviewer", prompt: "Review the implementation and tests." },
+    { label: "Write Integration Tests", agent: "spec.integration_tester", prompt: "Add integration coverage at component boundaries." },
+  ],
+  review: [
+    { label: "Fix Findings", agent: "spec.fixer", prompt: "Fix the actionable REV findings in this review." },
+    { label: "Document Changes", agent: "spec.documenter", prompt: "Update documentation for the reviewed implementation." },
+  ],
+  write_integration_tests: [
+    { label: "Review Covered Code", agent: "spec.reviewer", prompt: "Review the code covered by these integration tests." },
+    { label: "Update Documentation", agent: "spec.documenter", prompt: "Update documentation with verified integration behavior." },
+  ],
+  fix: [
+    { label: "Review Fix", agent: "spec.reviewer", prompt: "Review this fix for regressions, security, and performance." },
+    { label: "Write Regression Tests", agent: "spec.unit_tester", prompt: "Add unit regression coverage for this fix." },
+    { label: "Update Documentation", agent: "spec.documenter", prompt: "Update documentation affected by this fix." },
+  ],
+  memorize: [
+    { label: "Create Plan", agent: "spec.planner", prompt: "Create a plan using the captured conventions." },
+    { label: "Document Project", agent: "spec.documenter", prompt: "Document the project using the captured conventions." },
+  ],
+  document: [
+    { label: "Document Design", agent: "spec.design_documenter", prompt: "Update the architecture documentation." },
+    { label: "Document Usage", agent: "spec.usage_documenter", prompt: "Update verified quickstart and usage documentation." },
+    { label: "Update README", agent: "spec.readme_writer", prompt: "Update the README and documentation index." },
+  ],
+  document_feature: [
+    { label: "Update README", agent: "spec.readme_writer", prompt: "Refresh the README index for this feature documentation." },
+  ],
+  document_design: [
+    { label: "Update README", agent: "spec.readme_writer", prompt: "Refresh the README architecture links." },
+  ],
+  document_usage: [
+    { label: "Update README", agent: "spec.readme_writer", prompt: "Refresh the README quickstart and usage links." },
+  ],
+  document_readme: [
+    { label: "Review Documentation", agent: "spec.reviewer", prompt: "Review the documented commands and examples against the implementation." },
+  ],
+  devops: [
+    { label: "Review Infrastructure", agent: "spec.reviewer", prompt: "Review the infrastructure configuration for correctness, security, and performance." },
+    { label: "Document Deployment", agent: "spec.documenter", prompt: "Update deployment and operations documentation." },
+  ],
+  build_data_model: [
+    { label: "Break Down Features", agent: "spec.feature", prompt: "Create feature specs using this data model." },
+    { label: "Implement Data Layer", agent: "spec.implementer", prompt: "Implement the data layer from this model." },
+  ],
+  yolo: [
+    { label: "Resume YOLO", agent: "spec.yolo", prompt: "Resume the autonomous pipeline from its saved state." },
+    { label: "Check Pipeline Status", agent: "spec.help", prompt: "Show the current pipeline and available roles." },
   ],
   tool_help: [
-    {
-      label: "Implement Feature",
-      agent: "spec.implementer",
-      prompt: "Implement the feature, using the tools created above where applicable.",
-    },
-    {
-      label: "Capture Conventions",
-      agent: "spec.memorize",
-      prompt: "Capture tool usage conventions in project memory.",
-    },
+    { label: "Implement With Tool", agent: "spec.implementer", prompt: "Continue implementation using the project tool where relevant." },
   ],
   todo: [],
 };
@@ -457,6 +253,18 @@ export class CopilotProvider implements Provider {
     return existing;
   }
 
+  async detectHarnessUsage(workspaceRoot: string) {
+    return detectHarnessMarkers(workspaceRoot, {
+      projectStrong: [
+        path.join(".github", "copilot-instructions.md"),
+        path.join(".github", "prompts"),
+        path.join(".github", "agents"),
+        path.join(".github", "skills"),
+      ],
+      userWeak: [".copilot"],
+    });
+  }
+
   async getMemorySeedSource(
     workspaceRoot: string
   ): Promise<{ path: string; label: string } | null> {
@@ -522,6 +330,8 @@ export function generateSpecLiteBlock(installedPrompts: string[], nativeSkillNam
     "",
     "The following specialist agents and skills are available:",
     "",
+    "Typical flow: brainstorm → plan → feature → implement → review → document. Memory supplies standing instructions across every role.",
+    "",
     "**Agent files** (`.github/agents/`) — select from the agents dropdown in Copilot Chat:",
     "",
   ];
@@ -559,7 +369,7 @@ export function generateSpecLiteBlock(installedPrompts: string[], nativeSkillNam
     }
   }
 
-  if (installedPrompts.includes("plan_critic")) {
+  if (hasPromptName(installedPrompts, "plan_critic")) {
     lines.push(
       "",
       "Suggested manual checkpoint after planning:",

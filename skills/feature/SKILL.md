@@ -37,10 +37,11 @@ You are the meticulous implementer and builder of the development team. You take
 
 Before starting, you MUST read the following artifacts and incorporate their decisions:
 
-- **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for coding standards, architecture principles, testing conventions, logging rules, and security policies. Treat every entry as a hard requirement during feature design and task breakdown.
-- **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory. All implementation decisions must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan this feature belongs to.
+- **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
+- **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory. All implementation decisions must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **`.spec-lite/data_model.md`** (if exists) — **The authoritative relational data model** produced by the Build Data Model skill. Contains concrete table definitions, column types, constraints, indexes, and relationships. If this file exists, use it as the definitive schema source for this feature — do NOT re-design the data model from scratch. If it does not exist, design the granular data model yourself as described in the Objective section.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. If this file exists, use it to understand **what has already been built and how it currently behaves**. This helps you identify dependencies, avoid conflicts with existing behavior, and understand the baseline your feature builds on. Do NOT treat it as a spec — it's a reflection of implemented reality.
+- **`.spec-lite.json`** (if present) — Read documentation settings to decide whether tasks include a Documentation Update sub-item.
 - **`.spec-lite/brainstorm.md`** (optional) — Business goals and vision context. Only read this if the user explicitly asks you to incorporate the brainstorm (e.g., "use the brainstorm for context"). The brainstorm may have been for a different idea than this plan.
 - **Existing codebase** (if adding to an existing project) — Understand current patterns and conventions.
 
@@ -80,15 +81,15 @@ When you create `.spec-lite/features/feature_<name>.md`, you MUST also update th
 
 This update is required for every feature breakdown so the plan always maintains a reliable link to the underlying feature spec.
 
----
+### Deterministic Feature IDs
 
-## Personality
+Copy the selected row's `FEAT-###` ID into the spec's `**ID**:` field; never invent a different ID when the plan row has one. IDs are assigned once, never renumbered, and never reused.
 
-- **Focused & Vertical**: You work on one feature at a time, from data layer to interface. No half-implementations.
-- **Granular**: You decompose large features into small, manageable chunks. Each chunk is a "standalone unit of done."
-- **Verifiable**: Every step has a way to prove it works. If you can't verify it, you haven't defined it well enough.
-- **Self-Documenting**: Your feature spec is so clear that if you stop mid-implementation, another developer can pick up exactly where you left off.
-- **Business-Aware**: Every task traces back to a business goal. You don't write code for code's sake.
+1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
+2. Scan the `**ID**:` header field in **every** `.spec-lite/features/feature_*.md`.
+3. Next ID = highest number found + 1; if none found, `FEAT-001`.
+
+If a legacy plan row has no ID, allocate the next ID by this rule, back-fill the row, then copy it to the spec. For multiple legacy rows, back-fill in current table-row order. In Plan Mode, compute/back-fill the whole queue before spawning any spec subagent so subagents only copy IDs.
 
 ---
 
@@ -118,11 +119,11 @@ Define tasks with TASK-IDs. A "vertical slice" is a thin, end-to-end implementat
 - **Do NOT** decompose as horizontal layers ("do all models, then all controllers, then all views").
 - **DO** decompose as vertical slices — each task spans whatever layers it needs to deliver **one** verifiable behavior.
 
-**Every task MUST include three sub-items:**
+**Every task MUST include Implementation and Unit Tests; documentation is settings-aware:**
 
 1. **`[ ] Implementation`** — The actual code change (what files to create/modify, what logic to write).
 2. **`[ ] Unit Tests`** — Tests covering the implementation (specific test cases, edge cases to cover). List the key cases here; the **Write Unit Tests** skill can later expand these into comprehensive test suites with full edge-case coverage and coverage-exclusion configuration.
-3. **`[ ] Documentation Update`** — Update relevant docs (README, technical docs, inline comments, JSDoc/docstrings for public APIs).
+3. **`[ ] Documentation Update`** — Include only when `.spec-lite.json.documentation.updateWithDevelopment` is `true`; direct **Document** update mode to the impacted feature/area. Do not prescribe ad-hoc README or architecture edits.
 
 > **User Override**: If the user explicitly requests skipping a sub-item (e.g., *"skip unit tests"*, *"no docs needed"*, *"skip documentation"*), **honor that request** — omit the sub-item from all tasks and add a note at the top of `## 5. Implementation Tasks`: `> ⚠️ Unit Tests / Documentation skipped per user request.` The user is always in control of scope.
 
@@ -154,7 +155,7 @@ In Plan Mode you act as an **orchestrator**: you do **not** generate the feature
 
 ### 2. Spawn One Subagent Per Feature
 
-For each FEAT-ID in the queue, **in order**, spawn a subagent using the Agent tool with `subagent_type: "general-purpose"`. The subagent prompt MUST be **fully self-contained** (the subagent has zero memory of this conversation) and MUST include:
+Before spawning, apply the deterministic ID rule to every queued legacy row. Then, for each FEAT-ID in order, spawn a subagent using the Agent tool with `subagent_type: "general-purpose"`. The subagent prompt MUST be fully self-contained and include:
 
 1. The absolute path to the plan file and the **specific FEAT-ID** to break down (only that one).
 2. An instruction to read this skill file (`<repo>/skills/feature/SKILL.md`) and follow its Feature Mode workflow end-to-end for that single feature.
@@ -230,14 +231,7 @@ If this feature interacts with cross-cutting concerns (auth, logging, error hand
 
 ## Enhancement Tracking
 
-During feature development, you may discover potential improvements that are **out of scope** for the current feature. When this happens:
-
-1. **Do NOT** implement them or expand the feature scope.
-2. **Append** them to `.spec-lite/TODO.md` under the appropriate section (e.g., `## General`, `## Business Features`, `## Order Management`, `## User Experience`, `## Security`, `## Performance`).
-3. **Format**: `- [ ] <description> (discovered during: FEAT-<ID>)`
-4. **Notify the user**: "I've found some potential enhancements — see `.spec-lite/TODO.md`."
-
----
+Do not expand the current scope. Append out-of-scope improvements to `.spec-lite/TODO.md` as `- [ ] <description> (discovered during: <context>)`, then notify the user.
 
 ## Output: `.spec-lite/features/feature_<name>.md`
 
@@ -268,7 +262,7 @@ Use [feature spec template](assets/feature-spec-template.md) for structuring the
 - **Do NOT** leave tasks vague. "Implement backend" is a fail. "Create `UserService.create_user()` method that validates email uniqueness and hashes password" is a win.
 - **Do NOT** break the ID system. Every feature gets a FEAT-ID, every task gets a TASK-ID. These are used by the Write Unit Tests and Write Integration Tests skills for traceability.
 - **Do NOT** ignore cross-cutting concerns. If auth, logging, or error handling are relevant, document how this feature handles them.
-- **Do NOT** skip the three sub-items (Implementation, Unit Tests, Documentation) for any task — **unless the user explicitly requests it** (e.g., *"skip unit tests"*, *"no documentation"*). If skipped, note the omission at the top of the Implementation Tasks section.
+- **Do NOT** skip Implementation or Unit Tests unless the user explicitly requests it. Include Documentation Update only when configured, unless the user explicitly overrides documentation scope.
 - **Do NOT** go off track from the original plan. Follow the plan's architecture and coding standards. If the plan seems wrong, flag it — don't silently deviate.
 - **Do NOT** carry context from previous features into this one. Each feature spec starts from a clean slate — derive all context from the plan, memory, and codebase only.
 - **Do NOT** finish the task without updating the parent plan's `Spec File` link for the selected FEAT-ID to the exact generated feature file path.
@@ -276,34 +270,10 @@ Use [feature spec template](assets/feature-spec-template.md) for structuring the
 
 ---
 
-## What's Next? (End-of-Task Output)
+## Memory Capture
 
-When you finish, **always** end your final message with a "What's Next?" callout. Use actual feature names and paths from the current context.
+Before What's Next, follow the [Memory Capture Protocol](../memorize/SKILL.md#memory-capture-protocol). Capture at most three durable user instructions or multiply-verified codebase conventions, append only new non-conflicting rules with the dated auto-capture tag, and report captures or conflicts in the final response.
 
-**After Feature Mode (single spec complete):**
+## What's Next?
 
-- **Always** → Implement this feature (use the **Implement** skill). Use the actual `.spec-lite/features/feature_<name>.md` path.
-- **If the plan has more features not yet spec'd** → Suggest breaking down the next one individually OR generating all remaining specs at once.
-
-> **What's next?** The feature spec is ready at `.spec-lite/features/feature_{{name}}.md`. Here are your suggested next steps:
->
-> 1. **Implement this feature**: *"Implement `.spec-lite/features/feature_{{name}}.md`"*
-> 2. **Break down the next feature**: *"Break down {{next_feature_name}} from the plan"*
-> 3. **Break down everything else at once**: *"Break down all remaining features from the plan"*
-
-**After Plan Mode (all missing specs generated):**
-
-- **Always** → Suggest implementing the whole plan in one run, or implementing one feature at a time.
-
-> **What's next?** {{n}}/{{total}} feature specs are ready under `.spec-lite/features/`. Here are your suggested next steps:
->
-> 1. **Implement the whole plan**: *"Implement all features from `{{plan_file}}`"*
-> 2. **Implement one feature**: *"Implement `.spec-lite/features/feature_{{first_name}}.md`"*
-> 3. **Retry failed specs** _(if any failed)_: *"Retry generating spec for FEAT-{{ID}}"*
-
----
-
-See [example interactions](references/example-interactions.md) for usage patterns.
-
-**Feature Mode**: Start by confirming the feature, the plan it belongs to, and assigning a Feature ID.
-**Plan Mode**: Start by reading the plan, building the queue of features needing specs, announcing the queue, and then spawning a fresh subagent per feature in sequence.
+Follow the orchestrator format. Suggest **Implement** for the new spec, the next missing feature spec, or Plan Mode for all remaining rows.

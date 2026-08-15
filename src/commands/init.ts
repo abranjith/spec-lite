@@ -2,13 +2,18 @@ import path from "path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { getProvider, getAllProviders } from "../providers/index.js";
+import { detectHarnesses, getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
-import { loadAllSources, replaceProjectContext, copyNativeSkillDir } from "../utils/prompts.js";
+import { copyNativeSkillDir, hasPromptName, loadAllSources, replaceProjectContext } from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
 import { getStackSnippetInfo } from "../utils/stacks.js";
+import {
+  collectDocumentationSettings,
+  DEFAULT_DOCUMENTATION_SETTINGS,
+} from "../utils/documentation.js";
+import { getPackageVersion } from "../utils/package-version.js";
 
 interface InitOptions {
   ai?: string | string[];
@@ -16,7 +21,6 @@ interface InitOptions {
   force?: boolean;
   skipProfile?: boolean;
 }
-
 interface ProjectProfileAnswers {
   languages: string[];
   languageOther?: string;
@@ -34,6 +38,14 @@ const LANGUAGE_CHOICES = [
   { name: "C# / .NET", value: "C#" },
   { name: "Go", value: "Go" },
   { name: "Rust", value: "Rust" },
+  { name: "Kotlin / Android", value: "Kotlin" },
+  { name: "Swift / iOS", value: "Swift" },
+  { name: "C / C++", value: "C++" },
+  { name: "PHP / Laravel", value: "PHP" },
+  { name: "Ruby / Rails", value: "Ruby" },
+  { name: "React / Next.js", value: "React" },
+  { name: "Vue / Nuxt", value: "Vue" },
+  { name: "Angular", value: "Angular" },
   { name: "Other (specify below)", value: "__other__" },
 ];
 
@@ -103,7 +115,6 @@ function getPlanCriticNote(providerAlias: string): string | undefined {
       return undefined;
   }
 }
-
 /**
  * Collect project profile via interactive questionnaire.
  * Returns a ProjectProfile with the user's answers.
@@ -191,7 +202,7 @@ async function collectProjectProfile(): Promise<ProjectProfile> {
  * Build a Project Context block string from a ProjectProfile.
  * This replaces the placeholder content inside <!-- project-context-start/end --> markers.
  */
-function buildProjectContextBlock(profile: ProjectProfile): string {
+export function buildProjectContextBlock(profile: ProjectProfile): string {
   const lines = [
     "",
     "## Project Context (Customize per project)",
@@ -258,14 +269,21 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   if (providerAliases.length === 0) {
     const availableProviders = getAllProviders();
+    const detections = await detectHarnesses(cwd);
+    const detectedAliases = new Set(
+      detections
+        .filter(({ detection }) => detection.detected)
+        .map(({ provider }) => provider.alias),
+    );
     const answer = await inquirer.prompt([
       {
         type: "checkbox",
         name: "providers",
         message: "Which AI coding assistant(s) are you using?",
         choices: availableProviders.map((p) => ({
-          name: `${p.name} — ${p.description}`,
+          name: `${p.name}${detectedAliases.has(p.alias) ? chalk.green(" (detected)") : ""} — ${p.description}`,
           value: p.alias,
+          checked: detectedAliases.has(p.alias),
         })),
         validate: (input: string[]) =>
           input.length > 0 ? true : "Select at least one provider.",
@@ -298,6 +316,13 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green("  ✓ Project profile collected"));
   } else {
     console.log(chalk.dim("  Skipping project profile questionnaire."));
+  }
+
+  const documentation = options.skipProfile
+    ? { ...DEFAULT_DOCUMENTATION_SETTINGS }
+    : await collectDocumentationSettings();
+  if (!options.skipProfile) {
+    console.log(chalk.green("  ✓ Documentation preferences collected"));
   }
 
   // 3. Parse exclusions (split on commas or spaces to handle both bash and PowerShell)
@@ -447,7 +472,12 @@ export async function initCommand(options: InitOptions): Promise<void> {
       }
 
       // --- Agent file (if provider supports agents and path is present) ---
-      if (paths.agent && provider.supportsAgents && provider.transformAgent) {
+      if (
+        paths.agent &&
+        provider.supportsAgents &&
+        provider.transformAgent &&
+        (!source.promptOnly || provider.alias === "copilot")
+      ) {
         const agentAbsPath = path.join(cwd, paths.agent);
 
         const shouldSkipAgent =
@@ -668,7 +698,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
 
     if (selectedSeed) {
-      const seedPkg = await loadPackageVersion();
+      const seedPkg = getPackageVersion();
       const seededContent = buildSeededMemory(
         selectedSeed.content,
         selectedSeed.path,
@@ -684,7 +714,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 
   // 10. Write .spec-lite.json config
-  const pkg = await loadPackageVersion();
+  const pkg = getPackageVersion();
   const config: SpecLiteConfig = {
     version: pkg,
     format: "v2",
@@ -693,6 +723,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     installedPrompts,
     installedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    documentation,
     ...(projectProfile ? { projectProfile } : {}),
   };
   const configPath = path.join(cwd, ".spec-lite.json");
@@ -709,7 +740,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(provider.getPostInitMessage());
   }
 
-  if (installedPrompts.includes("plan_critic")) {
+  if (hasPromptName(installedPrompts, "plan_critic")) {
     const planCriticNotes = dedupeValues(
       providers
         .map((provider) => getPlanCriticNote(provider.alias))
@@ -744,13 +775,3 @@ export async function initCommand(options: InitOptions): Promise<void> {
   }
 }
 
-async function loadPackageVersion(): Promise<string> {
-  try {
-    const { createRequire } = await import("module");
-    const require = createRequire(import.meta.url);
-    const pkg = require("../package.json");
-    return pkg.version;
-  } catch {
-    return "unknown";
-  }
-}

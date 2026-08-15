@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { getProvider, getAllProviders } from "../providers/index.js";
+import { detectHarnesses, getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteConfig, SourceItem } from "../providers/base.js";
 import {
   loadAllSources,
@@ -13,6 +13,11 @@ import {
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
+import { collectDocumentationSettings } from "../utils/documentation.js";
+import { getStackSnippetInfo } from "../utils/stacks.js";
+import { resolveStaleOutputPaths } from "../utils/stale-sources.js";
+import { buildGroupedSourceChoices } from "../utils/source-selection.js";
+import { getPackageVersion } from "../utils/package-version.js";
 
 interface UpdateOptions {
   ai?: string | string[];
@@ -112,6 +117,12 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   }
 
   const config: SpecLiteConfig = await fs.readJson(configPath);
+  if (!config.documentation) {
+    console.log(chalk.cyan("\n  Documentation settings are new in spec-lite 0.2.0."));
+    config.documentation = await collectDocumentationSettings();
+    await fs.writeJson(configPath, config, { spaces: 2 });
+    console.log(chalk.green("  ✓ Documentation preferences saved"));
+  }
   const configuredProviderAliases = Array.from(
     new Set(
       (Array.isArray(config.providers) && config.providers.length > 0
@@ -123,10 +134,45 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     )
   );
   const requestedProviderAliases = parseProviderAliases(options.ai);
-  const targetProviderAliases =
+  let targetProviderAliases =
     requestedProviderAliases.length > 0
       ? requestedProviderAliases
       : configuredProviderAliases;
+
+  if (requestedProviderAliases.length === 0) {
+    const detections = await detectHarnesses(cwd);
+    const detectedAdditions = detections.filter(
+      ({ provider, detection }) =>
+        detection.detected &&
+        provider.alias !== "generic" &&
+        !configuredProviderAliases.includes(provider.alias),
+    );
+
+    if (detectedAdditions.length > 0) {
+      const detectedSet = new Set(detectedAdditions.map(({ provider }) => provider.alias));
+      const candidateAliases = [
+        ...configuredProviderAliases,
+        ...detectedAdditions.map(({ provider }) => provider.alias),
+      ];
+      const { selectedProviders } = await inquirer.prompt<{ selectedProviders: string[] }>([
+        {
+          type: "checkbox",
+          name: "selectedProviders",
+          message: "Select providers for this update:",
+          choices: candidateAliases.map((alias) => {
+            const provider = getProvider(alias);
+            return {
+              name: `${provider?.name ?? alias}${detectedSet.has(alias) ? chalk.green(" (detected — not yet configured)") : ""}`,
+              value: alias,
+              checked: configuredProviderAliases.includes(alias),
+            };
+          }),
+          validate: (input: string[]) => input.length > 0 || "Select at least one provider.",
+        },
+      ]);
+      targetProviderAliases = selectedProviders;
+    }
+  }
 
   if (targetProviderAliases.length === 0) {
     console.error(
@@ -156,14 +202,61 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     console.log(chalk.dim(`  Targeting providers from --ai: ${targetProviderAliases.join(", ")}`));
   }
   console.log(chalk.cyan(`  Providers: ${providers.map((provider) => provider.name).join(", ")}`));
+  const configuredInstalledPrompts = Array.isArray(config.installedPrompts)
+    ? config.installedPrompts
+    : [];
   console.log(
-    chalk.dim(`  Installed: ${config.installedPrompts.length} prompts`)
+    chalk.dim(`  Installed: ${configuredInstalledPrompts.length} prompts`)
   );
 
   // 2. Load all available sources, then let user pick which to include
   const allSources = await loadAllSources();
+
+  const staleOutputs = (
+    await Promise.all(
+      providers.map(async (provider) =>
+        (await resolveStaleOutputPaths(cwd, provider, allSources)).map((relativePath) => ({
+          provider: provider.name,
+          relativePath,
+        })),
+      ),
+    )
+  ).flat();
+
+  if (staleOutputs.length > 0) {
+    console.log(chalk.yellow("\n  Legacy spec-lite outputs detected:"));
+    for (const stale of staleOutputs) {
+      console.log(chalk.yellow(`    - [${stale.provider}] ${stale.relativePath}`));
+    }
+
+    let removeStale = !!options.force;
+    if (!options.force) {
+      const answer = await inquirer.prompt<{ removeStale: boolean }>([
+        {
+          type: "confirm",
+          name: "removeStale",
+          message: "Remove these obsolete files and directories?",
+          default: true,
+        },
+      ]);
+      removeStale = answer.removeStale;
+    }
+
+    if (removeStale) {
+      for (const { relativePath } of staleOutputs) {
+        const absolutePath = path.resolve(cwd, relativePath);
+        const relativeCheck = path.relative(cwd, absolutePath);
+        if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
+          throw new Error(`Refusing to remove path outside workspace: ${relativePath}`);
+        }
+        await fs.remove(absolutePath);
+        console.log(chalk.green(`  ✓ ${relativePath} (removed obsolete output)`));
+      }
+    }
+  }
+
   const installedAliasSet = new Set(
-    config.installedPrompts.flatMap((promptName) => getPromptAliases(promptName))
+    configuredInstalledPrompts.flatMap((promptName) => getPromptAliases(promptName))
   );
 
   function isInstalled(source: SourceItem): boolean {
@@ -178,28 +271,15 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   const installedSources = allSources.filter(isInstalled);
   const missingSources = allSources.filter((s) => !isInstalled(s));
 
-  // Build grouped checkbox choices
-  type CheckboxChoice = { name: string; value: string; checked: boolean } | inquirer.Separator;
-
-  const choices: CheckboxChoice[] = [];
-
-  for (const [label, group] of [
-    ["Agents", allSources.filter((s) => s.kind === "agent")],
-    ["Skills", allSources.filter((s) => s.kind === "skill")],
-    ["References", allSources.filter((s) => s.kind === "reference")],
-  ] as [string, SourceItem[]][]) {
-    if (group.length === 0) continue;
-    choices.push(new inquirer.Separator(`── ${label} ──`));
-    for (const source of group) {
-      const installed = isInstalled(source);
-      const tag = installed ? "" : chalk.dim(" (new)");
-      choices.push({
-        name: `${source.title}${tag}${chalk.dim(" — " + source.description)}`,
-        value: source.name,
-        checked: installed,
-      });
-    }
-  }
+  const choices = buildGroupedSourceChoices(allSources, (source) => {
+    const installed = isInstalled(source);
+    return {
+      // Updates should acquire newly shipped sources by default. Users can still
+      // deselect anything they intentionally do not want in this workspace.
+      checked: true,
+      tag: installed ? "" : chalk.dim(" (new — selected)"),
+    };
+  });
 
   const { selectedNames } = await inquirer.prompt<{ selectedNames: string[] }>([
     {
@@ -269,7 +349,12 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       }
 
       // --- Agent file ---
-      if (paths.agent && provider.supportsAgents && provider.transformAgent) {
+      if (
+        paths.agent &&
+        provider.supportsAgents &&
+        provider.transformAgent &&
+        (!source.promptOnly || provider.alias === "copilot")
+      ) {
         const newContent = provider.transformAgent(source.content, meta);
         const result = await updateFile(
           path.join(cwd, paths.agent),
@@ -340,8 +425,26 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     }
   }
 
+  // Restore newly available stack baselines without overwriting user edits.
+  if (config.projectProfile?.languages?.length) {
+    const stacksTargetDir = path.join(cwd, ".spec-lite", "stacks");
+    const seenSnippetFiles = new Set<string>();
+    for (const language of config.projectProfile.languages) {
+      const snippet = getStackSnippetInfo(language);
+      if (!snippet || seenSnippetFiles.has(snippet.fileName)) continue;
+      seenSnippetFiles.add(snippet.fileName);
+      const snippetPath = path.join(stacksTargetDir, snippet.fileName);
+      if (await fs.pathExists(snippetPath)) continue;
+      await fs.ensureDir(stacksTargetDir);
+      await fs.writeFile(snippetPath, snippet.content, "utf-8");
+      updated++;
+      console.log(chalk.green(`  ✓ .spec-lite/stacks/${snippet.fileName} (added; existing snippets preserved)`));
+    }
+  }
+
   // 4. Update config timestamp
   config.updatedAt = new Date().toISOString();
+  config.format = "v2";
   if (resolvedInstalledPrompts.length > 0) {
     config.installedPrompts = resolvedInstalledPrompts;
   }
@@ -356,14 +459,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   if (!config.provider || !config.providers.includes(config.provider)) {
     config.provider = config.providers[0];
   }
-  try {
-    const { createRequire } = await import("module");
-    const require = createRequire(import.meta.url);
-    const pkg = require("../package.json");
-    config.version = pkg.version;
-  } catch {
-    // Keep existing version
-  }
+  config.version = getPackageVersion();
   await fs.writeJson(configPath, config, { spaces: 2 });
 
   // 5. Summary

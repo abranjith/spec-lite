@@ -1,4 +1,4 @@
-import type { Provider } from "./base.js";
+import type { HarnessDetection, Provider } from "./base.js";
 import { CopilotProvider } from "./copilot.js";
 import { ClaudeCodeProvider } from "./claude-code.js";
 import { CodexProvider } from "./codex.js";
@@ -35,6 +35,21 @@ export function getAllProviders(): Provider[] {
  */
 export function getProviderAliases(): string[] {
   return providers.map((p) => p.alias);
+}
+
+export interface ProviderHarnessDetection {
+  provider: Provider;
+  detection: HarnessDetection;
+}
+
+/** Detect coding harness usage for every registered provider. */
+export async function detectHarnesses(workspaceRoot: string): Promise<ProviderHarnessDetection[]> {
+  return Promise.all(
+    providers.map(async (provider) => ({
+      provider,
+      detection: await provider.detectHarnessUsage(workspaceRoot),
+    })),
+  );
 }
 
 // Re-export types

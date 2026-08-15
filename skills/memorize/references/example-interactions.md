@@ -78,4 +78,4 @@ Here's the generated memory — 11 sections, 42 standing instructions:
 
 Does this look right? I can adjust anything before writing to `.spec-lite/memory.md`.
 
-> **Tip**: For conventions based on actual codebase patterns (naming conventions in use, architectural patterns discovered from code, etc.), run the Explore agent — it will analyze your source code and merge its findings into memory."
+> **Tip**: For conventions based on actual code patterns, run `memorize bootstrap`; for current architecture documentation, run `document full`.

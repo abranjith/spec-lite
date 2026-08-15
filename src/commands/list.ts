@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { getSourceCatalog } from "../utils/prompts.js";
 import type { SourceItemKind } from "../providers/base.js";
+import { listAvailableStacks } from "../utils/stacks.js";
 
 export async function listCommand(): Promise<void> {
   const catalog = getSourceCatalog();
@@ -11,6 +12,10 @@ export async function listCommand(): Promise<void> {
     chalk.dim(
       "  Agents are autonomous specialist workers. Skills are reusable task workflows.\n"
     )
+  );
+
+  console.log(
+    chalk.dim(`  Stack baselines: ${listAvailableStacks().join(", ")}\n`)
   );
 
   // Group by kind
@@ -68,7 +73,7 @@ export async function listCommand(): Promise<void> {
   console.log(chalk.bold("  Recommended Pipeline:\n"));
   console.log(
     chalk.dim(
-      "  Brainstorm → Planner → Feature (×N) → Implement → Reviews → Tests → DevOps → Docs"
+      "  Brainstorm → Planner → Feature (×N) → Implement → Review → Integration Tests → Document"
     )
   );
   console.log(

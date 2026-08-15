@@ -27,20 +27,18 @@
 
 | Phase | Name | Enabled |
 |-------|------|---------|
-| 3 | Code Review | yes |
-| 4 | Performance Review | yes |
-| 5 | Security Audit | yes |
-| 7 | Integration Tests | yes |
-| 8 | README | yes |
+| 3 | Review | yes |
+| 5 | Integration Tests | yes |
+| 6 | Documentation | yes |
 
 ## Progress: plan_<name>.md
 
-| FEAT-ID | Feature | spec | impl | code-review | perf-review | sec-review | fix | integ-tests |
-|---------|---------|------|------|-------------|-------------|------------|-----|-------------|
-| FEAT-001 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
-| FEAT-002 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] | [ ] |
+| FEAT-ID | Feature | spec | impl | review | fix | integ-tests |
+|---------|---------|------|------|--------|-----|-------------|
+| FEAT-001 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] |
+| FEAT-002 | {{name}} | [ ] | [ ] | [ ] | [ ] | [ ] |
 
-**README**: [ ] Not started \| [x] Complete \| N/A
+**Documentation**: [ ] Not started \| [x] Complete \| N/A
 
 ## Unresolved Findings
 

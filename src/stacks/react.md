@@ -1,79 +1,57 @@
-# React / Next.js — Best Practices & Conventions
+# React / Next.js
 
-> Curated by spec-lite. **Edit this file freely** to match your project — your changes are preserved across `spec-lite update`. The `/memorize bootstrap` agent reads this file as its starting baseline.
+> Curated by spec-lite for React 19 and modern Next.js. Edit freely; `spec-lite update` preserves this file and `/memorize bootstrap` treats it as the stack baseline.
 
 ## Coding Standards
 
-- Use **TypeScript** with strict mode for all React projects.
-- **Naming**: `PascalCase` for components and component files, `camelCase` for hooks (`useAuth`, `useFetch`), `UPPER_SNAKE_CASE` for constants.
-- One component per file. File name must match the exported component name.
-- Prefer **function components** with hooks over class components.
-- Prefer **named exports** for components — default exports only for page-level components in Next.js (required by the framework).
-- Use absolute imports with path aliases (e.g., `@/components/Button`) over deep relative paths.
-- Co-locate related files: `Button/Button.tsx`, `Button/Button.test.tsx`, `Button/Button.module.css`.
+- Use strict TypeScript, accessible semantic markup, focused components, named exports where framework rules permit, and consistent component/file naming.
+- Keep rendering pure; derive state during render rather than synchronizing it through effects.
+- Treat refs, memoization, and escape hatches as measured tools rather than defaults.
+- Keep server/client boundaries explicit; add `"use client"` only where interactivity requires it.
 
-## Component Patterns
+## Error Handling
 
-- Keep components **small and focused** — if a component exceeds ~150 lines, extract sub-components.
-- Separate **presentational** (UI) from **container** (data-fetching/logic) concerns. Use custom hooks to extract logic.
-- Use **composition** over prop-drilling. Prefer `children` and render props for flexible layouts.
-- Avoid prop drilling deeper than 2 levels — use Context or state management for shared state.
-- For forms: use a form library (React Hook Form, Formik) for anything beyond trivial forms. Validate with Zod or Yup.
-- Prefer **controlled components** over uncontrolled unless performance requires otherwise.
+- Use route/component error boundaries and framework error/not-found/loading conventions.
+- Translate API/action failures into typed user-safe states; log diagnostic detail on trusted server boundaries.
+- Handle optimistic mutation rollback and abort stale requests.
 
-## Hooks Rules
+## Architecture Patterns
 
-- Only call hooks at the top level — never inside conditions, loops, or nested functions.
-- Custom hooks must start with `use` prefix.
-- Use `useMemo` and `useCallback` only when there's a measurable performance benefit — don't prematurely optimize.
-- Use `useRef` for values that don't trigger re-renders (timers, DOM refs, previous values).
-- Avoid `useEffect` for derived state — compute it during render instead.
-- Cleanup side effects in `useEffect` — return a cleanup function for subscriptions, timers, and event listeners.
+- Prefer Server Components for data access/rendering and Client Components for interaction in App Router projects.
+- Separate feature/domain logic from presentation; use custom hooks for reusable client behavior and server actions/API routes for trusted mutations.
+- Use local state first, context for low-frequency shared state, and dedicated server-state tools only where needed.
 
-## State Management
+## Concurrency / Async
 
-- Start with **local state** (`useState`). Lift state only when siblings need it.
-- Use **React Context** for low-frequency global state (theme, auth, locale).
-- For complex client-side state, use Zustand (lightweight) or Redux Toolkit (large apps).
-- For server state, use **TanStack Query** (React Query) or SWR — never manage server cache manually with `useState` + `useEffect`.
-- In Next.js App Router: prefer **Server Components** for data fetching. Use `"use client"` only when client interactivity is needed.
+- Use Suspense/transitions/streaming according to UX needs and keep async work cancellable or stale-result-safe.
+- Avoid effect-driven fetch waterfalls and unbounded parallel requests; co-locate server fetching and batch independent work.
+- Do not assume render occurs once; effects and subscriptions must be idempotent with cleanup.
 
-## Testing Conventions
+## Testing
 
-- **Framework**: Vitest or Jest + React Testing Library.
-- Test **behavior**, not implementation — query by role, label, and text, not by test IDs or CSS selectors.
-- Never test internal component state directly. Test what the user sees and interacts with.
-- Use `userEvent` over `fireEvent` for realistic user interaction simulation.
-- Mock API calls with MSW (Mock Service Worker) for integration tests.
-- Snapshot tests: use sparingly and only for stable UI — they become maintenance burdens quickly.
+- Use Testing Library with Vitest/Jest and `userEvent`; assert accessible user behavior rather than component internals.
+- Use MSW or boundary fakes for network behavior and a real browser for critical end-to-end flows.
+- Keep snapshots small/stable and test server/client/error/loading boundaries.
 
-## Next.js Specific
+## Logging & Observability
 
-- Use the **App Router** (default since Next.js 13+) unless maintaining a legacy Pages Router project.
-- Prefer **Server Components** by default. Add `"use client"` only for interactive components.
-- Use `loading.tsx`, `error.tsx`, and `not-found.tsx` for built-in loading/error states.
-- Data fetching: use `fetch` in Server Components with built-in caching, or Server Actions for mutations.
-- Image optimization: always use `next/image` over raw `<img>` tags.
-- Use route groups `(group)` to organize routes without affecting the URL structure.
-
-## Performance
-
-- Use `React.lazy()` and `Suspense` for code-splitting large components/routes.
-- Virtualize long lists with `react-window` or `@tanstack/react-virtual`.
-- Avoid unnecessary re-renders: use `React.memo` for expensive pure components, but measure first.
-- Keep bundle size in check — analyze with `@next/bundle-analyzer` or `source-map-explorer`.
+- Capture server and client errors with correlation/trace context, web-vital metrics, and source maps protected appropriately.
+- Never expose/log tokens, secrets, or sensitive personal data in client bundles or telemetry.
 
 ## Security
 
-- Sanitize any user-generated HTML before rendering — never use `dangerouslySetInnerHTML` with unsanitized content.
-- Use CSP (Content Security Policy) headers — Next.js supports them via `next.config.js`.
-- Store tokens in httpOnly cookies, not localStorage.
-- Validate all form input client-side (UX) AND server-side (security).
+- Validate again on the server, authorize every mutation/resource, sanitize untrusted HTML, use CSP, and keep sensitive tokens in secure httpOnly cookies.
+- Avoid leaking server-only modules/environment variables into client bundles; protect cookie flows from CSRF.
+
+## Dependencies
+
+- Align React/framework/compiler versions, commit the lockfile, and avoid overlapping state/form/UI libraries without clear need.
+
+## Performance
+
+- Measure Web Vitals, bundle/chunk size, server latency, hydration, and rerenders before optimizing.
+- Stream/code-split/virtualize where measured; optimize images/fonts and prevent client waterfalls/over-fetching.
 
 ## Common Pitfalls
 
-- **Infinite re-render loops**: Caused by `useEffect` with missing or incorrect dependencies.
-- **Stale closures**: Hooks capture values at render time — use `useRef` for mutable values that need to be current.
-- **Over-fetching in `useEffect`**: Use TanStack Query or SWR instead of manual `useEffect` + `fetch` patterns.
-- **Hydration mismatches** (Next.js): Ensure server-rendered HTML matches client-rendered output. Avoid `typeof window` checks in render.
-- **Prop type drift**: Always type component props with TypeScript interfaces. Never use `any` for props.
+- Hydration mismatch, stale closures, missing effect cleanup, derived state in effects, broad client boundaries, insecure server actions, and gratuitous memoization.

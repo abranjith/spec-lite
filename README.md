@@ -1,426 +1,434 @@
 # spec-lite
 
-> Surgical, spec-driven prompts for professional software development — no tools, no framework, no lock-in.
+Portable, structured software-engineering workflows for Codex, Claude Code, GitHub Copilot, Pi, and any LLM.
 
-## What Is This?
+[![npm](https://img.shields.io/npm/v/@abranjith/spec-lite)](https://www.npmjs.com/package/@abranjith/spec-lite)
+[![Test on PR](https://github.com/abranjith/spec-lite/actions/workflows/test.yml/badge.svg)](https://github.com/abranjith/spec-lite/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-spec-lite is a curated collection of **precise, modular agents and skills** — each targeting one phase of the software development lifecycle. Every definition is self-contained markdown with YAML frontmatter. There is no runtime, no SDK, no agent harness. Install once, and spec-lite places the right files in the right locations for your AI coding assistant.
+spec-lite gives AI coding assistants the same focused agents, repeatable skills, and project context. The role definitions adapt to each harness, while plans, memory, feature specs, reviews, and documentation stay in the repository. Start work in Claude Code, continue it in Codex, review it in Copilot, or hand it to a teammate using Pi without rebuilding the context from scratch.
 
-**Just markdown prompts that work everywhere.**
+## Why spec-lite
 
-## What It Is
+Coding harnesses represent agents and skills differently. Their conversation history is also isolated, which makes changing tools mid-feature surprisingly expensive. spec-lite separates the reusable workflow from the local project state:
 
-- **Surgical prompts for spec-driven development.** Each agent or skill targets a specific SDLC activity — planning, feature design, implementation, code review, testing, security audit, DevOps, and more. They are precise, finite-scoped, and produce concrete output artifacts.
-- **No tools attached.** spec-lite ships zero tools on purpose. Modern AI agents are excellent at creating tools themselves, and every project's tooling needs are different. Instead, spec-lite includes a **Tool Helper** skill (`/spec.tool_help`) that helps you create project-specific bash tools in `.spec-lite/tools/` — which other agents and skills can then discover and use to inject project context.
-- **Provider-native installation.** Built-in support for **GitHub Copilot**, **Claude Code**, **OpenAI Codex**, and **Pi** — agents and skills are written using each provider's native primitives (e.g., Copilot gets `.agent.md` files with handoff support in `.github/agents/` plus native skill directories in `.github/skills/`; Claude Code gets agent files in `.claude/agents/` with both source agents and skills mapped onto its agent surface; Codex gets TOML subagents in `.codex/agents/` plus native skill directories in `.agents/skills/` and a managed `AGENTS.md` at the repo root; Pi gets native skill directories in `.pi/skills/`). For any other LLM, use `--ai generic` or just copy the raw markdown files.
-- **Global installation support.** Install agents and skills once at the user level (`spec-lite install --global`) so they're available across all your workspaces — supported for Copilot, Claude Code, Codex, and Pi.
-- **Slash-command invocation.** Once installed, agents and skills are invoked with `/` commands (e.g., `/spec.plan`, `/spec.feature`) or via your provider's agent selection UI.
-- **YOLO mode.** For when you want to go fully autonomous — the YOLO agent drives the entire spec-lite pipeline end to end, from planning through implementation, reviews, and documentation. Pausable, resumable, with checkpoints at every phase.
-- **Memory support.** `.spec-lite/memory.md` is a user-controlled file of standing instructions (coding standards, architecture decisions, testing conventions) read by every agent and skill. Bootstrap it automatically with `/spec.memorize bootstrap`, or edit it directly. Some skills also auto-update memory when they discover new conventions.
-- **TODO helper.** `.spec-lite/TODO.md` is a living backlog. The `/spec.todo` skill adds items under the right category, and other agents (planner, plan_critic, feature) auto-append enhancements they discover during their work.
-- **Large project exploration.** The `/spec.explore` agent systematically maps unfamiliar or large codebases — including monorepos — producing structured documentation of architecture, patterns, and data models. It works top-down through the dependency graph and handles multi-project repositories by exploring one project at a time.
+```text
+Globally installed spec-lite agents and skills
+        │
+        ├── Codex
+        ├── Claude Code
+        ├── GitHub Copilot
+        └── Pi
+                │
+                ▼
+        The same project repository
+                │
+                ├── .spec-lite/memory.md
+                ├── .spec-lite/plan*.md
+                ├── .spec-lite/features/
+                ├── .spec-lite/reviews/
+                └── project documentation and code
+```
 
-## What It Is Not
+The harness is the interface; the repository is the durable source of truth. Commit the `.spec-lite/` directory so teammates and different assistants can resume from the same decisions, task state, and review history.
 
-- **Not an agent harness or framework.** There is no runtime, no orchestration engine, no message bus. spec-lite is just prompt files — your AI coding assistant does all the work.
-- **Not a code library.** spec-lite doesn't ship application code. It ships instructions that tell your AI assistant *how* to write code following professional engineering practices.
+## Highlights
 
----
+- **Cross-harness continuity** — use the same project and feature state from Codex, Claude Code, Copilot, Pi, or exported Markdown prompts.
+- **Global reusable roles, local durable state** — install agents and skills once, while each repository keeps its own memory, plans, features, reviews, and documentation.
+- **Native provider adapters** — generates each harness's expected agent, command, prompt, skill, and root-instruction formats.
+- **Modular delivery workflow** — use only the discovery, planning, implementation, testing, review, documentation, data, or DevOps role a task needs.
+- **Consolidated review** — one deterministic review covers correctness, testing, security, and performance.
+- **First-class documentation** — choose the documentation directory and depth, with optional updates during implementation and fixes.
+- **Shared memory** — durable project conventions live in `.spec-lite/memory.md` and can be captured as the work evolves.
+- **Stable feature IDs** — `FEAT-###` identifiers remain consistent across plans, feature specs, implementation, tests, and review.
+- **14 stack baselines** — TypeScript, Python, Java, .NET, Go, Rust, Kotlin, Swift, C/C++, PHP, Ruby, React, Vue, and Angular.
+- **Safe upgrades** — update every configured provider, preselect newly shipped roles, migrate config, preserve Project Context edits, and clean obsolete generated outputs with confirmation.
+- **Portable export** — combine selected roles and references into one self-contained Markdown prompt for chat tools, teammates, or unsupported harnesses.
 
-## Installation
+## Recommended Installation
+
+Requires Node.js 20 or newer.
+
+Install the CLI globally, then install the agents and skills globally for the harnesses you use. This is the recommended setup because the reusable roles become available in every workspace while their working state remains local to each project.
 
 ```bash
 npm install -g @abranjith/spec-lite
+spec-lite install --global --ai codex,claude-code,copilot,pi
 ```
 
-Requires Node.js 20+.
+Omit `--ai` to choose providers interactively. To refresh a global installation after upgrading the npm package, rerun the command with `--force`.
 
-## Quick Start
-
-Navigate to your project workspace and run:
+Then initialize each repository. Harness detection preselects likely providers and the setup records the project profile and documentation preferences in `.spec-lite.json`.
 
 ```bash
-# For GitHub Copilot users
-spec-lite init --ai copilot
-
-# For Claude Code users
-spec-lite init --ai claude-code
-
-# For OpenAI Codex users
-spec-lite init --ai codex
-
-# For Pi users
-spec-lite init --ai pi
-
-# For any other LLM (raw prompts you can copy-paste)
-spec-lite init --ai generic
-
-# Configure multiple providers in one workspace
-spec-lite init --ai copilot --ai claude-code
-# or
-spec-lite init --ai copilot,claude-code
+cd your-project
+spec-lite init
 ```
 
-The CLI will walk you through a short **project profile questionnaire** (languages, frameworks, test frameworks, architecture patterns, and coding conventions). Language(s) and architecture pattern(s) are selected interactively, while frameworks and test frameworks are entered as comma-separated lists. Your answers are used to:
-
-1. Write agent and skill files to the correct location for your AI tool
-2. Inject your tech-stack context into each file's `<!-- project-context -->` block
-3. Copy one or more curated **best-practice snippets** for your stack into `.spec-lite/stacks/`
-4. Create the `.spec-lite/` directory structure for agent outputs
-5. Save a `.spec-lite.json` config (including your project profile as arrays for mixed-stack repositories) to track your setup
-
-This works for monorepos and polyglot repositories as well as single-stack apps. For example, you can initialize a repo that uses TypeScript + Python, or a frontend/backend mix like React + FastAPI, without having to collapse everything into a single “primary” stack.
-
-After init completes, run **`/spec.memorize bootstrap`** (see below) to let the LLM auto-generate a comprehensive `memory.md` from your codebase.
-
-### Exclude specific agents
+For automation:
 
 ```bash
-spec-lite init --ai copilot --exclude brainstorm,write_readme
+spec-lite init --ai codex,claude-code --skip-profile --force
 ```
 
-### Skip the profile questionnaire
+`--skip-profile` uses documentation defaults of `docs`, `technical`, and `updateWithDevelopment: false`.
+
+After the first useful artifact is created, commit the project state for portable, cross-team collaboration:
 
 ```bash
-spec-lite init --ai copilot --skip-profile
+git add .spec-lite .spec-lite.json
+git commit -m "Add shared spec-lite project context"
 ```
 
-### Install globally (user-level)
+Provider-specific project files such as `AGENTS.md`, `CLAUDE.md`, `.github/`, `.codex/`, `.agents/`, and `.pi/` can also be committed when the team uses those harnesses.
+
+## Supported Providers
+
+| Provider | Project files | Global agent/skill folders |
+|---|---|---|
+| GitHub Copilot | `.github/agents/`, `.github/prompts/`, `.github/skills/`, `.github/copilot-instructions.md` | `~/.copilot/agents/`, `~/.copilot/prompts/`, `~/.copilot/skills/` |
+| Claude Code | `.claude/agents/`, `.claude/commands/`, `CLAUDE.md` | `~/.claude/agents/`, `~/.claude/commands/` |
+| OpenAI Codex | `.codex/agents/`, `.agents/skills/`, `AGENTS.md` | `~/.codex/agents/`, `~/.agents/skills/`, `~/.codex/AGENTS.md` |
+| Pi | `.pi/prompts/`, `.pi/skills/` | `~/.pi/agent/prompts/`, `~/.pi/agent/skills/` |
+| Generic | `.spec-lite/prompts/` for copy/paste into any LLM | Not supported; use `export` for a portable bundle |
+
+Global installation state is recorded at `~/.spec-lite/global-config.json`. Project state remains in the repository.
+
+Configure several providers for one project by repeating `--ai` or using comma-separated values:
 
 ```bash
-spec-lite install --global --ai copilot
-
-# For OpenAI Codex users
-spec-lite install --global --ai codex
-
-# Install for multiple providers
-spec-lite install --global --ai copilot --ai claude-code --ai codex
-# or
-spec-lite install --global --ai copilot,claude-code,codex
+spec-lite init --ai copilot --ai codex
+spec-lite init --ai claude-code,codex,pi
 ```
 
-Global prompts are available across all your workspaces without running `init` in each one.
+Explicit `--ai` values override harness auto-detection.
 
-### Update prompts to latest version
+## Workflow
+
+Use the full flow for a new application:
+
+```text
+Brainstorm → Plan → Feature × N → Implement → Review → Integration Tests → Document
+```
+
+Common shorter paths are:
+
+| Situation | Suggested workflow |
+|---|---|
+| Clear idea for a new project | Plan → Feature → Implement → Review |
+| One focused enhancement | Feature Planner → Implement → Review → Document Update |
+| Existing defect or refactor | Fix → Review |
+| Architecture decision | Architect, then Plan or DevOps |
+| Existing plan needs a challenge | Plan Critic → revise or continue |
+| Well-scoped autonomous build | YOLO |
+
+Review runs after code exists and always covers correctness, security, performance, and test gaps. Plan Critic is the separate pre-implementation checkpoint.
+
+### Seamless handoff between harnesses
+
+A handoff does not depend on copying a chat transcript. Each role reads the relevant repository artifacts again.
+
+1. Use `spec.brainstormer` in Claude Code to write `.spec-lite/brainstorm.md`.
+2. Open the same repository in Codex and use `spec.planner`; it reads the brainstorm and shared memory, then writes `.spec-lite/plan.md`.
+3. Use the `spec-feature` skill in Pi to create a feature spec under `.spec-lite/features/`.
+4. Switch to Copilot and use `spec-implement`; it reads the plan, feature spec, memory, and current code before implementing.
+5. Commit the updated `.spec-lite/` state with the code so another teammate or harness can run Review without losing the decisions or scope.
+
+## Agents and Skills
+
+Agents are autonomous specialist personas. Skills are focused, repeatable workflows that can be auto-discovered or explicitly selected.
+
+### Agents
+
+| Source | Typical selector | Persona |
+|---|---|---|
+| `brainstorm` | `spec.brainstormer` | Curious product partner who turns a rough idea into a concrete, testable vision. |
+| `plan` | `spec.planner` | Pragmatic technical planner who converts requirements into an implementation-ready blueprint. |
+| `plan-feature` | `spec.feature_planner` | Focused feature designer who scopes one enhancement without requiring a full project plan. |
+| `architect` | `spec.architect` | Systems architect who designs cloud topology, data strategy, reliability, and scale. |
+| `yolo` | `spec.yolo` | Autonomous delivery coordinator who runs the full workflow with checkpoints and resumable state. |
+
+### Skills
+
+| Source | Native skill | Persona |
+|---|---|---|
+| `feature` | `spec-feature` | Decomposer who turns plan features into small, verifiable vertical slices. |
+| `implement` | `spec-implement` | Disciplined implementation engineer who writes code, tests, and required documentation. |
+| `review` | `spec-review` | Independent reviewer who checks correctness, security, performance, and testing in one pass. |
+| `fix` | `spec-fix` | Methodical debugger and refactorer who proves root cause and guards against regression. |
+| `write-unit-tests` | `spec-write-unit-tests` | Unit-test specialist who targets behavior, boundaries, errors, and exclusions. |
+| `write-integration-tests` | `spec-write-integration-tests` | Integration-test specialist who verifies component seams and external boundaries. |
+| `document` | `spec-document` | Documentation coordinator for full, targeted, and surgical updates. |
+| `document-design` | `spec-document-design` | Architecture writer who documents the implemented design with verified diagrams. |
+| `document-feature` | `spec-document-feature` | Feature writer who explains one implemented capability and its behavior. |
+| `document-usage` | `spec-document-usage` | User-guide writer who creates verified quickstarts and usage documentation. |
+| `document-readme` | `spec-document-readme` | Developer advocate who keeps the repository entry point accurate and inviting. |
+| `memorize` | `spec-memorize` | Convention curator who maintains durable standing instructions and resolves conflicts explicitly. |
+| `plan-critic` | `spec-plan-critic` | Skeptical preflight reviewer who pressure-tests feasibility, risk, quality, and adaptability. |
+| `build-data-model` | `spec-build-data-model` | Relational data modeller who defines tables, relationships, constraints, and indexes. |
+| `devops` | `spec-devops` | Production-minded platform engineer for CI/CD, containers, environments, and deployment. |
+| `todo` | `spec-todo` | Backlog curator who records useful ideas without expanding the current task. |
+| `tool-help` | `spec-tool-help` | Toolsmith who creates reusable project-analysis scripts for other roles. |
+
+Two reference prompts are also included: `help` is the user-facing catalog, while `orchestrator` defines shared precedence, naming, feature-ID, memory, and handoff contracts.
+
+### Selecting a role in each harness
+
+| Harness | Agent selection | Skill selection |
+|---|---|---|
+| GitHub Copilot | Select `spec.<agent>` from the agent picker | Describe the task for auto-discovery, select the generated agent, or use the corresponding project prompt |
+| Claude Code | Select `spec.<agent>`; project installs also provide `/spec.<verb>` commands | Select the generated specialist agent such as `spec.implementer` or use the project command |
+| OpenAI Codex | Invoke the `spec.<agent>` subagent | Ask Codex to use the skill by name, such as `spec-implement` |
+| Pi | Use `/spec.<verb>` | Use `/skill:spec-<name>` or allow Pi to auto-discover it |
+| Generic | Open `.spec-lite/prompts/spec.<verb>.md` | Copy the matching prompt into the LLM, or create a combined bundle with `export` |
+
+## Example Usage
+
+Suppose you want to build a small shared grocery-list web app with real-time updates and email invitations. Select the named role in your harness, then send a short prompt like the one shown. These are examples, not a required checklist—use only the roles the work needs.
+
+### Agent examples
+
+| Select | Example prompt |
+|---|---|
+| `spec.brainstormer` | “Turn this shared grocery-list idea into a concise product vision. Focus on the smallest useful first release.” |
+| `spec.planner` | “Plan the grocery-list app from `.spec-lite/brainstorm.md` using TypeScript, React, and PostgreSQL.” |
+| `spec.feature_planner` | “Create one self-contained feature spec for inviting another person to a grocery list.” |
+| `spec.architect` | “Design a low-cost production architecture for this app, including real-time updates, email delivery, backups, and scaling.” |
+| `spec.yolo` | “Build the scoped MVP from the approved requirements. Stop at the defined checkpoints and keep resumable state.” |
+
+### Skill examples
+
+| Select or invoke | Example prompt |
+|---|---|
+| `spec-feature` | “Create feature specs for every incomplete feature in `.spec-lite/plan.md`.” |
+| `spec-implement` | “Implement `.spec-lite/features/feature_shared_lists.md` and verify every task.” |
+| `spec-review` | “Review feature `shared_lists` after implementation.” |
+| `spec-fix` | “The second browser does not receive list updates. Diagnose the root cause, fix it, and add a regression test.” |
+| `spec-write-unit-tests` | “Add unit tests for the invitation service, including expired, duplicate, and malformed tokens.” |
+| `spec-write-integration-tests` | “Test the invitation flow across the API, database, email adapter, and acceptance endpoint.” |
+| `spec-document` | “Update all configured documentation to match the implemented MVP.” |
+| `spec-document-design` | “Document the current architecture and real-time update flow.” |
+| `spec-document-feature` | “Document the implemented shared-list invitation feature.” |
+| `spec-document-usage` | “Write a verified quickstart and user guide for creating and sharing a list.” |
+| `spec-document-readme` | “Refresh the README with the working setup commands and current feature list.” |
+| `spec-memorize` | “Remember that all timestamps use UTC and all API errors use the shared error envelope.” |
+| `spec-plan-critic` | “Pressure-test `.spec-lite/plan.md` before implementation, especially the real-time sync and authorization design.” |
+| `spec-build-data-model` | “Design the relational model for users, lists, memberships, items, invitations, and audit events.” |
+| `spec-devops` | “Add Docker, CI, preview deployments, production secrets guidance, and database migration checks.” |
+| `spec-todo` | “Add offline editing and push notifications to the product backlog without changing the current MVP.” |
+| `spec-tool-help` | “Create a project tool that reports migration status and failed tests for use by other spec-lite roles.” |
+
+## Review
+
+Review accepts exactly one deterministic scope:
+
+```text
+review files <paths/globs>
+review feature <name>
+review plan [plan-file]
+```
+
+Feature and plan review use the `Touched Files` sections maintained during implementation. Every run produces one `.spec-lite/reviews/review_<scope>.md` report with `REV-###` findings, Critical/High/Medium/Low severity, remediation targets, and an approval verdict. Review recommends changes; use Fix or Implement Review Mode to apply them.
+
+## Documentation
+
+Initialization stores documentation behavior in `.spec-lite.json`:
+
+```json
+{
+  "documentation": {
+    "directory": "docs",
+    "level": "technical",
+    "updateWithDevelopment": true
+  }
+}
+```
+
+- `directory` is a repository-relative output path.
+- `level` is `technical` or `full`.
+- `updateWithDevelopment` makes Implement and Fix request a surgical documentation update after code changes.
+
+Use `document` for the configured full set, `document update` after changes, or a targeted role such as `document architecture` or `document feature <name>`.
+
+## Memory and Shared Project State
+
+`.spec-lite/memory.md` is the authority for standing project instructions. Run `memorize bootstrap` to seed it from manifests, configuration, code patterns, stack guidance, and official documentation.
+
+Planning and delivery roles may capture up to three durable conventions per run. Captured entries are date-tagged and reported; conflicts are never silently resolved. Use Memorize to override or reorganize instructions.
+
+Recommended version-controlled state:
+
+```text
+.spec-lite/
+├── memory.md                  Standing project conventions
+├── brainstorm.md              Product discovery context
+├── plan.md                    Default technical blueprint
+├── plan_<name>.md             Optional named blueprint
+├── features/                  Feature specs and task state
+├── reviews/                   Plan and implementation reviews
+├── stacks/                    Selected stack baselines
+├── data_model.md              Relational model, when used
+├── TODO.md                    Deferred enhancement backlog
+├── yolo_state.md              Resumable autonomous-run state
+└── tools/                     Project-specific context helpers
+```
+
+Commit these files with the related code. That makes decisions reviewable in pull requests and lets another developer—or a different AI harness—continue with the same state.
+
+## CLI API Reference
+
+The supported public API is the `spec-lite` command-line interface; the package does not currently expose a stable programmatic JavaScript API.
+
+```text
+spec-lite <command> [arguments] [options]
+```
+
+| Command | High-level behavior |
+|---|---|
+| `spec-lite init` | Detect providers, collect project/documentation settings, install selected roles locally, and create `.spec-lite.json`. |
+| `spec-lite update` | Refresh configured project providers and config while preserving Project Context edits unless forced. |
+| `spec-lite install --global` | Install reusable agents and skills in user-level harness directories. |
+| `spec-lite list` | Print every available agent, skill, reference, output, and stack baseline. |
+| `spec-lite export [names...]` | Build one self-contained Markdown bundle from selected roles and references. |
+
+Every command supports `-h, --help`; the root command also supports `-V, --version`.
+
+### Command options
+
+| Command | Option or argument | Default | Summary |
+|---|---|---|---|
+| `init` | `--ai <provider>` | detected/interactively selected | Configure `copilot`, `claude-code`, `codex`, `pi`, or `generic`; repeat the option or pass comma-separated values. |
+| `init` | `--exclude <names>` | none | Exclude comma/space-separated source names; hyphen and underscore forms are accepted. |
+| `init` | `--force` | `false` | Overwrite existing generated files without prompting. |
+| `init` | `--skip-profile` | `false` | Skip project profile and documentation questions for scripting. |
+| `update` | `--ai <provider>` | providers in `.spec-lite.json` | Update only the named provider(s); repeat or pass comma-separated values. |
+| `update` | `--force` | `false` | Overwrite Project Context edits and remove detected obsolete generated outputs without confirmation. |
+| `install` | `--global` | `false` | Required by `install`; selects user-level installation. |
+| `install` | `--ai <provider>` | interactive | Install for one or more globally supported providers. |
+| `install` | `--exclude <names>` | none | Omit comma/space-separated sources from the global installation. |
+| `install` | `--force` | `false` | Overwrite an existing global installation without confirmation. |
+| `list` | none | — | No command-specific options. |
+| `export` | `[names...]` | interactive picker | Source names to export; hyphen and underscore forms are accepted. |
+| `export` | `--all` | `false` | Include all agents, skills, and references. |
+| `export` | `-o, --output <file>` | `spec-lite-prompts.md` | Write to a file; use `-` for stdout. |
+| `export` | `--no-references` | references included | Omit `help` and `orchestrator` when used with `--all`. |
+
+### Initialize a project
+
+```bash
+spec-lite init
+spec-lite init --ai codex,copilot --exclude yolo --force
+```
+
+`init` writes the current v2 configuration, provider-specific outputs, shared root-instruction blocks, selected stack baselines, and optional memory seed.
+
+### Update a project
 
 ```bash
 spec-lite update
-
-# Update specific provider(s)
-spec-lite update --ai copilot --ai claude-code
-# or
-spec-lite update --ai copilot,claude-code
+spec-lite update --ai codex,claude-code
+spec-lite update --force
 ```
 
-This pulls the latest prompt versions while **preserving your Project Context edits**.
+Update performs the complete project migration:
 
----
+- refreshes all configured agents, skills, prompts, native skill references/assets, and shared root-instruction blocks;
+- preselects newly shipped sources so accepting the defaults installs them;
+- updates `.spec-lite.json` to the current version and `format: "v2"`, adds `providers`, and collects the `documentation` section when it is missing;
+- offers newly detected but unconfigured harnesses as opt-in providers;
+- restores missing selected stack baselines without overwriting edited ones;
+- detects obsolete v0.1.x outputs and asks before deleting them;
+- preserves content inside Project Context markers unless `--force` is used.
 
-## Supported AI Providers
+### Install globally
 
-| Provider | Flag | Agent Files | Skill Directories | Global Support |
-|----------|------|-------------|-------------------|----------------|
-| GitHub Copilot | `--ai copilot` | `.github/agents/spec.*.agent.md` | `.github/skills/spec-*/SKILL.md` | ✅ |
-| Claude Code | `--ai claude-code` | `.claude/agents/spec.*.md` + `CLAUDE.md` | — (skills delivered as agents) | ✅ |
-| OpenAI Codex | `--ai codex` | `.codex/agents/spec.*.toml` (TOML subagents) + `AGENTS.md` | `.agents/skills/spec-*/SKILL.md` | ✅ |
-| Pi | `--ai pi` | — (agents delivered as skills) | `.pi/skills/spec-*/SKILL.md` | ✅ |
-| Generic | `--ai generic` | — | — | — |
-
-Providers use whichever native primitives they support: Copilot writes both agents and skills, Claude Code maps both source agents and source skills to its agent surface, Codex writes TOML subagents alongside native skill directories with a managed `AGENTS.md` at the repo root, and Pi expresses agents as native skills. The Generic provider emits raw markdown for copy-paste into any LLM. For providers not listed above (Cursor, Windsurf, Cline, Zed, etc.), use `--ai generic` and copy the markdown files into your tool's expected location.
-
-> **Codex notes:** Subagents follow the [Codex spec](https://developers.openai.com/codex/subagents) — required `name`, `description`, and `developer_instructions` fields in TOML. Skills follow the [Codex Skills spec](https://developers.openai.com/codex/skills) and live under `.agents/skills/` (Codex's documented project location, not `.codex/skills/`). The root [`AGENTS.md`](https://developers.openai.com/codex/guides/agents-md) is loaded automatically by Codex; spec-lite manages a `<!-- spec-lite:start -->` block inside it and preserves anything outside the markers. Reference-only items (help, orchestrator) are skipped because Codex has no matching primitive for them. Global install paths are `~/.codex/agents/`, `~/.agents/skills/`, and `~/.codex/AGENTS.md`.
-
-## Memory-First Architecture
-
-spec-lite uses a **memory-first** approach: cross-cutting concerns that every agent and skill needs — coding standards, architecture patterns, testing conventions, security guidelines, logging strategy — live in a single file: **`.spec-lite/memory.md`**.
-
-| Source | Purpose | Authority |
-|--------|---------|----------|
-| `.spec-lite/memory.md` | Cross-cutting standards & conventions | **Primary** — authoritative for all agents and skills |
-| `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` | Project-specific blueprint(s) & task breakdown | Overrides memory only with explicit justification |
-| User instruction | Ad-hoc guidance in chat | Highest priority (trumps both) |
-
-### Bootstrap Flow
-
-After running `spec-lite init`, bootstrap your memory in one step:
-
-```
-/spec.memorize bootstrap
+```bash
+spec-lite install --global
+spec-lite install --global --ai codex,claude-code,copilot,pi
+spec-lite install --global --ai codex --exclude yolo --force
 ```
 
-The memorize skill will:
-1. Read your project profile from `.spec-lite.json`
-2. Scan your repository structure, configs, and existing code
-3. Load one or more curated best-practice snippets for your stack(s) from `.spec-lite/stacks/`
-4. Optionally look up community standards via web search
-5. Synthesize everything into a comprehensive `memory.md`
-6. Present the draft for your confirmation before saving
-
-Once memory is bootstrapped, the **Planner** focuses on project-specific architecture and task breakdown — it no longer re-derives coding standards, testing conventions, or security guidelines.
-
-When you want a second pass before coding, run **`/spec.plan_critic`** against a generated plan to pressure-test feasibility, technical risk, product quality, and future adaptability. You can also include supporting context such as `.spec-lite/brainstorm.md` or one or more `.spec-lite/features/feature_<name>.md` files.
-
-## The Pipeline
-
-```
-help (anytime)
-
-                  ┌─ /spec.memorize bootstrap (one-time setup)
-                  ▼
-Brainstorm ─→ Planner ─→ Architect ─→ Feature (×N) ─→ Reviews ─→ Tests ─→ DevOps ─→ Docs
-                │              │           ├─ Code Review
-                │              │           ├─ Security Audit
-                ▼              ▼           └─ Performance Review
-            TODO.md     Data Modeller
-
-Optional manual checkpoint after planning: `/spec.plan_critic .spec-lite/plan.md`
-```
-
-All agents and skills read `.spec-lite/memory.md` first for standing instructions, then the relevant plan for project-specific context. Complex projects can have multiple named plans — one per domain (e.g., `plan_order_management.md`, `plan_catalog.md`). Not every project needs every agent. Start with the Planner if you already have requirements. Use `spec-lite list` or the spec_help reference to understand the pipeline.
-
-## Real-World Workflows
-
-Not every project follows the full pipeline. Here are the most common workflows, with the exact invocations for each.
-
-### Large Feature Development
-
-For substantial work that spans multiple features — a new module, a major refactor, or an epic with several user stories.
-
-```
-/spec.memorize bootstrap     ← one-time (if not already done)
-/spec.plan                   ← produces .spec-lite/plan.md with task breakdown
-/spec.plan_critic .spec-lite/plan.md  ← optional manual critique before feature work
-  ↓
-  ┌── for each feature in the plan ──┐
-  │  /spec.feature                    │  ← creates .spec-lite/features/feature_<name>.md
-  │  /spec.implement                  │  ← writes code, tests, and docs from the feature spec
-  │  /spec.review_code                │  ← review the implementation
-  │  (iterate if review has findings) │
-  └───────────────────────────────────┘
-/spec.review_security        ← once all features are in place
-/spec.write_readme           ← update project README
-```
-
-**Example:** You're building an e-commerce checkout system. Run `/spec.plan` with your requirements — it produces a plan breaking the work into features like *cart management*, *payment processing*, *order confirmation*, and *email notifications*. Before feature work starts, optionally run `/spec.plan_critic .spec-lite/plan.md` to pressure-test feasibility, sequencing, and product gaps. Then for each feature: `/spec.feature` to spec it out, `/spec.implement` to build it, and `/spec.review_code` to catch issues before moving on. After all features land, run `/spec.review_security` to threat-model the entire checkout flow.
-
-### Small / Single Feature
-
-For a contained piece of work — an API endpoint, a UI component, a new utility. No full plan needed.
-
-```
-/spec.plan_feature           ← produces .spec-lite/features/feature_<name>.md directly
-/spec.implement              ← writes code, tests, and docs
-/spec.review_code            ← review the implementation
-```
-
-**Example:** You need to add a "forgot password" flow. Run `/spec.plan_feature` describing the feature — it creates a single actionable feature spec in one shot, skipping the overhead of a full project plan. Then `/spec.implement` builds it and `/spec.review_code` validates the result.
-
-### Bug Fix
-
-For diagnosing and fixing a reported issue — includes root cause analysis and regression tests.
-
-```
-/spec.fix                    ← diagnoses root cause, applies fix, adds regression tests
-/spec.review_code            ← review the fix
-```
-
-**Example:** Users report that search results are duplicated when filters are applied. Run `/spec.fix` with the bug description — it traces the issue to a missing deduplication step in the query pipeline, applies the fix, and writes a regression test. Then `/spec.review_code` confirms the fix is correct and doesn't introduce side effects.
-
-### Greenfield Project
-
-Starting from scratch — from idea to deployed code.
-
-```
-/spec.brainstorm             ← refine the idea interactively
-/spec.memorize bootstrap     ← set up coding standards and conventions
-/spec.plan                   ← full technical blueprint
-/spec.plan_critic .spec-lite/plan.md  ← optional manual critique before implementation
-/spec.architect              ← infrastructure and database design
-/spec.build_data_model       ← data model from domain description
-  ↓
-  (feature loop — same as Large Feature Development above)
-  ↓
-/spec.devops                 ← Docker, CI/CD, deployment
-/spec.write_readme           ← project documentation
-```
-
-**Example:** You have a rough idea for a task management API. Start with `/spec.brainstorm` to clarify scope and requirements. Then `/spec.memorize bootstrap` to establish conventions, `/spec.plan` for the full blueprint, and optionally `/spec.plan_critic .spec-lite/plan.md` to catch feasibility or product issues early. Continue with `/spec.architect` for infrastructure decisions and `/spec.build_data_model` for the schema. Work through features one by one, then finish with `/spec.devops` for deployment and `/spec.write_readme` for documentation. You can write all ideas (even if it is incomplete) in a .idea file in the main directory and the brainstorm agent will read from it.
-
-### Exploring an Existing Codebase
-
-When you inherit or join a project and need to understand what's there.
-
-```
-/spec.explore                ← maps the codebase structure, patterns, and architecture
-/spec.memorize bootstrap     ← captures discovered conventions into memory
-```
-
-**Example:** You're onboarded to a large monorepo with multiple services. Run `/spec.explore` — it systematically walks the dependency graph, documents architecture patterns, data models, and inter-service communication, and produces structured exploration docs. Then `/spec.memorize bootstrap` distills those findings into standing instructions for all future agent and skill work.
-
-### Autonomous Mode (YOLO)
-
-For when you trust the pipeline and want it to run end-to-end with minimal intervention. Best for greenfield projects or well-scoped feature sets.
-
-```
-/spec.yolo                   ← runs the entire pipeline autonomously with checkpoints
-```
-
-The YOLO agent drives planning through implementation, reviews, and documentation — pausing at checkpoints for your approval before proceeding to the next phase.
-
-> [!TIP]
-> Once a plan is created, run `/spec.plan_critic .spec-lite/plan.md` or `/spec.plan_critic .spec-lite/plan_<name>.md` before implementation to pressure-test feasibility, technical risks, product improvements, and future enhancements.
-
-## Agents, Skills & References
-
-| Source | Name | Type | What It Does | Output |
-|--------|------|------|-------------|--------|
-| [references/help.md](references/help.md) | Spec Help | Reference | Navigator — explains which agent or skill to use and when | Interactive guidance |
-| [agents/brainstorm/](agents/brainstorm/AGENT.md) | Brainstorm | Agent | Back-and-forth ideation partner that refines vague ideas | `.spec-lite/brainstorm.md` |
-| [agents/plan/](agents/plan/AGENT.md) | Planner | Agent | Creates a detailed technical blueprint (living document) | `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` |
-| [skills/plan-critic/](skills/plan-critic/SKILL.md) | Plan Critic | Skill | Reviews plans for feasibility, technical risks, product improvements, and adaptability | `.spec-lite/reviews/plan_critique_<scope>.md` |
-| [skills/todo/](skills/todo/SKILL.md) | TODO | Skill | Adds backlog items to TODO.md under the right category | `.spec-lite/TODO.md` |
-| [agents/architect/](agents/architect/AGENT.md) | Architect | Agent | Designs cloud infrastructure, database strategy, and scaling architecture | `.spec-lite/architect_<name>.md` |
-| [skills/build-data-model/](skills/build-data-model/SKILL.md) | Data Modeller | Skill | Transforms domain descriptions into optimized relational data models | `.spec-lite/data_model.md` |
-| [skills/feature/](skills/feature/SKILL.md) | Feature | Skill | 3-phase lifecycle: explore → tasks → implement+test+docs | `.spec-lite/features/feature_<name>.md` |
-| [agents/plan-feature/](agents/plan-feature/AGENT.md) | Feature Planner | Agent | From idea to actionable feature spec in one shot — skips the full plan | `.spec-lite/features/feature_<name>.md` |
-| [skills/implement/](skills/implement/SKILL.md) | Implement | Skill | Takes a completed feature spec and writes production code, tests, and docs | Code + tests + docs |
-| [skills/review-code/](skills/review-code/SKILL.md) | Code Review | Skill | Reviews code for correctness, architecture, readability | `.spec-lite/reviews/code_review_<name>.md` |
-| [skills/review-security/](skills/review-security/SKILL.md) | Security Audit | Skill | Threat-models and scans for vulnerabilities | `.spec-lite/reviews/security_audit.md` |
-| [skills/review-performance/](skills/review-performance/SKILL.md) | Performance Review | Skill | Identifies bottlenecks and optimization opportunities | `.spec-lite/reviews/performance_review.md` |
-| [skills/write-integration-tests/](skills/write-integration-tests/SKILL.md) | Integration Tests | Skill | Writes traceable integration test scenarios from feature specs | `.spec-lite/features/integration_tests_<name>.md` |
-| [skills/write-unit-tests/](skills/write-unit-tests/SKILL.md) | Unit Tests | Skill | Generates comprehensive unit tests with edge-case coverage | `.spec-lite/features/unit_tests_<name>.md` |
-| [skills/devops/](skills/devops/SKILL.md) | DevOps | Skill | Sets up Docker, CI/CD, environments, and deployment | `.spec-lite/devops/` + infra files |
-| [skills/fix/](skills/fix/SKILL.md) | Fix | Skill | Debugs issues with root cause analysis + regression tests | `.spec-lite/reviews/fix_<issue>.md` |
-| [skills/write-readme/](skills/write-readme/SKILL.md) | README | Skill | Writes the project README | `README.md` |
-| [skills/memorize/](skills/memorize/SKILL.md) | Memorize | Skill | Manages `.spec-lite/memory.md` — standing instructions for all agents | `.spec-lite/memory.md` |
-| [agents/explore/](agents/explore/AGENT.md) | Explore | Agent | Systematically maps unfamiliar codebases (including monorepos) | `docs/explore/<project>.md` + `.spec-lite/memory.md` |
-| [skills/tool-help/](skills/tool-help/SKILL.md) | Tool Helper | Skill | Creates and edits project-specific bash tools in `.spec-lite/tools/` | `.spec-lite/tools/*.sh` |
-| [agents/yolo/](agents/yolo/AGENT.md) | YOLO | Agent | Autonomous end-to-end pipeline — runs all phases from plan to docs | All of the above |
-| [references/orchestrator.md](references/orchestrator.md) | — | Reference | Meta-document: pipeline, memory protocol, conflict resolution | Reference only |
-
-## Output Directory Structure
-
-spec-lite agents and skills produce artifacts in the `.spec-lite/` directory (version-controlled project metadata):
-
-```
-.spec-lite/
-├── memory.md                  # Cross-cutting standards — authoritative source
-├── brainstorm.md
-├── plan.md                    # Default plan (simple projects) — user-modifiable
-├── plan_<name>.md             # Named plans (complex projects, e.g., plan_order_management.md)
-├── reviews/
-│   ├── plan_critique_<scope>.md # Optional manual plan critiques
-│   ├── code_review_<name>.md
-│   ├── security_audit.md
-│   ├── performance_review.md
-│   └── fix_<issue>.md
-├── architect_<name>.md        # Cloud & infrastructure architecture
-├── data_model.md              # Relational data model
-├── TODO.md                    # Enhancement backlog — maintained by planner + feature + todo
-├── features/
-│   ├── feature_<name>.md
-│   ├── unit_tests_<name>.md
-│   └── integration_tests_<name>.md
-├── devops/
-│   └── ...                    # Infrastructure artifacts
-└── tools/
-    └── ...                    # Project-specific bash tools (created via /spec.tool_help)
-```
-
-Implementation artifacts (tests, docs, infra configs) are written to standard project directories.
-
-## Workflow & Conflict Resolution
-
-See [orchestrator.md](references/orchestrator.md) for the complete workflow documentation, including:
-
-- The full pipeline DAG
-- Memory protocol — which artifacts each agent and skill reads
-- Conflict resolution rules (user instruction > plan > agent/skill expertise)
-- Enhancement tracking via `.spec-lite/TODO.md`
-- Invocation patterns for different scenarios (new project, feature addition, bug fix)
-
-## CLI Commands
-
-### `spec-lite init`
-
-Initialize spec-lite prompts in your workspace.
-
-```
-Options:
-  --ai <provider>      AI provider(s): copilot, claude-code, codex, pi, generic (repeat --ai or pass comma-separated values)
-  --exclude <prompts>  Comma-separated prompts to skip (e.g., brainstorm,write_readme)
-  --skip-profile       Skip the interactive multi-stack project profile questionnaire
-  --force              Overwrite existing files without prompting
-```
-
-### `spec-lite install --global`
-
-Install prompts globally (user-level) for use across all workspaces.
-
-```
-Options:
-  --ai <provider>      AI provider(s): copilot, claude-code, codex, pi (repeat --ai or pass comma-separated values)
-  --exclude <prompts>  Comma-separated prompts to skip
-  --force              Overwrite existing global files without prompting
-```
-
-### `spec-lite update`
-
-Update prompts to the latest version. Reads `.spec-lite.json` to know your provider(s) and installed prompts. Preserves your Project Context edits.
-
-```
-Options:
-  --ai <provider>  Provider(s) to update; defaults to .spec-lite.json (repeat --ai or pass comma-separated values)
-  --force    Overwrite all files including user-modified ones
-```
-
-### `spec-lite list`
-
-List all available agents and skills with their type, purpose, and output artifacts.
+### List the catalog
 
 ```bash
 spec-lite list
 ```
 
----
+### Export portable prompts
 
-## Best Practices
+```bash
+spec-lite export plan feature implement review
+spec-lite export --all
+spec-lite export --all --no-references -o prompts.md
+spec-lite export review -o -
+```
 
-1. **Bootstrap memory first.** After `spec-lite init`, run `/spec.memorize bootstrap` before doing anything else. This gives every agent and skill your project's coding standards, architecture conventions, and testing preferences from the start.
+Without names or `--all`, Export opens the same grouped source picker used by Update. The output contains a grouped table of contents, initialized Project Context, inlined source-local references, rewritten cross-role links, and no YAML frontmatter.
 
-2. **Start with the Planner (or Feature Planner).** If you have clear requirements, go straight to `/spec.plan`. For a single contained feature, use `/spec.plan_feature` to skip the full plan and get an actionable spec in one shot.
+## Configuration
 
-3. **Use memory as your single source of truth.** Don't repeat conventions in every prompt invocation. Put them in `.spec-lite/memory.md` once and every agent and skill will pick them up.
+`.spec-lite.json` records the format/version, selected providers, installed sources, timestamps, optional project profile, and documentation settings:
 
-4. **Create project-specific tools.** Use `/spec.tool_help` to create bash scripts in `.spec-lite/tools/` that gather project context (build output, test results, lint status). Other agents and skills automatically discover and use these tools.
+```json
+{
+  "version": "0.2.0",
+  "format": "v2",
+  "provider": "codex",
+  "providers": ["codex", "claude-code"],
+  "installedPrompts": ["brainstorm", "plan", "feature", "implement", "review"],
+  "installedAt": "2026-08-15T12:00:00.000Z",
+  "updatedAt": "2026-08-15T12:00:00.000Z",
+  "documentation": {
+    "directory": "docs",
+    "level": "technical",
+    "updateWithDevelopment": true
+  }
+}
+```
 
-5. **Commit `.spec-lite/` to version control.** Plans, feature specs, reviews, and memory are living documents. Treat them like code — commit with meaningful messages, review changes, and track evolution.
+Update owns generated provider outputs and only the spec-lite marker blocks inside shared instruction files. Unrelated user content is retained.
 
-6. **Use YOLO mode sparingly.** YOLO is powerful but can consume a large number of AI requests. Best used for greenfield projects or well-scoped feature sets where you're comfortable with autonomous execution.
+## Development
 
-7. **Edit freely.** Plans, memory, and feature specs are your documents. Agents and skills respect your edits. The hierarchy is always: your direct instruction > plan > agent/skill defaults.
+```bash
+git clone https://github.com/abranjith/spec-lite.git
+cd spec-lite
+git switch development
+npm install
+npm run build
+npm run typecheck
+npm test
+```
 
-## Demos
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Rebuild on source changes. |
+| `npm run build` | Bundle the CLI and copy prompt/stack assets to `dist/`. |
+| `npm run typecheck` | Run strict TypeScript checking. |
+| `npm test` | Run the Vitest regression suite. |
 
-See [spec-lite-demo](https://github.com/abranjith/spec-lite-demo) for walkthroughs and example projects built with spec-lite.
+Repository layout:
 
----
+```text
+agents/       Strategic autonomous roles
+skills/       Reusable task workflows and local references/assets
+references/   Shared help and orchestration contracts
+src/          TypeScript CLI, providers, stack baselines, and utilities
+test/         Catalog, handoff, link, detection, upgrade, export, and stack tests
+```
 
-## Adapting & Contributing
+## Contributing
 
-spec-lite is designed to be forked and adapted:
+Issues and pull requests are welcome. **Open pull requests against the `development` branch, not `main`.**
 
-- **Bootstrap memory first** — run `/spec.memorize bootstrap` after init to populate `.spec-lite/memory.md` with your project's standards.
-- **Edit memory directly** — `.spec-lite/memory.md` is the standing-instruction file. Your edits persist across all agent and skill invocations.
-- **Add project-specific conventions** to the Project Context blocks or directly to memory.
-- **Remove agents or skills** you don't need.
-- **Add new agents or skills** following the same pattern — agents use `AGENT.md` with YAML frontmatter in `agents/<name>/`, skills use `SKILL.md` with YAML frontmatter in `skills/<name>/`. Both support `references/` and `assets/` subdirectories.
-- **Modify output paths** to match your project's directory structure.
-- **Edit the plan** — `.spec-lite/plan.md` (or `.spec-lite/plan_<name>.md` for named plans) is a living document. Your edits take priority over agent/skill defaults.
-- **Add stack snippets** — drop a `<language>.md` file into `src/stacks/` to add best-practice snippets for additional languages. If you add new language aliases, update `src/utils/stacks.ts` so init can map questionnaire answers to the canonical snippet filename.
+Before submitting a change:
 
-Contributions welcome — especially for new agent and skill types, improvements to existing definitions, and real-world usage feedback.
+1. Keep source catalog mappings, provider handoffs, relative Markdown links, canonical shared blocks, and Project Context markers synchronized.
+2. Add or update regression tests for CLI and provider behavior.
+3. Run `npm run build`, `npm run typecheck`, and `npm test`.
+4. Set the pull request base branch to `development`.
 
 ## License
 
-MIT. See [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).

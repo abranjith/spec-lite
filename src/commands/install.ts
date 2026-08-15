@@ -5,8 +5,9 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteGlobalConfig } from "../providers/base.js";
-import { loadAllSources, copyNativeSkillDir } from "../utils/prompts.js";
+import { copyNativeSkillDir, hasPromptName, loadAllSources } from "../utils/prompts.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
+import { getPackageVersion } from "../utils/package-version.js";
 
 interface InstallOptions {
   ai?: string | string[];
@@ -14,7 +15,6 @@ interface InstallOptions {
   exclude?: string;
   force?: boolean;
 }
-
 function dedupeValues(values: string[]): string[] {
   const seen = new Set<string>();
   const uniqueValues: string[] = [];
@@ -53,7 +53,6 @@ function getPlanCriticNote(providerAlias: string): string | undefined {
       return undefined;
   }
 }
-
 export async function installCommand(options: InstallOptions): Promise<void> {
   if (!options.global) {
     console.error(
@@ -203,7 +202,12 @@ export async function installCommand(options: InstallOptions): Promise<void> {
       }
 
       // --- Agent file (global) ---
-      if (paths.agent && provider.supportsAgents && provider.transformAgent) {
+      if (
+        paths.agent &&
+        provider.supportsAgents &&
+        provider.transformAgent &&
+        (!source.promptOnly || provider.alias === "copilot")
+      ) {
         const transformed = provider.transformAgent(source.content, meta);
         await fs.ensureDir(path.dirname(paths.agent));
         await fs.writeFile(paths.agent, transformed, "utf-8");
@@ -243,7 +247,7 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   }
 
   // 5. Write global config
-  const pkg = await loadPackageVersion();
+  const pkg = getPackageVersion();
   const globalConfig: SpecLiteGlobalConfig = {
     version: pkg,
     provider: providers[0].alias,
@@ -265,7 +269,7 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     }
   }
 
-  if (installedPrompts.includes("plan_critic")) {
+  if (hasPromptName(installedPrompts, "plan_critic")) {
     const planCriticNotes = dedupeValues(
       providers
         .map((provider) => getPlanCriticNote(provider.alias))
@@ -278,13 +282,3 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   }
 }
 
-async function loadPackageVersion(): Promise<string> {
-  try {
-    const { createRequire } = await import("module");
-    const require = createRequire(import.meta.url);
-    const pkg = require("../package.json");
-    return pkg.version;
-  } catch {
-    return "unknown";
-  }
-}

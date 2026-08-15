@@ -49,14 +49,14 @@ Features or infrastructure that must exist before this feature can be implemente
 
 - [ ] **Implementation**: {{what to code — files, logic, approach}}
 - [ ] **Unit Tests**: {{specific test cases to write}}
-- [ ] **Documentation Update**: {{what docs to update}}
+- [ ] **Documentation Update**: Invoke **Document** update mode for {{feature/area}}. {{Include only when `.spec-lite.json.documentation.updateWithDevelopment` is true.}}
 - **Verify**: {{how to verify this task is done}}
 
 ### TASK-{{number}}: {{description}}
 
 - [ ] **Implementation**: {{what to code}}
 - [ ] **Unit Tests**: {{test cases}}
-- [ ] **Documentation Update**: {{docs}}
+- [ ] **Documentation Update**: Invoke **Document** update mode for {{feature/area}}. {{Include only when configured.}}
 - **Verify**: {{verification}}
 - **Depends on**: TASK-{{number}}
 
@@ -66,7 +66,13 @@ Features or infrastructure that must exist before this feature can be implemente
 - **Error Handling**: {{strategy for this feature, per the plan}}
 - **Logging**: {{what gets logged and at what level, or "N/A"}}
 
-## 7. State Tracking
+## 7. Touched Files
+
+> Maintained by **Implement**. This becomes the authoritative deterministic review scope.
+
+- (none until implementation starts)
+
+## 8. State Tracking
 
 - [ ] TASK-001: {{description}}
 - [ ] TASK-002: {{description}}

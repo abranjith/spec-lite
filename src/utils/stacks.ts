@@ -11,14 +11,16 @@ const __dirname = path.dirname(__filename);
  * __dirname resolves to dist/ — stacks/ is copied to dist/stacks/ during build.
  */
 export function getStacksDir(): string {
-  return path.resolve(__dirname, "stacks");
+  const bundledDir = path.resolve(__dirname, "stacks");
+  if (fs.pathExistsSync(bundledDir)) return bundledDir;
+  return path.resolve(__dirname, "..", "stacks");
 }
 
 /**
  * Map of language names (lowercased) to their stack snippet filenames.
  * Supports common aliases so the questionnaire answer maps correctly.
  */
-const LANGUAGE_MAP: Record<string, string> = {
+export const LANGUAGE_MAP: Record<string, string> = {
   typescript: "typescript.md",
   ts: "typescript.md",
   javascript: "typescript.md",
@@ -44,6 +46,21 @@ const LANGUAGE_MAP: Record<string, string> = {
   rust: "rust.md",
   rs: "rust.md",
   "rust-lang": "rust.md",
+  kotlin: "kotlin.md",
+  android: "kotlin.md",
+  swift: "swift.md",
+  ios: "swift.md",
+  "c++": "cpp.md",
+  cpp: "cpp.md",
+  c: "cpp.md",
+  php: "php.md",
+  laravel: "php.md",
+  ruby: "ruby.md",
+  rails: "ruby.md",
+  vue: "vue.md",
+  "vue.js": "vue.md",
+  nuxt: "vue.md",
+  angular: "angular.md",
 };
 
 export interface StackSnippetInfo {

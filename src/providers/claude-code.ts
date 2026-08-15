@@ -2,7 +2,8 @@ import path from "path";
 import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-import { getAgentOutputName, getPromptOutputName, isPromptOnly } from "../utils/prompts.js";
+import { getAgentOutputName, getPromptOutputName, hasPromptName, isPromptOnly } from "../utils/prompts.js";
+import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
  * Claude Code (Anthropic) provider.
@@ -111,6 +112,14 @@ export class ClaudeCodeProvider implements Provider {
     return existing;
   }
 
+  async detectHarnessUsage(workspaceRoot: string) {
+    return detectHarnessMarkers(workspaceRoot, {
+      projectStrong: [".claude", "CLAUDE.md"],
+      userWeak: [".claude"],
+      commands: ["claude"],
+    });
+  }
+
   async getMemorySeedSource(
     workspaceRoot: string
   ): Promise<{ path: string; label: string } | null> {
@@ -168,6 +177,8 @@ export function generateClaudeRootMd(
     "",
     "The following specialist agents and skills are available:",
     "",
+    "Typical flow: brainstorm → plan → feature → implement → review → document. Memory supplies standing instructions across every role.",
+    "",
     "**Agent files** (`.claude/agents/`):",
     "",
   ];
@@ -197,7 +208,7 @@ export function generateClaudeRootMd(
     '```',
   );
 
-  if (installedPrompts.includes("plan_critic")) {
+  if (hasPromptName(installedPrompts, "plan_critic")) {
     lines.push(
       "",
       "Suggested manual checkpoint after planning:",
@@ -212,7 +223,7 @@ export function generateClaudeRootMd(
     "",
     "## Output Directory",
     "",
-    "Agent and skill outputs are written to the `.spec-lite/` directory:",
+    "Planning, feature, review, and memory outputs are written to `.spec-lite/`; project documentation uses the directory configured in `.spec-lite.json`:",
     "",
     "```text",
     ".spec-lite/",
@@ -220,6 +231,7 @@ export function generateClaudeRootMd(
     "├── plan.md                    # Default plan (simple projects)",
     "├── plan_<name>.md              # Named plans (complex projects)",
     "├── TODO.md",
+    "├── memory.md",
     "├── features/",
     "└── reviews/",
     "```",

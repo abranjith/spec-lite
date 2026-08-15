@@ -2,8 +2,9 @@ import path from "path";
 import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-import { getAgentOutputName, getPromptOutputName, isPromptOnly } from "../utils/prompts.js";
+import { getAgentOutputName, getPromptOutputName, hasPromptName, isPromptOnly } from "../utils/prompts.js";
 import { getSkillDirName } from "./copilot.js";
+import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
  * OpenAI Codex provider.
@@ -129,6 +130,15 @@ export class CodexProvider implements Provider {
     return existing;
   }
 
+  async detectHarnessUsage(workspaceRoot: string) {
+    return detectHarnessMarkers(workspaceRoot, {
+      projectStrong: [".codex"],
+      projectWeak: ["AGENTS.md"],
+      userWeak: [".codex"],
+      commands: ["codex"],
+    });
+  }
+
   async getMemorySeedSource(
     workspaceRoot: string
   ): Promise<{ path: string; label: string } | null> {
@@ -213,6 +223,8 @@ export function generateCodexAgentsBlock(
     "This project uses [spec-lite](https://github.com/abranjith/spec-lite) agent and skill prompts",
     "for structured software engineering workflows.",
     "",
+    "Typical flow: brainstorm → plan → feature → implement → review → document. Memory supplies standing instructions across every role.",
+    "",
   ];
 
   if (subagentNames.length > 0) {
@@ -250,7 +262,7 @@ export function generateCodexAgentsBlock(
     }
   }
 
-  if (installedPrompts.includes("plan_critic")) {
+  if (hasPromptName(installedPrompts, "plan_critic")) {
     lines.push(
       "",
       "Suggested manual checkpoint after planning:",
@@ -261,7 +273,7 @@ export function generateCodexAgentsBlock(
 
   lines.push(
     "",
-    "Outputs are written to `.spec-lite/` (plans, features, reviews, memory).",
+    "Planning outputs are written to `.spec-lite/`; documentation uses the directory configured in `.spec-lite.json`.",
     SPEC_LITE_MARKER_END
   );
 

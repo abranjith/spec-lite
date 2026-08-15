@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
 import { getPromptOutputName } from "../utils/prompts.js";
 import { getSkillDirName } from "./copilot.js";
+import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
  * Pi provider — prompts + native skills.
@@ -90,6 +91,14 @@ export class PiProvider implements Provider {
     }
 
     return existing;
+  }
+
+  async detectHarnessUsage(workspaceRoot: string) {
+    return detectHarnessMarkers(workspaceRoot, {
+      projectStrong: [".pi"],
+      userWeak: [".pi"],
+      commands: ["pi"],
+    });
   }
 
   async getMemorySeedSource(

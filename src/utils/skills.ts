@@ -9,7 +9,12 @@ const __dirname = path.dirname(__filename);
 
 /** Path to the bundled skills directory (shipped with the npm package) */
 export function getSkillsDir(): string {
-  return path.resolve(__dirname, "..", "skills");
+  const candidates = [
+    path.resolve(__dirname, "..", "skills"),
+    path.resolve(__dirname, "skills"),
+    path.resolve(__dirname, "..", "..", "skills"),
+  ];
+  return candidates.find((candidate) => fs.pathExistsSync(candidate)) ?? candidates[0];
 }
 
 /**

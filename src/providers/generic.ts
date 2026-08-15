@@ -49,6 +49,10 @@ export class GenericProvider implements Provider {
     return existing;
   }
 
+  async detectHarnessUsage(_workspaceRoot: string) {
+    return { detected: false, signals: [] };
+  }
+
   async getMemorySeedSource(
     _workspaceRoot: string
   ): Promise<{ path: string; label: string } | null> {

@@ -65,11 +65,11 @@ The skill is invoked after (or from within) a feature implementation workflow �
 
 - **Source file(s) under test** (mandatory) — Provided directly by the user.
 - **Existing test files** (recommended) — To match project conventions.
-- **`.spec-lite/memory.md`** (optional) — If it exists and the user is working inside a spec-lite project, check it for testing conventions.
+- **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
 
 ### Mode B (Feature Context)
 
-- **`.spec-lite/memory.md`** (if exists) — **The authoritative source** for testing conventions, coding standards, coverage requirements, and naming patterns.
+- **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
 - **`.spec-lite/features/feature_<name>.md`** (mandatory) — The feature spec defines which units to test. Test cases should map to FEAT-IDs and TASK-IDs. The task-level "Unit Tests" sub-items describe expected test cases — use those as a starting point and expand with additional edge cases and coverage.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — Architecture and design patterns help identify testable units and mocking boundaries. Contains plan-specific test requirements. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **Existing test files** (recommended) — Understand the project's existing test patterns, fixtures, helpers, and conventions before generating new tests.
@@ -88,16 +88,6 @@ Design and generate comprehensive unit tests that verify individual units of beh
 **Mode A (Standalone)**: Source file(s) specified by the user. Existing test files (recommended). `memory.md` (optional).
 
 **Mode B (Feature Context)**: Feature spec + plan + source code (all required). Existing test files + coverage reports (recommended). `memory.md` (optional).
-
----
-
-## Personality
-
-- **Thorough**: You don't just test the happy path — you hunt for edge cases, boundary conditions, error paths, and off-by-one errors. Every branch in the code should have a test exercising it.
-- **Pragmatic**: Not all code deserves unit tests. You know the difference between code with behavior worth testing and boilerplate that would only produce tautological tests. You skip what doesn't matter.
-- **Coverage-Aware**: You track coverage gaps and target them strategically. You aim for high *meaningful* coverage, not vanity metrics. Covering a getter that returns a field is noise — covering a validation function with 5 branches is signal.
-- **Isolation-Minded**: Unit tests test one thing. External dependencies (databases, APIs, file systems) are mocked or stubbed. If it can't run without infrastructure, it's not a unit test.
-- **Convention-Respecting**: You match the project's existing test style — naming, file structure, describe/it blocks, AAA pattern, fixtures — so your tests feel native to the codebase.
 
 ---
 
@@ -345,26 +335,6 @@ After classifying files:
 
 ---
 
-## What's Next? (End-of-Task Output)
+## What's Next?
 
-When you finish writing the unit test plan and tests, **always** end your final message with a "What's Next?" callout.
-
-**Suggest these based on context:**
-
-- **Always** → Code review for the feature (use the **Review Code** skill).
-- **If integration boundaries exist** → Generate integration tests (use the **Write Integration Tests** skill).
-- **If more features need unit tests** → Generate unit tests for the next feature.
-
-**Format your output like this:**
-
-> **What's next?** Unit tests are complete for `{{feature_name}}`. Here are your suggested next steps:
->
-> 1. **Code review**: *"Review the {{feature_name}} feature"*
-> 2. **Integration tests**: *"Generate integration tests for {{feature_name}}"*
-> 3. **Unit tests for next feature** _(if applicable)_: *"Generate unit tests for `.spec-lite/features/feature_{{next}}.md`"*
-
----
-
-See [example interactions](references/example-interactions.md) for usage patterns.
-
-**Start by reading the feature spec and source code. Classify every file as testable, excludable, or partially testable before writing a single test.**
+Follow the orchestrator format. Suggest consolidated **Review**, integration tests, or the next feature's unit tests based on remaining coverage.
