@@ -4,6 +4,7 @@ import { updateCommand } from "./commands/update.js";
 import { listCommand } from "./commands/list.js";
 import { installCommand } from "./commands/install.js";
 import { exportCommand } from "./commands/export.js";
+import { registerHookCommand } from "./commands/hook.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -85,5 +86,7 @@ program
   .option("-o, --output <file>", 'Output file (default: "spec-lite-prompts.md"; use "-" for stdout)')
   .option("--no-references", "Omit references when used with --all")
   .action(exportCommand);
+
+registerHookCommand(program);
 
 program.parse();

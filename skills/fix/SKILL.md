@@ -35,7 +35,7 @@ Before starting, you SHOULD read the following artifacts:
 
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (recommended) — Architecture and design patterns. Contains plan-specific decisions. Fixes should not violate architectural constraints. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
-- **`.spec-lite/features/feature_<name>.md`** (recommended) — If the bug relates to a specific feature, understand what the correct behavior should be.
+- **`.spec-lite/features/FEAT-###-<name>/spec.md`** (recommended) — If the bug relates to a specific feature, understand what the correct behavior should be.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features. Read this to understand what the feature is supposed to do. If your fix changes observable behavior, you will **update this file** — see step 5 (Document).
 - **`.spec-lite.json`** (if present) — Read documentation settings before step 5.
 - **Failing tests / error logs** (mandatory) — The actual error output. You need to see the symptom before diagnosing the cause.
@@ -52,7 +52,7 @@ Diagnose the root cause of a bug or failure, implement a targeted fix, and add a
 ## Inputs
 
 - **Required**: Error description (stack trace, failing test output, reproduction steps, or user-reported behavior).
-- **Recommended**: `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, relevant `.spec-lite/features/feature_<name>.md`.
+- **Recommended**: `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`, relevant `.spec-lite/features/FEAT-###-<name>/spec.md`.
 - **Optional**: Git blame/history for the affected code, related PRs or issues, production logs.
 
 ---
@@ -61,6 +61,7 @@ Diagnose the root cause of a bug or failure, implement a targeted fix, and add a
 
 ### 1. Reproduce & Understand
 
+- If the fix targets a tracked feature, run `spec-lite hook run fix.pre --feature FEAT-{{ID}}` (see [Hooks](#hooks)) to capture the pre-fix baseline; for an ad-hoc fix with no feature, omit `--feature` and changeset capture is skipped.
 - Read the error output. Understand the *symptom* before looking for the *cause*.
 - Identify the failing assertion, exception, or unexpected behavior.
 - If possible, reproduce the issue locally.
@@ -94,6 +95,8 @@ Follow the signal, not the noise:
 
 ### 5. Document
 
+Run `spec-lite hook run fix.post --feature FEAT-{{ID}} --payload summary="{{one-line description of the fix}}"` (see [Hooks](#hooks)) — when a feature was given, this captures the fix's changeset deterministically in that feature's `changeset.json`, the same way Implement does.
+
 Add a brief entry to `.spec-lite/TODO.md` or the relevant feature spec if the bug reveals a broader issue that should be tracked.
 
 **Update `.spec-lite/feature-summary.md`** if the fix changes **observable feature behavior** (e.g., altered validation rules, changed API response format, modified business logic, fixed a behavioral bug). If the fix is purely internal (refactor, performance tweak, test-only fix) with no user-visible change, skip this step.
@@ -104,7 +107,7 @@ If `.spec-lite.json.documentation.updateWithDevelopment` is `true` and the fix c
 
 ---
 
-## Output: Fix Report (inline or `.spec-lite/reviews/fix_<issue>.md`)
+## Output: Fix Report (`.spec-lite/reviews/fix_<issue>.md`)
 
 ### Output Template
 
@@ -166,10 +169,20 @@ If `.spec-lite.json.documentation.updateWithDevelopment` is `true` and the fix c
 
 If `.spec-lite/tools/` exists, list it, read each script's header comment, and run relevant tools to gather live context before and during work. Never modify those tools; use the **Tool Helper** skill for changes.
 
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
+
 ## Constraints
 
 - **Do NOT** fix more than what's broken. Scope discipline is non-negotiable.
 - **Do NOT** submit a fix without a regression test (unless the user explicitly says to skip it).
+- **Do NOT** leave the Fix Report unwritten. Always save it to `.spec-lite/reviews/fix_<issue>.md` — without a durable file, the fix is invisible to `review feature`, `review plan`, and `document update`.
 - **Do NOT** suppress errors or exceptions as a "fix". Address the root cause.
 - **Do** check if the same bug pattern exists elsewhere in the codebase. Note it as a follow-up, but don't fix it in the same change.
 - **Do** verify the fix actually resolves the original issue before declaring it done.

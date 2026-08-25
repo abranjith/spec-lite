@@ -66,11 +66,9 @@ Features or infrastructure that must exist before this feature can be implemente
 - **Error Handling**: {{strategy for this feature, per the plan}}
 - **Logging**: {{what gets logged and at what level, or "N/A"}}
 
-## 7. Touched Files
+## 7. Changeset
 
-> Maintained by **Implement**. This becomes the authoritative deterministic review scope.
-
-- (none until implementation starts)
+> Captured by hooks (`capture-baseline` / `capture-changeset`), not hand-maintained. See `.spec-lite/features/FEAT-{{number}}-{{snake_case_name}}/changeset.json` — the authoritative deterministic review scope. If that file is absent (a spec from before hooks existed), fall back to a manually maintained `## Touched Files` list here instead.
 
 ## 8. State Tracking
 

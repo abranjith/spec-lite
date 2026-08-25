@@ -66,6 +66,7 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 
 ### 1. Ingest & Clarify
 
+- Run `spec-lite hook run plan.pre` (see [Hooks](#hooks)) before starting.
 - Read the `.spec-lite/brainstorm.md` (if available) or listen to the user's description.
 - **Ask clarifying questions early and often.** If a requirement is vague, nail it down:
   - "Make it secure" → Ask: "What does secure mean here? Authentication? Encryption at rest? Role-based access? All of the above?"
@@ -99,13 +100,14 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 - Every section must be specific enough that an unfamiliar developer could implement it.
 - Allocate the first feature ID using [Deterministic Feature IDs](#deterministic-feature-ids), then assign consecutive IDs to the remaining rows before any feature subagents run. The Feature skill fills `Spec File`; only Implement changes `Status`.
 - **Before finalizing**, present the draft plan to the user for review. Ask: "Here's the complete plan. Review it and let me know if anything needs adjustment — I'll revise before we lock it in."
+- Once saved, run `spec-lite hook run plan.post --payload summary="{{one-line description of the plan}}"` (see [Hooks](#hooks)).
 
 ## Deterministic Feature IDs
 
 Use one global repository sequence in `FEAT-###` format (`FEAT-001` through `FEAT-999`). IDs are assigned once, never renumbered, and never reused; deleted features leave gaps.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan the `**ID**:` header field in **every** `.spec-lite/features/feature_*.md`.
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###`.
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 When first touching a legacy plan with ID-less rows, allocate consecutive IDs in current table-row order and persist them before other edits.
@@ -134,6 +136,15 @@ Use the [plan output template](assets/plan-output-template.md) for the full outp
 ## Project Tools
 
 If `.spec-lite/tools/` exists, list it, read each script's header comment, and run relevant tools to gather live context before and during work. Never modify those tools; use the **Tool Helper** skill for changes.
+
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

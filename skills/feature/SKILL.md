@@ -6,7 +6,7 @@ description: >
   documentation sub-items mapped to TASK-IDs. Supports Feature Mode (single
   feature spec) and Plan Mode (every missing spec in a plan, each generated in
   an isolated subagent for clean context). Produces feature specs at
-  .spec-lite/features/feature_<name>.md.
+  .spec-lite/features/FEAT-<ID>-<name>/spec.md.
 metadata:
   author: spec-lite
 ---
@@ -72,10 +72,10 @@ If `.spec-lite/data_model.md` does **not** exist, the plan provides a *conceptua
 
 ### Parent Plan Synchronization (Mandatory)
 
-When you create `.spec-lite/features/feature_<name>.md`, you MUST also update the parent plan file (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) in `## 2. High-Level Features`:
+When you create `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md`, you MUST also update the parent plan file (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`) in `## 2. High-Level Features`:
 
 1. Find the row for the selected FEAT-ID.
-2. Update the `Spec File` cell to point to the created feature spec path (for example: `` `features/feature_user_management.md` ``).
+2. Update the `Spec File` cell to point to the created feature spec path (for example: `` `features/FEAT-001-user_management/spec.md` ``).
 3. Do **not** modify the `Status` value (Status is owned by the Implement skill).
 4. If `Spec File` is empty, placeholder, incorrect, or missing, normalize it so it correctly points to the created feature file.
 
@@ -86,7 +86,7 @@ This update is required for every feature breakdown so the plan always maintains
 Copy the selected row's `FEAT-###` ID into the spec's `**ID**:` field; never invent a different ID when the plan row has one. IDs are assigned once, never renumbered, and never reused.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan the `**ID**:` header field in **every** `.spec-lite/features/feature_*.md`.
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###`. (A directory beats a content grep — the ID is in the path itself.)
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 If a legacy plan row has no ID, allocate the next ID by this rule, back-fill the row, then copy it to the spec. For multiple legacy rows, back-fill in current table-row order. In Plan Mode, compute/back-fill the whole queue before spawning any spec subagent so subagents only copy IDs.
@@ -101,6 +101,7 @@ Feature specification follows a **two-phase lifecycle**: Exploration and Task Cr
 
 Before writing any tasks, explore and understand the full scope:
 
+- Run `spec-lite hook run feature.pre` (see [Hooks](#hooks)) before exploring (Plan Mode fans this out once per subagent).
 - **Clear prior feature context**: If you have been working on a different feature in this conversation, reset your working context now. Do not carry forward any assumptions, models, or decisions from other features. Re-read the plan and memory fresh for this feature.
 - Read the relevant section of the plan (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`).
 - Read `.spec-lite/memory.md` for standing coding standards, architecture principles, testing conventions, and logging rules. Then read the plan for any plan-specific overrides. Adhere to both strictly.
@@ -160,8 +161,8 @@ Before spawning, apply the deterministic ID rule to every queued legacy row. The
 1. The absolute path to the plan file and the **specific FEAT-ID** to break down (only that one).
 2. An instruction to read this skill file (`<repo>/skills/feature/SKILL.md`) and follow its Feature Mode workflow end-to-end for that single feature.
 3. An instruction to read all relevant context files: `.spec-lite/memory.md`, `.spec-lite/data_model.md`, `.spec-lite/feature-summary.md`, and the plan file itself (each only if present).
-4. The mandatory deliverables: (a) create `.spec-lite/features/feature_<name>.md`, (b) update the parent plan's `Spec File` cell for this FEAT-ID to point to the created file, and (c) do NOT touch the plan's `Status` column.
-5. A request to return a **brief one-line summary** of what was created (e.g., `"FEAT-002 spec created at .spec-lite/features/feature_order_processing.md (8 tasks)"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
+4. The mandatory deliverables: (a) create `.spec-lite/features/FEAT-<ID>-<name>/spec.md` and run `spec-lite hook run feature.spec.post --feature FEAT-<ID>`, (b) update the parent plan's `Spec File` cell for this FEAT-ID to point to the created file, and (c) do NOT touch the plan's `Status` column.
+5. A request to return a **brief one-line summary** of what was created (e.g., `"FEAT-002 spec created at .spec-lite/features/FEAT-002-order_processing/spec.md (8 tasks)"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
 
 **Do not run multiple feature subagents in parallel** — feature specs must be created sequentially so that the parent plan's `Spec File` column is updated cleanly without merge conflicts on the plan file.
 
@@ -170,10 +171,11 @@ Before spawning, apply the deterministic ID rule to every queued legacy row. The
 After all subagents have returned:
 
 - For each FEAT-ID in the queue, verify the expected feature spec file exists on disk and the parent plan row has been updated.
+- Run `spec-lite hook run feature.post --payload summary="{{n}}/{{total}} features generated"` (see [Hooks](#hooks)) once, for the whole batch.
 - Print a **concise one-line-per-feature** summary, e.g.:
   ```
-  ✅ FEAT-002 → features/feature_order_processing.md
-  ✅ FEAT-003 → features/feature_inventory.md
+  ✅ FEAT-002 → features/FEAT-002-order_processing/spec.md
+  ✅ FEAT-003 → features/FEAT-003-inventory/spec.md
   ❌ FEAT-005 → not created (subagent reported: <reason>)
 
   4/5 features generated successfully.
@@ -195,7 +197,7 @@ After all subagents have returned:
 
 Once the feature spec is complete, the user should use the **Implement** skill to execute the tasks:
 
-> "Implement `.spec-lite/features/feature_<name>.md`"
+> "Implement `.spec-lite/features/FEAT-<ID>-<name>/spec.md`"
 
 The Implement skill will read this spec and work through each task in order — writing code, unit tests, and documentation updates, then marking progress in the State Tracking section. **Do not start coding in this skill** — your job is the spec.
 
@@ -203,7 +205,7 @@ The Implement skill will read this spec and work through each task in order — 
 
 After implementation is complete, the user can use the **Write Unit Tests** skill for deeper test coverage:
 
-> "Generate unit tests for `.spec-lite/features/feature_<name>.md`"
+> "Generate unit tests for `.spec-lite/features/FEAT-<ID>-<name>/spec.md`"
 
 The Write Unit Tests skill reads the feature spec and the implemented source code, then produces a comprehensive unit test plan — expanding beyond the basic test cases in each task to cover additional edge cases, boundary conditions, and error paths. It also classifies files as testable vs. excludable (anemic DTOs, config, generated code) and updates the project's coverage configuration accordingly.
 
@@ -233,13 +235,15 @@ If this feature interacts with cross-cutting concerns (auth, logging, error hand
 
 Do not expand the current scope. Append out-of-scope improvements to `.spec-lite/TODO.md` as `- [ ] <description> (discovered during: <context>)`, then notify the user.
 
-## Output: `.spec-lite/features/feature_<name>.md`
+## Output: `.spec-lite/features/FEAT-<ID>-<name>/spec.md`
 
-Your output is a markdown file at `.spec-lite/features/feature_<name>.md` (e.g., `.spec-lite/features/feature_user_management.md`).
+Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` (e.g., `.spec-lite/features/FEAT-001-user_management/spec.md`).
+
+Once the spec file exists, run `spec-lite hook run feature.spec.post --feature FEAT-{{ID}}` (see [Hooks](#hooks)) — this fires once per spec written, including once per Plan Mode subagent. In Feature Mode (a single spec), also run `spec-lite hook run feature.post --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` once the plan sync below is complete.
 
 Before finishing, also save the parent plan update described above so both artifacts are synchronized:
 
-- Feature spec file exists at `.spec-lite/features/feature_<name>.md`.
+- Feature spec file exists at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md`.
 - Parent plan `## 2. High-Level Features` row for this FEAT-ID has the correct `Spec File` link.
 
 Use [feature spec template](assets/feature-spec-template.md) for structuring the output.
@@ -254,6 +258,14 @@ Use [feature spec template](assets/feature-spec-template.md) for structuring the
 - See the [orchestrator](../../references/orchestrator.md) reference for global conflict resolution rules.
 
 ---
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

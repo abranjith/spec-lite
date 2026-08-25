@@ -617,6 +617,20 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.green(`  ✓ .spec-lite/TODO.md`));
   }
 
+  // 8c. Create an empty .spec-lite/hooks.json starter (project-owned; never overwritten)
+  const hooksJsonPath = path.join(cwd, ".spec-lite", "hooks.json");
+  if (!(await fs.pathExists(hooksJsonPath))) {
+    await fs.writeJson(hooksJsonPath, { version: 1, hooks: [] }, { spaces: 2 });
+    console.log(chalk.green(`  ✓ .spec-lite/hooks.json`));
+    console.log(
+      chalk.dim(
+        "     ↳ Builtins (capture-baseline, capture-changeset) are already registered. " +
+        "Run `spec-lite hook events` for the catalog, `spec-lite hook vars` for ${...} " +
+        "interpolation, and `spec-lite hook validate` before committing your own."
+      )
+    );
+  }
+
   // 9. Copy bundled stack snippets to .spec-lite/stacks/ (if profile was collected)
   if (projectProfile) {
     const stacksTargetDir = path.join(cwd, ".spec-lite", "stacks");

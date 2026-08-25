@@ -161,6 +161,19 @@ export interface SpecLiteConfig {
   updatedAt: string;
   projectProfile?: ProjectProfile;
   documentation: DocumentationSettings;
+  /**
+   * Repository-wide hook kill switch. Absent means enabled — hooks are opt-out
+   * per entry via `.spec-lite/hooks.json`, and this exists for the case where
+   * a whole clone (CI, a fork, a bisect run) needs every hook silenced without
+   * editing the registry.
+   */
+  hooks?: HookSettings;
+}
+
+/** Repository-wide hook settings stored in `.spec-lite.json`. */
+export interface HookSettings {
+  /** When false, `spec-lite hook run` dispatches nothing and exits 0. */
+  enabled: boolean;
 }
 
 /**

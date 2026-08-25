@@ -41,20 +41,21 @@ Accept exactly one scope form; otherwise reject with these valid forms:
 | Invocation | Files reviewed | Rejection rule |
 |---|---|---|
 | `review files <paths/globs>` | Exactly the existing named or matched files | Reject if no files exist or match |
-| `review feature <name>` | The feature spec's `## Touched Files` entries | Reject unless every State Tracking task is complete; reject if the list is absent/empty |
-| `review plan [<plan-file>]` | Union of Touched Files for rows whose Status is `[x] Complete` | Reject if no feature is complete; list and skip incomplete features |
+| `review feature <name>` | The feature's `changeset.json` file entries (`.spec-lite/features/FEAT-###-<name>/changeset.json`); fall back to the spec's `## Touched Files` list only when no `changeset.json` exists (a spec migrated from before hooks) | Reject unless every State Tracking task is complete; reject if both are absent/empty |
+| `review plan [<plan-file>]` | Union of each `[x] Complete` feature's `changeset.json` (or Touched Files fallback) | Reject if no feature is complete; list and skip incomplete features |
 
-Normalize and deduplicate resolved paths, exclude generated output, dependencies, lockfiles, and migrations unless the user explicitly includes them, and list the final scope before analysis. Never infer files from git history or naming when a feature/plan scope is requested; Touched Files is authoritative.
+Normalize and deduplicate resolved paths, exclude generated output, dependencies, lockfiles, and migrations unless the user explicitly includes them, and list the final scope before analysis. **Never infer files from raw git history or naming** when a feature/plan scope is requested — `changeset.json` (or its Touched Files fallback) is authoritative. A `changeset.json` diff is not "git history": it is a diff anchored to the baseline `implement.pre`/`fix.pre` captured before this run's edits began, scoped to exactly this run's work — not a survey of the repository's past.
 
 ## Process
 
 ### 1. Establish Context
 
 1. Resolve exactly one scope and confirm every path exists.
-2. Read memory, the governing plan, relevant feature specs, data model, and prior report when re-reviewing.
-3. Read scoped source and adjacent tests/config only where necessary to understand behavior.
-4. If `.spec-lite/tools/` exists, follow [Project Tools](#project-tools).
-5. Run available static checks and tests that are safe and relevant. Record commands, results, and tool limitations.
+2. Run `spec-lite hook run review.pre` (see [Hooks](#hooks)) — after scope is resolved, before analysis begins.
+3. Read memory, the governing plan, relevant feature specs, data model, and prior report when re-reviewing.
+4. Read scoped source and adjacent tests/config only where necessary to understand behavior.
+5. If `.spec-lite/tools/` exists, follow [Project Tools](#project-tools).
+6. Run available static checks and tests that are safe and relevant. Record commands, results, and tool limitations.
 
 ### 2. Review Every Dimension
 
@@ -90,6 +91,7 @@ Avoid speculative findings. Record uncertainty and missing evidence explicitly. 
 - **Request changes** when any Critical or High finding exists.
 - **Approve with suggestions** when findings are only Medium/Low.
 - **Approve** when no actionable findings exist.
+- After writing the report, run `spec-lite hook run review.post --payload summary="{{one-line verdict and finding counts}}"` (see [Hooks](#hooks)), then `spec-lite hook run review.verdict --payload verdict="{{verdict}}" --payload summary="{{one-line summary}}"` — `review.verdict` is the routing signal Critical/High findings use to reach **Fix**.
 
 ## Output
 
@@ -176,6 +178,15 @@ Write `.spec-lite/reviews/review_<scope>.md`, where `<scope>` is a stable snake_
 ## Project Tools
 
 If `.spec-lite/tools/` exists, list it, read each script's header comment, and run relevant tools to gather live context before and during work. Never modify those tools; use the **Tool Helper** skill for changes.
+
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

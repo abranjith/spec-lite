@@ -76,6 +76,8 @@ Take a user's idea, requirement, or enhancement request and — through interact
 
 ### 1. Clarify & Scope
 
+Run `spec-lite hook run plan-feature.pre` (see [Hooks](#hooks)) before starting.
+
 This is the **Planner-like** phase — interactive, iterative, and thorough.
 
 - Listen to the user's idea or requirement.
@@ -116,7 +118,7 @@ Once requirements are confirmed:
 Use `FEAT-###`; IDs are assigned once, never renumbered, and never reused.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan the `**ID**:` header field in **every** `.spec-lite/features/feature_*.md`.
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###`.
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 When first touching a legacy ID-less plan, back-fill its rows in current table order before allocating the standalone feature ID.
@@ -139,8 +141,9 @@ Define tasks with TASK-IDs. A "vertical slice" is a thin, end-to-end implementat
 ### 4. Finalize
 
 - **Present the draft spec** to the user for review before saving. Ask: "Here's the complete spec. Review it and let me know if anything needs adjustment."
-- Save the final spec to `.spec-lite/features/feature_<name>.md`.
+- Save the final spec to `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` (see the Output template below).
 - If you discovered potential enhancements that are out of scope, append them to `.spec-lite/TODO.md`.
+- Run `spec-lite hook run plan-feature.post --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` (see [Hooks](#hooks)).
 
 ---
 
@@ -148,9 +151,9 @@ Define tasks with TASK-IDs. A "vertical slice" is a thin, end-to-end implementat
 
 Do not expand the current scope. Append out-of-scope improvements to `.spec-lite/TODO.md` as `- [ ] <description> (discovered during: <context>)`, then notify the user.
 
-## Output: `.spec-lite/features/feature_<name>.md`
+## Output: `.spec-lite/features/FEAT-<ID>-<name>/spec.md`
 
-Your output is a markdown file at `.spec-lite/features/feature_<name>.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling.
+Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --feature FEAT-{{ID}}` (see [Hooks](#hooks)).
 
 ### Output Template
 
@@ -234,11 +237,9 @@ Features, infrastructure, or libraries that must exist before this feature can b
 - **Error Handling**: {{strategy for this feature}}
 - **Logging**: {{what gets logged and at what level, or "N/A"}}
 
-## 8. Touched Files
+## 8. Changeset
 
-> Maintained by **Implement**. This becomes the authoritative deterministic review scope.
-
-- (none until implementation starts)
+> Captured by hooks (`capture-baseline` / `capture-changeset`), not hand-maintained. See `.spec-lite/features/FEAT-{{number}}-{{snake_case_name}}/changeset.json` — the authoritative deterministic review scope. If that file is absent (a spec from before hooks existed), fall back to a manually maintained `## Touched Files` list here instead.
 
 ## 9. State Tracking
 
@@ -264,6 +265,15 @@ Legend: [ ] Not started | [/] In progress | [x] Completed
 ## Project Tools
 
 If `.spec-lite/tools/` exists, list it, read each script's header comment, and run relevant tools to gather live context before and during work. Never modify those tools; use the **Tool Helper** skill for changes.
+
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

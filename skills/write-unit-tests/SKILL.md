@@ -49,7 +49,7 @@ The user invokes the skill directly against one or more source files — no feat
 
 The skill is invoked after (or from within) a feature implementation workflow — a feature spec and plan already exist.
 
-> *Example*: "Generate unit tests for `.spec-lite/features/feature_user_management.md`"
+> *Example*: "Generate unit tests for `.spec-lite/features/FEAT-001-user_management/spec.md`"
 
 - **Read**: Feature spec, plan, source code, existing test files, and `memory.md`.
 - **Map tests to TASK-IDs** so coverage can be traced back to requirements.
@@ -70,7 +70,7 @@ The skill is invoked after (or from within) a feature implementation workflow �
 ### Mode B (Feature Context)
 
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
-- **`.spec-lite/features/feature_<name>.md`** (mandatory) — The feature spec defines which units to test. Test cases should map to FEAT-IDs and TASK-IDs. The task-level "Unit Tests" sub-items describe expected test cases — use those as a starting point and expand with additional edge cases and coverage.
+- **`.spec-lite/features/FEAT-###-<name>/spec.md`** (mandatory) — The feature spec defines which units to test. Test cases should map to FEAT-IDs and TASK-IDs. The task-level "Unit Tests" sub-items describe expected test cases — use those as a starting point and expand with additional edge cases and coverage.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — Architecture and design patterns help identify testable units and mocking boundaries. Contains plan-specific test requirements. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **Existing test files** (recommended) — Understand the project's existing test patterns, fixtures, helpers, and conventions before generating new tests.
 - **Source code under test** (mandatory) — Read the implementation files listed in the feature spec.

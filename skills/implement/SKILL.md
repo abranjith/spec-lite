@@ -32,7 +32,7 @@ You are a disciplined Implementation Engineer who takes a completed feature spec
 
 Before starting, you MUST read the following artifacts:
 
-- **Feature spec file** (mandatory) — The `.spec-lite/features/feature_<name>.md` file the user asks you to implement. This contains the task breakdown, data model, verification criteria, and dependencies. **The user must tell you which feature spec to implement** (e.g., "implement `.spec-lite/features/feature_user_management.md`" or "implement the user management feature").
+- **Feature spec file** (mandatory) — The `.spec-lite/features/FEAT-###-<name>/spec.md` file the user asks you to implement. This contains the task breakdown, data model, verification criteria, and dependencies. **The user must tell you which feature spec to implement** (e.g., "implement `.spec-lite/features/FEAT-001-user_management/spec.md`" or "implement the user management feature").
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
 - **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory's standing rules. All implementation must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model produced by the Data Modeller skill. Contains table definitions, column types, constraints, indexes, and relationships. Use this as the definitive schema reference when writing migrations, models, and data-access code.
@@ -51,20 +51,20 @@ If the feature spec file is missing, inform the user and ask them to run the **F
 
 ## Objective
 
-Take a completed feature spec (`.spec-lite/features/feature_<name>.md`) and execute its implementation tasks — writing code, tests, and documentation — in the order defined by the spec. You are the execution engine: the spec tells you *what* to build, and you build it.
+Take a completed feature spec (`.spec-lite/features/FEAT-###-<name>/spec.md`) and execute its implementation tasks — writing code, tests, and documentation — in the order defined by the spec. You are the execution engine: the spec tells you *what* to build, and you build it.
 
 **You do NOT re-spec.** The feature agent already defined the tasks, data model, and verification criteria. Your job is to translate those into working code. If the spec is ambiguous or seems wrong, flag it — don't silently reinterpret.
 
 ## Inputs
 
 **Feature Mode** (default — implement a single feature spec):
-- **Primary**: A `.spec-lite/features/feature_<name>.md` file — the feature spec with implementation tasks.
+- **Primary**: A `.spec-lite/features/FEAT-###-<name>/spec.md` file — the feature spec with implementation tasks.
 - **Required**: `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` — plan-specific decisions and overrides.
 - **Optional**: `.spec-lite/memory.md` (standing rules), existing codebase.
 
 **Plan Mode** (implement all incomplete features from a plan):
 - **Primary**: `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` — the agent reads the feature list and iterates through every incomplete feature sequentially.
-- **Required**: The corresponding `.spec-lite/features/feature_<name>.md` spec for each feature (must already exist). If a spec is missing, pause and notify the user before continuing.
+- **Required**: The corresponding `.spec-lite/features/FEAT-###-<name>/spec.md` spec for each feature (must already exist). If a spec is missing, pause and notify the user before continuing.
 - **Optional**: `.spec-lite/memory.md` (standing rules).
 
 **Review Mode** (implement remediations from a consolidated review report):
@@ -87,10 +87,11 @@ Before writing any code:
 - Identify the task execution order based on the `Depends on` declarations in the spec. If no dependencies are declared, follow the spec's task order.
 - Mark the feature as `[/] In progress` in the governing plan file (`.spec-lite/plan.md` or the named plan) — update the `Status` column in `## 2. High-Level Features`.
 - Mark all tasks as `[ ] Not started` in the feature spec's **State Tracking** section (if not already). This confirms the starting baseline.
+- Run `spec-lite hook run implement.pre --feature FEAT-{{ID}}` (see [Hooks](#hooks)) to capture the pre-implementation baseline.
 
 ### 2. Execute Tasks
 
-For each task in the feature spec, follow this sequence:
+For each task in the feature spec, first run `spec-lite hook run implement.task.pre --feature FEAT-{{ID}} --task TASK-{{n}}` (see [Hooks](#hooks)), then follow this sequence:
 
 #### a. Implementation
 
@@ -98,7 +99,6 @@ For each task in the feature spec, follow this sequence:
 - Follow memory's coding standards and the plan's conventions: naming conventions, error handling, immutability preferences, etc.
 - If the task involves data model changes (from the spec's Data Model section), implement them exactly as specified — entities, attributes, types, constraints, indexes, relationships.
 - If the task references cross-cutting concerns (auth, logging, error handling), implement them per the spec's Cross-Cutting Concerns section.
-- Maintain the feature spec's `## Touched Files` list as implementation proceeds. Record every created, modified, or deleted production, test, configuration, and documentation path once, repository-relative; do not include generated build output or dependencies.
 
 #### b. Unit Tests
 
@@ -118,6 +118,7 @@ For each task in the feature spec, follow this sequence:
 
 - Run the verification step defined in the task's **Verify** line.
 - Update the feature spec's **State Tracking** section: change `[ ]` to `[x]` for the completed task.
+- Run `spec-lite hook run implement.task.post --feature FEAT-{{ID}} --task TASK-{{n}} --payload summary="{{one-line description of what changed}}"` (see [Hooks](#hooks)).
 - Move to the next task.
 
 ### 3. Finalize
@@ -126,7 +127,7 @@ After all tasks are complete:
 
 - Run the full test suite to verify nothing is broken.
 - Update the feature spec's State Tracking section — all tasks should be `[x]`.
-- Verify the feature spec's `## Touched Files` list is complete and deduplicated; this list is the authoritative scope for future feature and plan reviews.
+- Run `spec-lite hook run implement.post --feature FEAT-{{ID}} --payload summary="{{one-line description of what was implemented}}"` (see [Hooks](#hooks)). This captures the complete changeset deterministically in `changeset.json` — the authoritative scope for future feature and plan reviews. Do not hand-maintain a Touched Files list.
 - Update the governing plan file (`.spec-lite/plan.md` or the named plan): mark this feature's status as `[x] Complete`.
 - **Update `.spec-lite/feature-summary.md`** — Add or update the entry for this feature under the appropriate category. See [Feature Summary Maintenance](#feature-summary-maintenance) for format and rules.
 - Apply [Documentation Maintenance](#documentation-maintenance) for the implemented feature.
@@ -191,14 +192,14 @@ For each FEAT-ID in the queue, **in order**, spawn a subagent using the Agent to
 1. The absolute path to the **feature spec file** for this single FEAT-ID, plus the absolute path to the plan file.
 2. An instruction to read this skill file (`<repo>/skills/implement/SKILL.md`) and follow its **Feature Mode Process** end-to-end (Prepare → Execute Tasks → Finalize) for that single spec.
 3. An instruction to read all relevant context files before starting: `.spec-lite/memory.md`, `.spec-lite/plan.md` (or the named plan), `.spec-lite/data_model.md`, `.spec-lite/feature-summary.md` (each only if present).
-4. The mandatory deliverables: (a) implement every task in the feature spec with code + comprehensive unit tests + code-level docs, (b) run the test suite and verify passing, (c) update State Tracking and Touched Files, (d) update the parent plan's `Status` cell for this FEAT-ID from `[/]` to `[x]`, (e) update `.spec-lite/feature-summary.md`, and (f) invoke `document update` when configured.
+4. The mandatory deliverables: (a) implement every task in the feature spec with code + comprehensive unit tests + code-level docs, (b) run the test suite and verify passing, (c) update State Tracking (changeset capture happens automatically through the Hooks run during the subagent's own Feature Mode Process), (d) update the parent plan's `Status` cell for this FEAT-ID from `[/]` to `[x]`, (e) update `.spec-lite/feature-summary.md`, and (f) invoke `document update` when configured.
 5. A request to return a **brief one-line summary** of the result (e.g., `"FEAT-002 implemented: 8 tasks complete, 24 tests passing"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
 
 **Before spawning each subagent**, mark the feature's status in the plan from `[ ]` to `[/]` so it shows as in-progress. (The subagent flips it to `[x]` on success.)
 
 **Do not run multiple feature subagents in parallel** — sequential only. Features may share files and the test suite, and the plan-status writes must be serialized.
 
-After each subagent returns, briefly announce to the user: *"FEAT-{{ID}} done — {{one-line summary from subagent}}. Moving to FEAT-{{next-ID}}..."* If the subagent reports failure, pause and ask the user whether to retry, skip, or abort before continuing.
+After each subagent returns, run `spec-lite hook run implement.feature.post --feature FEAT-{{ID}} --payload summary="{{one-line summary from subagent}}"` (see [Hooks](#hooks)), then briefly announce to the user: *"FEAT-{{ID}} done — {{one-line summary from subagent}}. Moving to FEAT-{{next-ID}}..."* If the subagent reports failure, pause and ask the user whether to retry, skip, or abort before continuing.
 
 ### 3. Plan Finalize
 
@@ -248,7 +249,7 @@ See [feature summary template](assets/feature-summary-template.md) for the full 
 
 ## Documentation Maintenance
 
-Read `.spec-lite.json.documentation` at task end. If `updateWithDevelopment` is `true`, invoke the **Document** skill in update mode with the feature ID/name and complete Touched Files; Document decides which configured writers are affected. If `false` or config is absent, do not edit human-facing docs ad hoc—suggest `document update <feature/scope>` in What's Next. `.spec-lite/feature-summary.md` remains the AI-facing current-state summary.
+Read `.spec-lite.json.documentation` at task end. If `updateWithDevelopment` is `true`, invoke the **Document** skill in update mode with the feature ID/name and the captured changeset (`changeset.json`); Document decides which configured writers are affected. If `false` or config is absent, do not edit human-facing docs ad hoc—suggest `document update <feature/scope>` in What's Next. `.spec-lite/feature-summary.md` remains the AI-facing current-state summary.
 
 ---
 
@@ -264,6 +265,15 @@ Read `.spec-lite.json.documentation` at task end. If `updateWithDevelopment` is 
 ## Project Tools
 
 If `.spec-lite/tools/` exists, list it, read each script's header comment, and run relevant tools to gather live context before and during work. Never modify those tools; use the **Tool Helper** skill for changes.
+
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

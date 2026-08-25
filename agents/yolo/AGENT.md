@@ -86,7 +86,7 @@ For each plan row in order, using a fresh isolated context:
 
 1. Announce `plan`, `FEAT-###`, feature name, and progress `N/M`.
 2. If the referenced spec is missing, delegate exactly that row to Feature. Verify the spec copies the plan ID and the plan's Spec File cell is updated without changing Status.
-3. Delegate the spec to Implement Feature Mode. Verify code, comprehensive unit tests, code-level docs, task State Tracking, Touched Files, plan Status, feature summary, and configured document-update behavior.
+3. Delegate the spec to Implement Feature Mode. Verify code, comprehensive unit tests, code-level docs, task State Tracking, the captured `changeset.json`, plan Status, feature summary, and configured document-update behavior.
 4. Run the relevant tests and record counts/results.
 5. Checkpoint: continue automatically unless the user requested per-feature confirmation; always honor a pause request before starting the next row.
 
@@ -94,7 +94,7 @@ If a specialist reports failure, use the Stuck Protocol. Never mark a cell compl
 
 ### Phase 3 — Consolidated Review (Optional)
 
-If disabled, mark Review N/A and continue. Otherwise delegate `review plan <plan-file>` after all features in that plan are complete. Review deterministically unions Touched Files and writes `.spec-lite/reviews/review_<plan_name>.md` across code, testing, security, and performance. Record the verdict and findings.
+If disabled, mark Review N/A and continue. Otherwise delegate `review plan <plan-file>` after all features in that plan are complete. Review deterministically unions each feature's `changeset.json` (or Touched Files fallback) and writes `.spec-lite/reviews/review_<plan_name>.md` across code, testing, security, and performance. Record the verdict and findings.
 
 ### Phase 4 — Critical/High Fix Loop
 

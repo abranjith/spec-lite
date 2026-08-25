@@ -18,6 +18,7 @@ import { getStackSnippetInfo } from "../utils/stacks.js";
 import { resolveStaleOutputPaths } from "../utils/stale-sources.js";
 import { buildGroupedSourceChoices } from "../utils/source-selection.js";
 import { getPackageVersion } from "../utils/package-version.js";
+import { planFeatureMigration, runFeatureMigration } from "../utils/feature-migration.js";
 
 interface UpdateOptions {
   ai?: string | string[];
@@ -252,6 +253,40 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
         await fs.remove(absolutePath);
         console.log(chalk.green(`  ✓ ${relativePath} (removed obsolete output)`));
       }
+    }
+  }
+
+  // 2b. Migrate flat feature_<name>.md files to FEAT-###-<name>/spec.md so
+  // hooks (capture-baseline/capture-changeset) have a directory to write
+  // changeset.json and hooks.log.jsonl into.
+  const plannedMoves = await planFeatureMigration(cwd);
+  if (plannedMoves.length > 0) {
+    console.log(chalk.yellow(`\n  Feature spec layout has changed (${plannedMoves.length} to migrate):`));
+    for (const move of plannedMoves) {
+      console.log(chalk.yellow(`    ${move.from}  →  ${move.to}`));
+    }
+    console.log(chalk.dim("  Plan `Spec File` cells and feature-summary.md links will be rewritten to match."));
+
+    let runMigration = !!options.force;
+    if (!options.force) {
+      const answer = await inquirer.prompt<{ runMigration: boolean }>([
+        {
+          type: "confirm",
+          name: "runMigration",
+          message: "Migrate these feature specs now?",
+          default: true,
+        },
+      ]);
+      runMigration = answer.runMigration;
+    }
+
+    if (runMigration) {
+      const result = await runFeatureMigration(cwd, plannedMoves);
+      for (const move of result.moved) console.log(chalk.green(`  ✓ ${move.from} → ${move.to}`));
+      for (const file of result.planFilesRewritten) console.log(chalk.green(`  ✓ ${file} (Spec File links updated)`));
+      if (result.featureSummaryRewritten) console.log(chalk.green("  ✓ .spec-lite/feature-summary.md (Source spec links updated)"));
+    } else {
+      console.log(chalk.dim("  Skipped — run `spec-lite update` again when ready."));
     }
   }
 

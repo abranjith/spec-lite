@@ -12,6 +12,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const agentsRoot = path.join(repoRoot, "agents");
 const skillsRoot = path.join(repoRoot, "skills");
 const referencesRoot = path.join(repoRoot, "references");
+const docsRoot = path.join(repoRoot, "docs");
 
 const normalizeName = (name: string): string => name.replace(/-/g, "_");
 
@@ -49,6 +50,18 @@ const canonicalProjectTools =
 
 const canonicalEnhancementTracking =
   "Do not expand the current scope. Append out-of-scope improvements to `.spec-lite/TODO.md` as `- [ ] <description> (discovered during: <context>)`, then notify the user.";
+
+const canonicalHooks =
+  "At each marked point below, run exactly:\n\n" +
+  "    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]\n\n" +
+  "using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing " +
+  "— each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: \"abort\"` failed; " +
+  "stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.";
+
+/** Roles wired to emit hooks in v1 — every other agent/skill must NOT carry ## Hooks yet. */
+const hookWiredRoles = [
+  "implement", "fix", "review", "feature", "plan_feature", "plan", "brainstorm",
+];
 
 describe("source catalog", () => {
   it("contains every source exactly once with the correct kind", async () => {
@@ -103,6 +116,50 @@ describe("markdown source integrity", () => {
     expect(dangling).toEqual([]);
   });
 
+  it("has no dangling links in README.md or the docs set", async () => {
+    const files = [path.join(repoRoot, "README.md"), ...(await markdownFiles(docsRoot))];
+    const dangling: string[] = [];
+    const markdownLink = /!?\[[^\]]*\]\(([^)]+)\)/g;
+
+    for (const file of files) {
+      const content = await fs.readFile(file, "utf8");
+      for (const match of content.matchAll(markdownLink)) {
+        const rawTarget = match[1].trim().replace(/^<|>$/g, "");
+        const target = rawTarget.split("#", 1)[0];
+        // Absolute URLs, pure anchors, and runtime paths a user creates are not
+        // repository files; everything else must resolve on disk.
+        if (
+          target === "" ||
+          /^(?:[a-z]+:|\/)/i.test(target) ||
+          target.startsWith(".spec-lite/") ||
+          target.includes("<") ||
+          target.includes("{{")
+        ) {
+          continue;
+        }
+
+        const resolved = path.resolve(path.dirname(file), decodeURIComponent(target));
+        if (!(await fs.pathExists(resolved))) {
+          dangling.push(`${path.relative(repoRoot, file)} -> ${target}`);
+        }
+      }
+    }
+
+    expect(dangling).toEqual([]);
+  });
+
+  it("links every docs page from the README", async () => {
+    const readme = await fs.readFile(path.join(repoRoot, "README.md"), "utf8");
+    const orphans: string[] = [];
+
+    for (const file of await markdownFiles(docsRoot)) {
+      const relative = path.relative(repoRoot, file).split(path.sep).join("/");
+      if (!readme.includes(`(${relative})`)) orphans.push(relative);
+    }
+
+    expect(orphans, "add the new document to the README documentation index").toEqual([]);
+  });
+
   it("keeps canonical shared sections byte-identical", async () => {
     const files = [
       ...(await markdownFiles(agentsRoot)),
@@ -120,6 +177,10 @@ describe("markdown source integrity", () => {
       if (enhancements !== null && enhancements !== canonicalEnhancementTracking) {
         drift.push(`${path.relative(repoRoot, file)}: Enhancement Tracking`);
       }
+      const hooks = extractSection(content, "## Hooks");
+      if (hooks !== null && hooks !== canonicalHooks) {
+        drift.push(`${path.relative(repoRoot, file)}: Hooks`);
+      }
     }
 
     const orchestrator = await fs.readFile(
@@ -129,6 +190,24 @@ describe("markdown source integrity", () => {
     expect(orchestrator).toContain(canonicalProjectTools);
     expect(orchestrator).toContain(canonicalEnhancementTracking);
     expect(drift).toEqual([]);
+  });
+
+  it("wires ## Hooks into exactly the v1 emitted-event roles, no more and no fewer", async () => {
+    const files = [
+      ...(await markdownFiles(agentsRoot)),
+      ...(await markdownFiles(skillsRoot)),
+    ];
+    const withHooks: string[] = [];
+
+    for (const file of files) {
+      const content = await fs.readFile(file, "utf8");
+      if (extractSection(content, "## Hooks") !== null) {
+        const base = path.basename(path.dirname(file));
+        withHooks.push(normalizeName(base));
+      }
+    }
+
+    expect(withHooks.sort()).toEqual([...hookWiredRoles].sort());
   });
 
   it("includes project-context markers in every agent and skill", async () => {

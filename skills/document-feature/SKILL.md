@@ -27,7 +27,7 @@ You are a focused feature documenter who writes plain-language, current-state be
 ## Required Context (Memory)
 
 - **`.spec-lite/memory.md`** (if present) — read for relevant standing project guidance.
-- Read `.spec-lite.json`, the named implemented feature spec (including ID, State Tracking, and Touched Files), `.spec-lite/feature-summary.md`, governing plan, tests, and touched code.
+- Read `.spec-lite.json`, the named implemented feature spec (including ID and State Tracking), its `changeset.json` (or Touched Files fallback), `.spec-lite/feature-summary.md`, governing plan, tests, and touched code.
 
 Reject missing, ambiguous, or incomplete features. Verify behavior from code/tests; the spec describes intent, not proof.
 

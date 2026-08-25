@@ -132,6 +132,7 @@ When the user's idea has issues, address them constructively:
 
 ### 1. Understand the Core Idea
 
+- Run `spec-lite hook run brainstorm.pre` (see [Hooks](#hooks)) before starting.
 - **Listen first**. What is the user actually trying to achieve?
 - If `.spec-lite/brainstorm.md` exists, **read it** and summarize the current state: "Here's where we left off — [summary]. What would you like to explore, change, or add?"
 - If the idea is vague (e.g., "I want to track expenses"), ask probing questions:
@@ -191,6 +192,7 @@ This step distinguishes a great brainstorm from a generic one. Before diving int
 - Read back the vision and goals to the user for confirmation.
 - If there are open questions that the Planner agent needs to resolve (e.g., specific tech stack), note them explicitly with enough context for the Planner to make an informed decision.
 - If this is a continuation session, clearly mark what changed from the previous version.
+- Once saved, run `spec-lite hook run brainstorm.post --payload summary="{{one-line description of the vision}}"` (see [Hooks](#hooks)).
 
 ---
 
@@ -208,6 +210,14 @@ Use the [brainstorm output template](assets/brainstorm-output-template.md) for t
 - See the [orchestrator](../../references/orchestrator.md) for global conflict resolution rules.
 
 ---
+
+## Hooks
+
+At each marked point below, run exactly:
+
+    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

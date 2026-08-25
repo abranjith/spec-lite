@@ -28,9 +28,9 @@ Fill in this template when producing your final output:
 
 | ID | Feature | Spec File | Status |
 |---------|---------|-----------|--------|
-| FEAT-001 | {{feature_1}} (e.g., "User Management — Sign up, Sign in, Profile, Roles") | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
-| FEAT-002 | {{feature_2}} | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
-| FEAT-003 | {{feature_3}} | `features/feature_{{snake_case_name}}.md` | [ ] Not started |
+| FEAT-001 | {{feature_1}} (e.g., "User Management — Sign up, Sign in, Profile, Roles") | `features/FEAT-001-{{snake_case_name}}/spec.md` | [ ] Not started |
+| FEAT-002 | {{feature_2}} | `features/FEAT-002-{{snake_case_name}}/spec.md` | [ ] Not started |
+| FEAT-003 | {{feature_3}} | `features/FEAT-003-{{snake_case_name}}/spec.md` | [ ] Not started |
 
 > **Note**: Plan assigns immutable IDs. **Feature** populates `Spec File`; **Implement** alone marks `[/] In progress` and `[x] Complete` in `Status`.
 

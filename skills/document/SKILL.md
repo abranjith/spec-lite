@@ -68,7 +68,7 @@ Use [codebase discovery and update rules](references/discovery-and-update.md). F
 
 ### Update Mode
 
-Resolve the impacted architecture, feature, and user-facing areas from the supplied scope/Touched Files. Invoke only affected writers, then README only if navigation, install/usage, feature summary, contribution, or license content changed. Preserve verified user-authored sections and remove generated claims for deleted code.
+Resolve the impacted architecture, feature, and user-facing areas from the supplied scope and the feature's `changeset.json` (or its Touched Files fallback). Invoke only affected writers, then README only if navigation, install/usage, feature summary, contribution, or license content changed. Preserve verified user-authored sections and remove generated claims for deleted code.
 
 ## Project Tools
 

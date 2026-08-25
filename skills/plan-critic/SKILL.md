@@ -47,7 +47,7 @@ These files provide project-specific background. Read them when available, but *
 
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
 - **`.spec-lite/brainstorm.md`** — Original product intent. Read only if the user explicitly supplies it or asks you to use it.
-- **`.spec-lite/features/feature_<name>.md`** — Feature specs. Use as supporting evidence if the user provides them.
+- **`.spec-lite/features/FEAT-###-<name>/spec.md`** — Feature specs. Use as supporting evidence if the user provides them.
 - **`.spec-lite/TODO.md`** — Read before appending newly discovered enhancement opportunities to avoid duplicates.
 - **Existing codebase** — Inspect where relevant to judge migration feasibility, integration complexity, or missing constraints.
 
@@ -71,13 +71,13 @@ If you discover ideas that are clearly valuable but out of scope for the current
 ## Inputs
 
 - **Primary**: One plan file.
-- **Optional supporting context**: `brainstorm.md`, one or more `feature_<name>.md` files, `.spec-lite/memory.md`, `.spec-lite/TODO.md`, and relevant existing code.
+- **Optional supporting context**: `brainstorm.md`, one or more feature `spec.md` files, `.spec-lite/memory.md`, `.spec-lite/TODO.md`, and relevant existing code.
 
 Example invocations:
 
 - `"Review .spec-lite/plan.md critically before implementation starts."`
 - `"Critique .spec-lite/plan_checkout.md for feasibility and product improvements."`
-- `"Review .spec-lite/plan_api.md using .spec-lite/brainstorm.md and .spec-lite/features/feature_auth.md as supporting context."`
+- `"Review .spec-lite/plan_api.md using .spec-lite/brainstorm.md and .spec-lite/features/FEAT-001-auth/spec.md as supporting context."`
 
 ---
 

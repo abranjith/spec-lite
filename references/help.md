@@ -24,7 +24,7 @@ Use this navigator to choose a role. For ownership, precedence, naming, IDs, and
 |---|---|---|
 | **Brainstorm** | Turn a vague idea into an actionable vision | `.spec-lite/brainstorm.md` |
 | **Plan** | Create a complete technical blueprint and feature table | `.spec-lite/plan.md` or `plan_<name>.md` |
-| **Plan Feature** | Specify one focused enhancement without a full plan | `.spec-lite/features/feature_<name>.md` |
+| **Plan Feature** | Specify one focused enhancement without a full plan | `.spec-lite/features/FEAT-###-<name>/spec.md` |
 | **Architect** | Design future cloud/system architecture and tradeoffs | `.spec-lite/architect_<name>.md` |
 | **YOLO** | Run the confirmed end-to-end pipeline autonomously | All pipeline artifacts + `yolo_state.md` |
 
@@ -32,8 +32,8 @@ Use this navigator to choose a role. For ownership, precedence, naming, IDs, and
 
 | Skill | Use when | Primary output |
 |---|---|---|
-| **Feature** | Break plan rows into executable vertical slices | `features/feature_<name>.md` + plan Spec File |
-| **Implement** | Execute one feature, a plan, or review findings | Code, tests, state, Touched Files, feature summary |
+| **Feature** | Break plan rows into executable vertical slices | `features/FEAT-###-<name>/spec.md` + plan Spec File |
+| **Implement** | Execute one feature, a plan, or review findings | Code, tests, state, changeset.json, feature summary |
 | **Review** | Audit completed files/features/plans across code, security, and performance | `reviews/review_<scope>.md` |
 | **Fix** | Diagnose and repair a bug/regression/review finding | Minimal fix + regression tests/report |
 | **Write Unit Tests** | Expand isolated behavior coverage | Unit-test spec and tests |
@@ -102,7 +102,7 @@ yolo <goal> → explicitly confirm → pause/resume through .spec-lite/yolo_stat
 ## Choosing Review Scope
 
 - `review files <paths/globs>` for an exact patch or module.
-- `review feature <name>` after the feature is fully implemented and has Touched Files.
+- `review feature <name>` after the feature is fully implemented and has a captured `changeset.json`.
 - `review plan [<plan-file>]` for all completed features; incomplete rows are listed and skipped.
 
 Every review covers correctness/testing, security, and performance. Use **Plan Critic** instead when code has not been implemented yet.
