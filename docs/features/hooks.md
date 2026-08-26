@@ -398,11 +398,11 @@ working.
 | `builtin` | `builtin` | the hook's `name` | Handler id in the builtin registry |
 | `run` | `command`, `script` | — | Command line or script path. Interpolated |
 | `shell` | `command`, `script` | `auto` | `auto` (sh on POSIX, PowerShell on Windows), `bash`, `pwsh` |
-| `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root |
+| `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root. Interpolated |
 | `env` | `command`, `script` | — | Extra environment variables. Values are interpolated |
 | `url` | `http` | — | Target URL. Interpolated and percent-encoded |
 | `method` | `http` | `POST` | HTTP method |
-| `headers` | `http` | `Content-Type: application/json` | Extra request headers |
+| `headers` | `http` | `Content-Type: application/json` | Extra request headers. Values are interpolated and stripped of newlines |
 | `bodyTemplate` | `http` | full payload JSON | Request body. Interpolated and JSON-escaped |
 | `skill` / `agent` | `skill`, `agent` | — | Name carried in the emitted directive |
 | `prompt` | `prompt` | — | Literal instruction carried in the directive. Interpolated |
@@ -420,11 +420,18 @@ these environment variables, which is often easier than templating:
 
 ## Interpolation
 
-`${...}` templates in `run`, `url`, `bodyTemplate`, `args`, `prompt`, and `env`
-values are resolved in a **single pass** — a substituted value is never
-re-scanned, so payload text cannot inject further references — then escaped for
-its destination: shell-quoted in `run`, JSON-escaped in `bodyTemplate`,
-percent-encoded in `url`.
+`${...}` templates in `run`, `cwd`, `env`, `url`, `headers`, `bodyTemplate`,
+`args`, and `prompt` are resolved in a **single pass** — a substituted value is
+never re-scanned, so payload text cannot inject further references — then escaped
+for its destination:
+
+| Field | Escaping |
+|---|---|
+| `run` | Shell-quoted, so a value always lands as exactly one argument |
+| `url` | Percent-encoded |
+| `bodyTemplate` | JSON-escaped, so the body stays parseable |
+| `headers` | Newlines collapsed to a space and control characters dropped, so a value cannot inject a second header |
+| `cwd`, `env`, `args`, `prompt` | Raw — no shell or wire format is involved |
 
 Resolution **fails closed**. A reference with no value is an error that stops the
 hook before it runs; it never becomes an empty string. Write `${task.id:-none}`
@@ -448,7 +455,9 @@ than at fire time:
 ```
 
 `${env:NAME}` reads only the real process environment and is redacted from
-`--dry-run` output and `hooks.log.jsonl`.
+`--dry-run` output and `hooks.log.jsonl`. It is the only place a secret belongs —
+an `Authorization` header is written as `"Bearer ${env:API_TOKEN}"`, never as the
+token itself.
 
 <!-- hook-vars-table:start -->
 | Variable | Group | Meaning | Example |
@@ -477,12 +486,9 @@ than at fire time:
 | `${env:NAME}` | environment | A process environment variable — the only channel for secrets. | `${env:SLACK_WEBHOOK_URL}` |
 <!-- hook-vars-table:end -->
 
-Two current caveats:
-
-- `${provider}` is not populated by `spec-lite hook run` today. Reference it as
-  `${provider:-unknown}`, or the hook fails with a contract error.
-- `cwd` and `headers` are validated as templates but used literally at fire time.
-  Keep `${...}` out of them for now.
+`${provider}` reads `provider` (then the first entry of `providers`) from
+`.spec-lite.json`, and resolves to `unknown` when neither is configured — so it
+never needs a `:-default`.
 
 ## Event catalog
 
@@ -553,11 +559,12 @@ from an event may still be present at runtime — a Fix often does map to a feat
 | `1` | A hook with `onFailure: "abort"` failed | Stop and report |
 | `2` | A **contract error** | Stop and fix the configuration |
 
-A contract error means a hook could not be invoked at all: the registry failed
-validation, a `${...}` reference had no value, or the payload failed a hook's
-`payloadSchema`. Contract errors bypass `onFailure` entirely and stop the chain
-*before* anything with side effects runs — a misconfigured registry is a
-stop-and-fix situation, not a runtime hiccup.
+A contract error means the event could not be dispatched as specified: the event
+name is not in the catalog, the registry failed validation, a `${...}` reference
+had no value, or the payload failed a hook's `payloadSchema`. Contract errors
+bypass `onFailure` entirely and stop the chain *before* anything with side
+effects runs — a misconfigured registry is a stop-and-fix situation, not a
+runtime hiccup.
 
 ```text
   ✗ needs-summary (command) [failed] — ${summary} has no value on event "fix.post".
@@ -565,9 +572,13 @@ stop-and-fix situation, not a runtime hiccup.
 exit 2
 ```
 
-Firing an event that no hook subscribes to is a silent no-op with exit `0` —
-including an event name that is not in the catalog at all. `hook validate`, which
-does reject unknown event names in the registry, is the guard against typos.
+An event name outside the catalog exits `2` without dispatching anything, so a
+typo in a role or a script is loud rather than silently skipping every hook the
+intended event would have run. Firing a *catalog* event that nothing subscribes
+to is a normal no-op with exit `0`.
+
+The repository kill switch still wins: with `hooks.enabled: false`, even an
+unknown event reports that hooks are disabled and exits `0`.
 
 Reentrancy is capped. A hook that invokes spec-lite, which fires another event, is
 tracked through `SPEC_LITE_HOOK_DEPTH` and `SPEC_LITE_HOOK_CHAIN`; the chain
@@ -600,7 +611,8 @@ Every `hook run` then reports that hooks are disabled and dispatches nothing.
 | Symptom | Cause | Fix |
 |---|---|---|
 | Hook never fires | Not subscribed to the event you think | `spec-lite hook list --event <name>` |
-| Nothing happens, exit `0` | No hook subscribes to that event | `spec-lite hook events` to check the name |
+| Nothing happens, exit `0` | No hook subscribes to that event | `spec-lite hook list --event <name>` |
+| `unknown event`, exit `2` | The event name is not in the catalog | `spec-lite hook events` to check the spelling |
 | Exit `2` before anything ran | Registry error, or a `${...}` with no value | `spec-lite hook validate` |
 | `${env:X}` warning at validate time | Variable not set in the current shell | Export it wherever hooks run, or add `:-default` |
 | Builtin still listed after disabling | Entry name does not match the builtin exactly | Reuse the exact name (`capture-changeset`) |

@@ -144,7 +144,7 @@ At each marked point below, run exactly:
 
     spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means a hook configured with `onFailure: "abort"` failed; stop and report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
+using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means stop: `1` when a hook with `onFailure: "abort"` failed, `2` when the event name or the registry is invalid. Report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
 
 ## Constraints
 

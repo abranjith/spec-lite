@@ -12,11 +12,18 @@ export async function runHttpHook(hook: HookDefinition, ctx: ResolveContext): Pr
 
   let url: string;
   let body: string;
+  let headers: Record<string, string>;
   try {
     url = resolveTemplate(hook.url, ctx, "url").value;
     body = hook.bodyTemplate
       ? resolveTemplate(hook.bodyTemplate, ctx, "json").value
       : JSON.stringify(ctx.payload);
+    // Header values are templates too — that is how an Authorization header
+    // gets its secret from ${env:...} without the token living in the registry.
+    headers = { "Content-Type": "application/json" };
+    for (const [name, template] of Object.entries(hook.headers ?? {})) {
+      headers[name] = resolveTemplate(template, ctx, "header").value;
+    }
   } catch (err) {
     return { name: hook.name, event: ctx.payload.event, kind: "http", status: "failed", durationMs: Date.now() - start, message: err instanceof Error ? err.message : String(err), contractError: true };
   }
@@ -27,7 +34,7 @@ export async function runHttpHook(hook: HookDefinition, ctx: ResolveContext): Pr
   try {
     const res = await fetch(url, {
       method: hook.method ?? "POST",
-      headers: { "Content-Type": "application/json", ...(hook.headers ?? {}) },
+      headers,
       body,
       signal: controller.signal,
     });

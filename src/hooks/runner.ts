@@ -12,7 +12,8 @@ import { runHttpHook } from "./executors/http.js";
 import { runBuiltinHook } from "./executors/builtin.js";
 import { emitAgenticDirective } from "./executors/agentic.js";
 import { isAgenticKind } from "./types.js";
-import { hooksLogPath } from "./workspace.js";
+import { getEvent } from "./events.js";
+import { hooksLogPath, readProjectConfig } from "./workspace.js";
 import { previewHook } from "./preview.js";
 import { validatePayloadForHook } from "./payload-validation.js";
 import type { HookPayload, HookResult, ResolvedHook } from "./types.js";
@@ -37,16 +38,8 @@ export interface RunEventReport {
 
 /** Repository-wide kill switch from `.spec-lite.json` → `hooks.enabled`. */
 async function hooksDisabled(root: string): Promise<boolean> {
-  const configPath = path.join(root, ".spec-lite.json");
-  if (!(await fs.pathExists(configPath))) return false;
-  try {
-    const config = (await fs.readJson(configPath)) as { hooks?: { enabled?: boolean } };
-    return config.hooks?.enabled === false;
-  } catch {
-    // A malformed .spec-lite.json is the config command's problem to report,
-    // not a reason to silently disable every hook.
-    return false;
-  }
+  const config = await readProjectConfig(root);
+  return config.hooks?.enabled === false;
 }
 
 function currentChain(): { depth: number; chain: string[] } {
@@ -97,6 +90,23 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
 
   if (await hooksDisabled(opts.root)) {
     return { payload, results: [], exitCode: 0, registryIssues: [], disabled: true };
+  }
+
+  // An event outside the catalog is a contract error, not a quiet no-op: a
+  // typo'd event name in a role would otherwise silently skip every hook
+  // subscribed to the event that was meant. The kill switch above still wins,
+  // so a clone with hooks disabled never fails on one.
+  if (!getEvent(opts.event)) {
+    return {
+      payload,
+      results: [{
+        name: "*", event: opts.event, kind: "command", status: "failed", durationMs: 0,
+        contractError: true,
+        message: `unknown event "${opts.event}" — run \`spec-lite hook events\` for the catalog`,
+      }],
+      exitCode: 2,
+      registryIssues: [],
+    };
   }
 
   const { hooks: allHooks, issues } = await loadRegistry(opts.root);

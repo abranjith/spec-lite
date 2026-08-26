@@ -152,10 +152,10 @@ spec-lite hook run review.verdict --payload verdict="Request changes" --json
 | `--json` | `false` | Machine-readable report on stdout instead of the human summary |
 
 Exit codes: `0` success (including failures policied `warn`/`ignore`), `1` a hook
-with `onFailure: "abort"` failed, `2` a contract error — the registry failed
-validation, a `${...}` reference had no value, or the payload failed a hook's
-`payloadSchema`. Firing an event that nothing subscribes to is a no-op with exit
-`0`.
+with `onFailure: "abort"` failed, `2` a contract error — the event name is not in
+the catalog, the registry failed validation, a `${...}` reference had no value,
+or the payload failed a hook's `payloadSchema`. Firing a catalog event that
+nothing subscribes to is a no-op with exit `0`.
 
 Agentic hooks (`skill`, `agent`, `prompt`) are never executed. They print a
 `SPEC-LITE-DIRECTIVE` line for the calling role to carry out:

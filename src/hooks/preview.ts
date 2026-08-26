@@ -22,11 +22,19 @@ export function previewHook(hook: HookDefinition, ctx: ResolveContext): string {
       case "script":
         text = hook.run ? resolve(hook.run, shellEscapeContext(hook.shell)) : "(no `run` configured)";
         break;
-      case "http":
-        text = hook.url
-          ? `${hook.method ?? "POST"} ${resolve(hook.url, "url")}\n${hook.bodyTemplate ? resolve(hook.bodyTemplate, "json") : JSON.stringify(ctx.payload)}`
-          : "(no `url` configured)";
+      case "http": {
+        if (!hook.url) {
+          text = "(no `url` configured)";
+          break;
+        }
+        const lines = [`${hook.method ?? "POST"} ${resolve(hook.url, "url")}`];
+        for (const [name, template] of Object.entries(hook.headers ?? {})) {
+          lines.push(`${name}: ${resolve(template, "header")}`);
+        }
+        lines.push(hook.bodyTemplate ? resolve(hook.bodyTemplate, "json") : JSON.stringify(ctx.payload));
+        text = lines.join("\n");
         break;
+      }
       case "builtin":
         text = `builtin:${hook.builtin ?? hook.name}`;
         break;

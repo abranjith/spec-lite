@@ -47,6 +47,7 @@ export type EscapeContext =
   | "shell-pwsh"
   | "json"
   | "url"
+  | "header"
   | "none";
 
 /** `base` variables are available on every event; the rest come from event `provides`. */
@@ -210,6 +211,12 @@ export function escapeValue(value: string, context: EscapeContext): string {
       return JSON.stringify(value).slice(1, -1);
     case "url":
       return encodeURIComponent(value);
+    case "header":
+      // An HTTP header value is one line of visible characters. A payload
+      // value carrying CR/LF would otherwise inject an extra header (or a
+      // body) into the request, so newlines collapse to a space and every
+      // other control character is dropped.
+      return value.replace(/\r\n|[\r\n]/g, " ").replace(/[\u0000-\u001f\u007f]/g, "");
     case "none":
       return value;
   }

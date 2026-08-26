@@ -13,6 +13,42 @@ export function hooksJsonPath(root: string): string {
   return path.join(root, ".spec-lite", "hooks.json");
 }
 
+/** The slice of `.spec-lite.json` the hook system reads. */
+export interface HookRelevantConfig {
+  /** Primary configured harness alias, e.g. "claude-code". */
+  provider?: string;
+  /** Every configured harness alias. */
+  providers?: string[];
+  hooks?: { enabled?: boolean };
+}
+
+/**
+ * Read `.spec-lite.json`, or an empty object when it is absent or malformed.
+ *
+ * A malformed config is deliberately not an error here: it is the config
+ * command's problem to report, and treating it as fatal would disable every
+ * hook — or block every run — over a file the hook system only reads two keys
+ * from.
+ */
+export async function readProjectConfig(root: string): Promise<HookRelevantConfig> {
+  const file = path.join(root, ".spec-lite.json");
+  if (!(await fs.pathExists(file))) return {};
+  try {
+    return (await fs.readJson(file)) as HookRelevantConfig;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The harness alias to report as `${provider}`. Always resolves to something,
+ * so a template referencing it never has to carry a `:-default`.
+ */
+export async function resolveProvider(root: string): Promise<string> {
+  const config = await readProjectConfig(root);
+  return config.provider ?? config.providers?.[0] ?? "unknown";
+}
+
 export function globalHooksJsonPath(): string {
   return path.join(os.homedir(), ".spec-lite", "hooks.json");
 }

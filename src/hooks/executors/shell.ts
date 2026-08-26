@@ -65,8 +65,13 @@ export async function runShellHook(
 
   const escapeCtx = shellEscapeContext(hook.shell);
   let resolvedCommand: string;
+  let resolvedCwd: string | undefined;
   try {
     resolvedCommand = resolveTemplate(hook.run, ctx, escapeCtx).value;
+    // `cwd` is handed to spawn() directly rather than to a shell, so it takes
+    // the raw value — quoting it here would create a directory name with
+    // quotes in it.
+    resolvedCwd = hook.cwd ? resolveTemplate(hook.cwd, ctx, "none").value : undefined;
   } catch (err) {
     return {
       name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed",
@@ -76,7 +81,7 @@ export async function runShellHook(
   }
 
   const { bin, args } = shellInvocation(hook.shell, resolvedCommand);
-  const cwd = hook.cwd ? path.join(root, hook.cwd) : root;
+  const cwd = resolvedCwd ? path.join(root, resolvedCwd) : root;
 
   const env: NodeJS.ProcessEnv = { ...process.env, ...reentrancyEnv };
   env.SPEC_LITE_EVENT = ctx.payload.event;

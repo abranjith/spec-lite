@@ -5,7 +5,7 @@
 import crypto from "node:crypto";
 import fs from "fs-extra";
 import { getEvent } from "./events.js";
-import { resolveFeature } from "./workspace.js";
+import { resolveFeature, resolveProvider } from "./workspace.js";
 import { readChangeset } from "./changeset.js";
 import type { HookPayload, ChangesPayload } from "./types.js";
 
@@ -15,6 +15,7 @@ export interface BuildPayloadOptions {
   featureId?: string;
   taskId?: string;
   runId?: string;
+  /** Overrides the alias read from `.spec-lite.json`; mainly for tests. */
   provider?: string;
   extra?: Record<string, string>;
 }
@@ -42,7 +43,9 @@ export async function buildPayload(opts: BuildPayloadOptions): Promise<HookPaylo
     runId: opts.runId ?? crypto.randomUUID(),
     timestamp: new Date().toISOString(),
     cwd: opts.root,
-    provider: opts.provider,
+    // Always a string, so ${provider} resolves on every event rather than
+    // failing closed on repositories that never configured a harness.
+    provider: opts.provider ?? (await resolveProvider(opts.root)),
     ...(opts.extra ?? {}),
   };
 

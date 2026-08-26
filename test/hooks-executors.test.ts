@@ -3,6 +3,8 @@ import fs from "fs-extra";
 import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { promisify } from "node:util";
 import { runEvent } from "../src/hooks/runner.js";
 import { previewHook } from "../src/hooks/preview.js";
@@ -213,6 +215,103 @@ describe("http executor", () => {
     const aborted = await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
     expect(aborted.exitCode).toBe(1);
   }, 25000);
+
+  it("interpolates header values and cannot be made to inject a second header", async () => {
+    process.env.TEST_HOOK_TOKEN = "tok-123";
+    const received: Record<string, string | undefined>[] = [];
+    const server = createServer((req, res) => {
+      received.push({ ...req.headers } as Record<string, string | undefined>);
+      res.writeHead(204).end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as AddressInfo).port;
+
+    try {
+      const result = await runHttpHook(
+        {
+          name: "with-headers",
+          events: ["implement.post"],
+          type: "http",
+          url: `http://127.0.0.1:${port}/hook`,
+          headers: {
+            "X-Feature": "${feature.id}",
+            Authorization: "Bearer ${env:TEST_HOOK_TOKEN}",
+            "X-Summary": "${summary}",
+          },
+        },
+        // A summary carrying CRLF is the injection attempt: without escaping it
+        // would terminate the header and start one of the attacker's choosing.
+        { payload: samplePayload({ summary: "shipped\r\nX-Evil: yes" }) }
+      );
+
+      expect(result.status).toBe("ok");
+      const headers = received[0]!;
+      expect(headers["x-feature"]).toBe("FEAT-012");
+      expect(headers.authorization).toBe("Bearer tok-123");
+      expect(headers["x-summary"]).toBe("shipped X-Evil: yes");
+      expect(headers["x-evil"]).toBeUndefined();
+    } finally {
+      delete process.env.TEST_HOOK_TOKEN;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  }, 15000);
+
+  it("treats an unresolvable header template as a contract error before any request", async () => {
+    const result = await runHttpHook(
+      {
+        name: "bad-header",
+        events: ["implement.post"],
+        type: "http",
+        url: "http://127.0.0.1:1/none",
+        headers: { "X-Task": "${task.id}" },
+      },
+      { payload: samplePayload() } // implement.post carries no task
+    );
+    expect(result.status).toBe("failed");
+    expect(result.contractError).toBe(true);
+  });
+
+  it("redacts an env-sourced header value in a dry-run preview", () => {
+    process.env.TEST_HOOK_TOKEN = "tok-123";
+    try {
+      const preview = previewHook(
+        {
+          name: "with-headers",
+          events: ["implement.post"],
+          type: "http",
+          url: "https://example.test/hook",
+          headers: { Authorization: "Bearer ${env:TEST_HOOK_TOKEN}" },
+        },
+        { payload: samplePayload() }
+      );
+      expect(preview).toContain("Authorization: Bearer ${env:TEST_HOOK_TOKEN}");
+      expect(preview).not.toContain("tok-123");
+    } finally {
+      delete process.env.TEST_HOOK_TOKEN;
+    }
+  });
+});
+
+describe("cwd is interpolated", () => {
+  it("runs the hook in the resolved directory", async () => {
+    const out = "in-feature-dir.txt";
+    await writeHooks([
+      {
+        name: "writes-relative",
+        events: ["implement.post"],
+        type: "command",
+        cwd: "${feature.dir}",
+        run: `node -e "require('fs').writeFileSync('${out}', process.cwd())"`,
+      },
+    ]);
+
+    const report = await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
+
+    expect(report.results.find((r) => r.name === "writes-relative")?.status).toBe("ok");
+    const written = path.join(root, ".spec-lite", "features", "FEAT-001-demo", out);
+    expect(await fs.pathExists(written)).toBe(true);
+    expect(await fs.readFile(written, "utf-8")).toContain("FEAT-001-demo");
+  }, 15000);
 });
 
 describe("agentic kinds are emitted, never executed", () => {

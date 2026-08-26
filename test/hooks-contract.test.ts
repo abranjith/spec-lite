@@ -209,7 +209,7 @@ describe("repository-wide kill switch", () => {
       },
     ]);
     await fs.writeJson(path.join(root, ".spec-lite.json"), {
-      version: "0.2.0",
+      version: "0.3.0",
       provider: "claude-code",
       installedPrompts: [],
       installedAt: "",
@@ -230,5 +230,71 @@ describe("repository-wide kill switch", () => {
     const report = await runEvent({ root, event: "implement.post" });
     expect(report.disabled).toBeUndefined();
     expect(report.results.find((r) => r.name === "fine")?.status).toBe("ok");
+  });
+});
+
+describe("an event outside the catalog is a contract error", () => {
+  it("exits 2 and dispatches nothing", async () => {
+    const marker = path.join(root, "should-not-run.txt");
+    await writeHooks([
+      {
+        name: "wildcard",
+        events: ["*"],
+        type: "command",
+        run: `node -e "require('fs').writeFileSync(${JSON.stringify(marker).replace(/"/g, "'")}, 'ran')"`,
+      },
+    ]);
+
+    const report = await runEvent({ root, event: "implement.postt" });
+
+    expect(report.exitCode).toBe(2);
+    expect(report.results[0]?.contractError).toBe(true);
+    expect(report.results[0]?.message).toContain("unknown event");
+    // A typo must not quietly skip the hooks the correct name would have run.
+    expect(await fs.pathExists(marker)).toBe(false);
+  });
+
+  it("still yields to the repository kill switch", async () => {
+    await fs.writeJson(path.join(root, ".spec-lite.json"), { hooks: { enabled: false } });
+    const report = await runEvent({ root, event: "not.an.event" });
+    expect(report.disabled).toBe(true);
+    expect(report.exitCode).toBe(0);
+  });
+});
+
+describe("${provider} resolves from .spec-lite.json", () => {
+  it("carries the configured harness alias", async () => {
+    const out = path.join(root, "provider.txt");
+    await fs.writeJson(path.join(root, ".spec-lite.json"), {
+      version: "0.3.0",
+      provider: "codex",
+      providers: ["codex", "claude-code"],
+    });
+    await writeHooks([
+      {
+        name: "show-provider",
+        events: ["implement.post"],
+        type: "command",
+        run: `node -e "require('fs').writeFileSync(${JSON.stringify(out).replace(/"/g, "'")}, process.argv[1])" \${provider}`,
+      },
+    ]);
+
+    const report = await runEvent({ root, event: "implement.post" });
+
+    expect(report.exitCode).toBe(0);
+    expect(report.payload.provider).toBe("codex");
+    expect((await fs.readFile(out, "utf-8")).trim()).toBe("codex");
+  });
+
+  it("falls back to \"unknown\" instead of failing closed when no config exists", async () => {
+    await writeHooks([
+      { name: "show-provider", events: ["implement.post"], type: "command", run: "echo ${provider}" },
+    ]);
+
+    const report = await runEvent({ root, event: "implement.post" });
+
+    expect(report.payload.provider).toBe("unknown");
+    expect(report.results.find((r) => r.name === "show-provider")?.status).toBe("ok");
+    expect(report.exitCode).toBe(0);
   });
 });
