@@ -117,7 +117,7 @@ Run `spec-lite update` to migrate older projects to documentation settings and c
 
 ## Feature IDs
 
-All plans and feature specs share immutable `FEAT-###` IDs. Allocation scans every plan and feature spec and uses the highest existing number plus one; gaps are never reused.
+All new plans and feature specs share immutable `FEAT-###` IDs. Older Plan Feature specs may retain `FEAT-FP-###`; updates preserve those IDs, hooks resolve them normally, and their numeric suffixes participate in allocating the next canonical `FEAT-###`. Gaps are never reused.
 
 ## Need Orientation?
 

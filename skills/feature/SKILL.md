@@ -86,7 +86,7 @@ This update is required for every feature breakdown so the plan always maintains
 Copy the selected row's `FEAT-###` ID into the spec's `**ID**:` field; never invent a different ID when the plan row has one. IDs are assigned once, never renumbered, and never reused.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###`. (A directory beats a content grep — the ID is in the path itself.)
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and legacy `FEAT-FP-###-<name>` directories; read the highest numeric suffix across both formats. Preserve existing `FEAT-FP-###` IDs, but never allocate a new one. (A directory beats a content grep — the ID is in the path itself.)
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 If a legacy plan row has no ID, allocate the next ID by this rule, back-fill the row, then copy it to the spec. For multiple legacy rows, back-fill in current table-row order. In Plan Mode, compute/back-fill the whole queue before spawning any spec subagent so subagents only copy IDs.

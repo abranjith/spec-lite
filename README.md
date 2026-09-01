@@ -44,7 +44,7 @@ The harness is the interface; the repository is the durable source of truth. Com
 - **Shared memory** — durable project conventions live in `.spec-lite/memory.md` and can be captured as the work evolves.
 - **Stable feature IDs** — `FEAT-###` identifiers remain consistent across plans, feature specs, implementation, tests, and review.
 - **14 stack baselines** — TypeScript, Python, Java, .NET, Go, Rust, Kotlin, Swift, C/C++, PHP, Ruby, React, Vue, and Angular.
-- **Safe upgrades** — update every configured provider, preselect newly shipped roles, migrate config, preserve Project Context edits, and clean obsolete generated outputs with confirmation.
+- **Safe upgrades** — update every configured provider, preselect newly shipped roles, migrate config and legacy flat feature specs (including `FEAT-FP-###` IDs), preserve Project Context edits, and clean obsolete generated outputs with confirmation.
 - **Portable export** — combine selected roles and references into one self-contained Markdown prompt for chat tools, teammates, or unsupported harnesses.
 
 ## Install

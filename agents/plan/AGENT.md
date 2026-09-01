@@ -107,7 +107,7 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 Use one global repository sequence in `FEAT-###` format (`FEAT-001` through `FEAT-999`). IDs are assigned once, never renumbered, and never reused; deleted features leave gaps.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###`.
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and legacy `FEAT-FP-###-<name>` directories; read the highest numeric suffix across both formats. Preserve existing `FEAT-FP-###` IDs, but never allocate a new one.
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 When first touching a legacy plan with ID-less rows, allocate consecutive IDs in current table-row order and persist them before other edits.

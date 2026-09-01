@@ -112,7 +112,7 @@ sources, timestamps, the optional project profile, and documentation settings:
 
 ```json
 {
-  "version": "0.3.0",
+  "version": "0.3.1",
   "format": "v2",
   "provider": "codex",
   "providers": ["codex", "claude-code"],

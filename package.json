@@ -1,6 +1,6 @@
 {
   "name": "@abranjith/spec-lite",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Lightweight, modular, LLM-agnostic agents and skills for structured software engineering \u2014 installable CLI",
   "type": "module",
   "main": "dist/index.js",

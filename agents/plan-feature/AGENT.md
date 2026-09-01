@@ -118,7 +118,7 @@ Once requirements are confirmed:
 Use `FEAT-###`; IDs are assigned once, never renumbered, and never reused.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###`.
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and legacy `FEAT-FP-###-<name>` directories; read the highest numeric suffix across both formats. Preserve existing `FEAT-FP-###` IDs, but never allocate a new one.
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 When first touching a legacy ID-less plan, back-fill its rows in current table order before allocating the standalone feature ID.

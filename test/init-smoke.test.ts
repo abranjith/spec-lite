@@ -58,7 +58,7 @@ describe("fresh provider initialization", () => {
         }
 
         const config = await fs.readJson(path.join(target, ".spec-lite.json"));
-        expect(config.version).toBe("0.3.0");
+        expect(config.version).toBe("0.3.1");
         expect(config.documentation).toEqual({
           directory: "docs",
           level: "technical",

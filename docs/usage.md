@@ -64,6 +64,9 @@ Update performs the complete project migration:
 - offers newly detected but unconfigured harnesses as opt-in providers;
 - restores missing selected stack baselines without overwriting edited ones;
 - detects obsolete v0.1.x outputs and asks before deleting them;
+- migrates flat `.spec-lite/features/feature_<name>.md` specs into ID-prefixed
+  directories, preserving both canonical `FEAT-###` and legacy Plan Feature
+  `FEAT-FP-###` IDs and rewriting plan and feature-summary links;
 - preserves content inside Project Context markers unless `--force` is used.
 
 ## install
@@ -144,7 +147,7 @@ spec-lite hook run review.verdict --payload verdict="Request changes" --json
 
 | Option | Default | Summary |
 |---|---|---|
-| `--feature <id>` | none | Feature ID, e.g. `FEAT-012`; resolves the feature directory, spec, and changeset into the payload |
+| `--feature <id>` | none | Feature ID, e.g. `FEAT-012` or legacy `FEAT-FP-007`; resolves the feature directory, spec, and changeset into the payload |
 | `--task <id>` | none | Task ID, e.g. `TASK-003` |
 | `--payload <kv>` | none | Additional payload `key=value`; repeat for several (`--payload summary=... --payload verdict=...`) |
 | `--run-id <id>` | generated | Reuse one `runId` across multiple `hook run` calls |

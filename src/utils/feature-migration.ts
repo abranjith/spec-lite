@@ -1,6 +1,6 @@
 /**
  * Migrates flat `.spec-lite/features/feature_<name>.md` files to the
- * ID-prefixed directory layout `.spec-lite/features/FEAT-###-<name>/spec.md`,
+ * ID-prefixed directory layout `.spec-lite/features/<feature-id>-<name>/spec.md`,
  * and rewrites the two places that link to the old path: plan `Spec File`
  * cells and `feature-summary.md` `Source spec:` links.
  *
@@ -15,6 +15,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "fs-extra";
+import { extractFeatureId } from "./feature-id.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -23,7 +24,7 @@ const FLAT_FEATURE_RE = /^feature_(.+)\.md$/;
 export interface PlannedMove {
   /** feature_<name>.md, workspace-relative */
   from: string;
-  /** FEAT-###-<name>/spec.md, workspace-relative */
+  /** <feature-id>-<name>/spec.md, workspace-relative */
   to: string;
   featureId: string;
   name: string;
@@ -36,12 +37,6 @@ async function isGitRepo(root: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/** Extract `**ID**: FEAT-###` from a feature spec's content. */
-function extractFeatureId(content: string): string | undefined {
-  const match = /\*\*ID\*\*:\s*(FEAT-\d+)/i.exec(content);
-  return match?.[1]?.toUpperCase();
 }
 
 /** Find every legacy flat feature spec and compute where it should move to. */

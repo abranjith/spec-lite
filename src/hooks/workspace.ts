@@ -4,6 +4,11 @@
 import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
+import {
+  featureNumbersInText,
+  normalizeFeatureId,
+  parseFeatureDirectory,
+} from "../utils/feature-id.js";
 
 export function workspaceRoot(cwd = process.cwd()): string {
   return cwd;
@@ -57,9 +62,6 @@ export function featuresDir(root: string): string {
   return path.join(root, ".spec-lite", "features");
 }
 
-/** Match an ID-prefixed feature directory: FEAT-012-user_management */
-const FEATURE_DIR_RE = /^FEAT-(\d+)-(.+)$/;
-
 export interface FeatureLocation {
   id: string;
   name: string;
@@ -67,25 +69,22 @@ export interface FeatureLocation {
   spec: string;
 }
 
-/** Resolve a feature ID (e.g. "FEAT-012" or "12") to its directory, if it exists. */
+/** Resolve a feature ID (e.g. "FEAT-012", legacy "FEAT-FP-007", or "12") to its directory. */
 export async function resolveFeature(root: string, featureId: string): Promise<FeatureLocation | undefined> {
-  const normalized = /^FEAT-\d+$/i.test(featureId)
-    ? featureId.toUpperCase()
-    : `FEAT-${featureId.padStart(3, "0")}`;
+  const normalized = normalizeFeatureId(featureId);
+  if (!normalized) return undefined;
 
   const dir = featuresDir(root);
   if (!(await fs.pathExists(dir))) return undefined;
 
   const entries = await fs.readdir(dir);
   for (const entry of entries) {
-    const match = FEATURE_DIR_RE.exec(entry);
-    if (!match) continue;
-    const id = `FEAT-${match[1]}`;
-    if (id !== normalized) continue;
+    const feature = parseFeatureDirectory(entry);
+    if (!feature || feature.id !== normalized) continue;
     const absDir = path.join(dir, entry);
     return {
-      id,
-      name: match[2],
+      id: feature.id,
+      name: feature.name,
       dir: path.relative(root, absDir).split(path.sep).join("/"),
       spec: path.relative(root, path.join(absDir, "spec.md")).split(path.sep).join("/"),
     };
@@ -101,15 +100,15 @@ export function hooksLogPath(root: string, featureDir: string): string {
   return path.join(root, featureDir, "hooks.log.jsonl");
 }
 
-/** Highest FEAT-### currently in use, scanning both feature dirs and plan tables. */
+/** Highest supported feature-ID suffix in use, scanning feature dirs and plan tables. */
 export async function nextFeatureNumber(root: string): Promise<number> {
   let max = 0;
 
   const dir = featuresDir(root);
   if (await fs.pathExists(dir)) {
     for (const entry of await fs.readdir(dir)) {
-      const match = FEATURE_DIR_RE.exec(entry);
-      if (match) max = Math.max(max, parseInt(match[1], 10));
+      const feature = parseFeatureDirectory(entry);
+      if (feature) max = Math.max(max, feature.number);
     }
   }
 
@@ -119,7 +118,7 @@ export async function nextFeatureNumber(root: string): Promise<number> {
   );
   for (const file of planFiles) {
     const content = await fs.readFile(path.join(specLiteDir, file), "utf-8").catch(() => "");
-    for (const m of content.matchAll(/FEAT-(\d+)/g)) max = Math.max(max, parseInt(m[1], 10));
+    for (const featureNumber of featureNumbersInText(content)) max = Math.max(max, featureNumber);
   }
 
   return max + 1;

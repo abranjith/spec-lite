@@ -78,7 +78,7 @@ Never silently reinterpret a conflict. Surface the exact competing rules and the
 Use one repository-wide `FEAT-###` sequence. IDs are immutable, never reused, and remain gapped after deletion.
 
 1. Scan the `ID` column of the High-Level Features table in **every** plan file (`.spec-lite/plan*.md`).
-2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and read the highest `###` — the ID is in the path itself, so this is a directory listing, not a content grep.
+2. Scan `.spec-lite/features/` for `FEAT-###-<name>` directories and legacy `FEAT-FP-###-<name>` directories; read the highest numeric suffix across both formats — the ID is in the path itself, so this is a directory listing, not a content grep. Preserve existing `FEAT-FP-###` IDs, but never allocate a new one.
 3. Next ID = highest number found + 1; if none found, `FEAT-001`.
 
 Plan assigns IDs for plan rows; Plan Feature assigns one standalone ID; Feature copies the plan ID and only allocates/back-fills legacy rows. Implement, Review, and Document Feature are read-only consumers.

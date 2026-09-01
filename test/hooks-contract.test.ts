@@ -209,7 +209,7 @@ describe("repository-wide kill switch", () => {
       },
     ]);
     await fs.writeJson(path.join(root, ".spec-lite.json"), {
-      version: "0.3.0",
+      version: "0.3.1",
       provider: "claude-code",
       installedPrompts: [],
       installedAt: "",
@@ -266,7 +266,7 @@ describe("${provider} resolves from .spec-lite.json", () => {
   it("carries the configured harness alias", async () => {
     const out = path.join(root, "provider.txt");
     await fs.writeJson(path.join(root, ".spec-lite.json"), {
-      version: "0.3.0",
+      version: "0.3.1",
       provider: "codex",
       providers: ["codex", "claude-code"],
     });

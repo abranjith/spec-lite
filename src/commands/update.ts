@@ -256,7 +256,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     }
   }
 
-  // 2b. Migrate flat feature_<name>.md files to FEAT-###-<name>/spec.md so
+  // 2b. Migrate flat feature_<name>.md files to <feature-id>-<name>/spec.md so
   // hooks (capture-baseline/capture-changeset) have a directory to write
   // changeset.json and hooks.log.jsonl into.
   const plannedMoves = await planFeatureMigration(cwd);

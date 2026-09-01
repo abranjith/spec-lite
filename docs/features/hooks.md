@@ -137,6 +137,10 @@ Testing "lint-after-implement" against event implement.post
 spec-lite hook run implement.post --feature FEAT-012 --dry-run
 ```
 
+`--feature` also accepts a preserved legacy Plan Feature ID such as
+`FEAT-FP-007`. It resolves the same directory, spec, changeset, and audit-log
+fields as a canonical `FEAT-###` ID; new features continue to use `FEAT-###`.
+
 ```text
   − capture-changeset (builtin) [skipped] — dry run — not executed
     builtin:capture-changeset
