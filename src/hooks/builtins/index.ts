@@ -16,13 +16,17 @@ import fs from "fs-extra";
 import type { HookDefinition, HookPayload, HookResult } from "../types.js";
 import { captureBaseline, captureChangeset } from "../changeset.js";
 import { changesetFromPr } from "./changeset-from-pr.js";
+import { prepareWorktree, commitProgress } from "./git-workflow.js";
+import { createPullRequest } from "./pull-request.js";
 
 export interface BuiltinContext {
   root: string;
   payload: HookPayload;
+  hook?: HookDefinition;
 }
 
-export type BuiltinHandler = (ctx: BuiltinContext) => Promise<{ message: string }>;
+export interface BuiltinOutcome { message: string; worktree?: import("../types.js").WorktreeInfo }
+export type BuiltinHandler = (ctx: BuiltinContext) => Promise<BuiltinOutcome>;
 
 /**
  * Changeset capture needs somewhere to write changeset.json — a feature
@@ -40,6 +44,9 @@ async function optionalFeatureDir(ctx: BuiltinContext): Promise<string | undefin
 }
 
 export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
+  "prepare-worktree": prepareWorktree,
+  "commit-progress": commitProgress,
+  "create-pull-request": createPullRequest,
   "capture-baseline": async (ctx) => {
     const dir = await optionalFeatureDir(ctx);
     if (!dir) return { message: "no --feature given; changeset capture skipped" };
@@ -85,12 +92,11 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
 export async function runBuiltin(
   handlerId: string,
   ctx: BuiltinContext
-): Promise<{ ok: boolean; message: string }> {
+): Promise<BuiltinOutcome & { ok: boolean }> {
   const handler = BUILTIN_HANDLERS[handlerId];
   if (!handler) return { ok: false, message: `unknown builtin "${handlerId}"` };
   try {
-    const { message } = await handler(ctx);
-    return { ok: true, message };
+    return { ok: true, ...await handler(ctx) };
   } catch (err) {
     return { ok: false, message: err instanceof Error ? err.message : String(err) };
   }
@@ -102,6 +108,10 @@ export async function runBuiltin(
  * "capture-changeset" replaces this entry wholesale.
  */
 export const BUILTIN_HOOKS: HookDefinition[] = [
+  {
+    name: "prepare-worktree", events: ["implement.pre", "fix.pre"], type: "builtin", builtin: "prepare-worktree",
+    description: "Create or resume a branch in .worktrees before code changes.", enabled: false, order: 0, onFailure: "abort",
+  },
   {
     name: "capture-baseline",
     events: ["implement.pre", "implement.task.pre", "fix.pre"],
@@ -121,5 +131,13 @@ export const BUILTIN_HOOKS: HookDefinition[] = [
     enabled: true,
     order: 10,
     onFailure: "warn",
+  },
+  {
+    name: "commit-progress", events: ["implement.task.post", "implement.post", "fix.post"], type: "builtin", builtin: "commit-progress",
+    description: "Commit verified tasks; commit and push completed implementations and fixes.", enabled: false, order: 200, onFailure: "abort", timeoutMs: 120000,
+  },
+  {
+    name: "create-pull-request", events: ["implement.post", "fix.post"], type: "builtin", builtin: "create-pull-request",
+    description: "Create or reuse a PR against an explicitly configured target branch.", enabled: false, order: 300, onFailure: "abort", timeoutMs: 120000,
   },
 ];

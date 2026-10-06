@@ -5,7 +5,8 @@
  */
 import path from "node:path";
 import fs from "fs-extra";
-import { loadRegistry, hooksForEvent } from "./registry.js";
+import { loadRegistry, hooksForEvent, hookIsSkipped } from "./registry.js";
+import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
 import { buildPayload, writePayloadFile, refreshChanges, type BuildPayloadOptions } from "./payload.js";
 import { runShellHook } from "./executors/shell.js";
 import { runHttpHook } from "./executors/http.js";
@@ -25,6 +26,8 @@ export interface RunEventOptions extends BuildPayloadOptions {
   dryRun?: boolean;
   /** Restrict dispatch to a single hook by name — used by `spec-lite hook test`. */
   only?: string;
+  /** Invocation-only suppression, also available through SPEC_LITE_SKIP_HOOKS. */
+  skip?: string[];
 }
 
 export interface RunEventReport {
@@ -73,6 +76,9 @@ async function alreadyRanOnce(root: string, featureDir: string | undefined, hook
 }
 
 export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
+  const skip = [...(opts.skip ?? []), ...(process.env.SPEC_LITE_SKIP_HOOKS ?? "").split(",").map((name) => name.trim()).filter(Boolean)];
+  if (opts.extra?.mode === "yolo") skip.push(...GIT_WORKFLOW_HOOKS);
+  opts = { ...opts, skip };
   const { depth, chain } = currentChain();
   const payload = await buildPayload(opts);
 
@@ -109,7 +115,7 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
     };
   }
 
-  const { hooks: allHooks, issues } = await loadRegistry(opts.root);
+  const { hooks: allHooks, issues } = await loadRegistry(opts.root, { skip });
   const subscribed = hooksForEvent(allHooks, opts.event).filter(
     (h) => !opts.only || h.name === opts.only
   );
@@ -128,6 +134,10 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   let contractFailed = false;
 
   for (const hook of subscribed) {
+    if (hookIsSkipped(hook, skip)) {
+      results.push({ name: hook.name, event: opts.event, kind: hook.type, status: "skipped", durationMs: 0, message: "disabled for this invocation" });
+      continue;
+    }
     const chainKey = `${opts.event}:${hook.name}`;
     if (chain.includes(chainKey)) {
       results.push({ name: hook.name, event: opts.event, kind: hook.type, status: "skipped", durationMs: 0, message: "reentrant within this chain" });
@@ -163,8 +173,15 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
       continue;
     }
 
-    const result = await dispatch(hook, ctx, opts.root, depth, [...chain, chainKey]);
+    const result = await dispatch(hook, ctx, opts.root, depth, [...chain, chainKey], skip);
     results.push(result);
+    if (result.worktree && result.status === "ok") {
+      opts = { ...opts, root: result.worktree.path };
+      payload.cwd = result.worktree.path;
+      payload.worktree = result.worktree;
+      delete payload.changes;
+      if (payloadFile) await fs.writeJson(payloadFile, payload);
+    }
     await appendLog(opts.root, payload.feature?.dir, result);
 
     if (result.status === "ok" || result.status === "emitted") {
@@ -213,8 +230,8 @@ async function emitHookError(
 ): Promise<void> {
   if (opts.event === "hook.error" || opts.dryRun) return;
 
-  const { hooks } = await loadRegistry(opts.root);
-  const handlers = hooksForEvent(hooks, "hook.error");
+  const { hooks } = await loadRegistry(opts.root, { skip: opts.skip });
+  const handlers = hooksForEvent(hooks, "hook.error").filter((hook) => !hookIsSkipped(hook, opts.skip ?? []));
   if (handlers.length === 0) return;
 
   const errorPayload = await buildPayload({
@@ -233,7 +250,7 @@ async function emitHookError(
   for (const handler of handlers) {
     const chainKey = `hook.error:${handler.name}`;
     if (chain.includes(chainKey)) continue;
-    const result = await dispatch(handler, { payload: errorPayload, payloadFile }, opts.root, depth, [...chain, chainKey]);
+    const result = await dispatch(handler, { payload: errorPayload, payloadFile }, opts.root, depth, [...chain, chainKey], opts.skip);
     await appendLog(opts.root, payload.feature?.dir, result);
   }
 }
@@ -243,15 +260,16 @@ async function dispatch(
   ctx: ResolveContext,
   root: string,
   depth: number,
-  chain: string[]
+  chain: string[],
+  skip: string[] = []
 ): Promise<HookResult> {
-  const reentrancyEnv = { SPEC_LITE_HOOK_DEPTH: String(depth + 1), SPEC_LITE_HOOK_CHAIN: chain.join(",") };
+  const reentrancyEnv = { SPEC_LITE_HOOK_DEPTH: String(depth + 1), SPEC_LITE_HOOK_CHAIN: chain.join(","), SPEC_LITE_SKIP_HOOKS: skip.join(",") };
 
   if (isAgenticKind(hook.type)) return emitAgenticDirective(hook, ctx);
 
   switch (hook.type) {
     case "builtin":
-      return runBuiltinHook(hook, ctx, root);
+      return runBuiltinHook(hook, ctx, root, reentrancyEnv);
     case "http":
       return runHttpHook(hook, ctx);
     case "command":

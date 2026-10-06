@@ -5,9 +5,11 @@
  * "replace, don't append" rule already used by feature-summary.md. `enabled:
  * false` disables a builtin without redefining it.
  */
+import path from "node:path";
 import fs from "fs-extra";
 import Ajv2020 from "ajv/dist/2020.js";
 import { BUILTIN_HOOKS } from "./builtins/index.js";
+import { validatePrOptions } from "./builtins/pull-request.js";
 import { hooksJsonPath, globalHooksJsonPath } from "./workspace.js";
 import { buildHooksSchema } from "./schema.js";
 import { resolvePattern, getEvent, type EventDefinition } from "./events.js";
@@ -105,6 +107,14 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
   }
 
   if (hook.type === "builtin") {
+    if ((hook.builtin ?? hook.name) === "create-pull-request") {
+      for (const message of validatePrOptions(hook.options)) issues.push({ level: "error", hook: hook.name, message });
+    }
+    for (const [name, value] of Object.entries(hook.options ?? {})) {
+      if (["fromBranch", "remote", "targetBranch"].includes(name) && typeof value === "string" && (!value.trim() || value.startsWith("-"))) {
+        issues.push({ level: "error", hook: hook.name, message: `options.${name} must be non-empty and cannot start with a hyphen.` });
+      }
+    }
     // handler existence is checked at dispatch time in runner.ts, since it
     // only matters if the hook is actually enabled and fires.
   }
@@ -129,10 +139,25 @@ function mergeLayers(
   return order.map((name) => byName.get(name)!);
 }
 
-export async function loadRegistry(root: string): Promise<LoadedRegistry> {
+export interface LoadRegistryOptions {
+  /** Include disabled definitions for inspection and state changes, never dispatch. */
+  includeDisabled?: boolean;
+  /** Global resolution excludes project overrides. Defaults to project. */
+  scope?: "global" | "project";
+  /** Temporary suppressions do not validate inactive hook contracts. */
+  skip?: string[];
+}
+
+export function hookIsSkipped(hook: HookDefinition, skip: string[]): boolean {
+  return skip.includes("*") || skip.includes(hook.name) || (hook.type === "builtin" && skip.includes(hook.builtin ?? hook.name));
+}
+
+export async function loadRegistry(root: string, options: LoadRegistryOptions = {}): Promise<LoadedRegistry> {
   const [global, project] = await Promise.all([
     readRegistryFile(globalHooksJsonPath(), "global"),
-    readRegistryFile(hooksJsonPath(root), "project"),
+    options.scope === "global"
+      ? Promise.resolve({ hooks: [], issues: [] })
+      : readRegistryFile(hooksJsonPath(root), "project"),
   ]);
 
   const issues: RegistryIssue[] = [...global.issues, ...project.issues];
@@ -145,9 +170,49 @@ export async function loadRegistry(root: string): Promise<LoadedRegistry> {
 
   const enabled = merged.filter((h) => h.enabled !== false);
 
-  for (const hook of enabled) issues.push(...validateHook(hook));
+  for (const hook of enabled) if (!hookIsSkipped(hook, options.skip ?? [])) issues.push(...validateHook(hook));
 
-  return { hooks: enabled, issues };
+  return { hooks: options.includeDisabled ? merged : enabled, issues };
+}
+
+/** Persist a complete override, preserving the registry's replace-by-name contract. */
+export async function setHookEnabled(
+  root: string,
+  name: string,
+  enabled: boolean,
+  scope: "global" | "project" = "project"
+): Promise<string> {
+  const { hooks, issues } = await loadRegistry(root, { includeDisabled: true, scope });
+  // Never overwrite a malformed file. Semantic errors on enabled hooks may
+  // still be repaired by disabling them.
+  const fileErrors = issues.filter((issue) => issue.level === "error" && !issue.hook);
+  if (fileErrors.length) throw new Error(fileErrors.map((issue) => issue.message).join("\n"));
+
+  const hook = hooks.find((entry) => entry.name === name);
+  if (!hook) throw new Error(`No hook named "${name}". Run \`spec-lite hook list --all\` to see available hooks.`);
+
+  if (enabled) {
+    const errors = validateHook(hook).filter((issue) => issue.level === "error");
+    if (errors.length) throw new Error(errors.map((issue) => issue.message).join("\n"));
+  }
+
+  const file = scope === "global" ? globalHooksJsonPath() : hooksJsonPath(root);
+  const doc: HookRegistryFile = await fs.pathExists(file)
+    ? await fs.readJson(file)
+    : { version: 1, hooks: [] };
+  const { source: _source, ...definition } = hook;
+  const override = { ...definition, enabled };
+  const index = doc.hooks.findIndex((entry) => entry.name === name);
+  if (index === -1) doc.hooks.push(override);
+  else {
+    // Duplicate names already resolve to the last entry; collapse them when
+    // changing state so an earlier duplicate cannot undo the requested state.
+    doc.hooks = doc.hooks.filter((entry) => entry.name !== name);
+    doc.hooks.splice(index, 0, override);
+  }
+  await fs.ensureDir(path.dirname(file));
+  await fs.writeJson(file, doc, { spaces: 2 });
+  return file;
 }
 
 /** Hooks subscribed to a concrete event name, ordered by `order` then declaration. */

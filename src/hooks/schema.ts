@@ -45,6 +45,18 @@ export function buildHooksSchema(): Record<string, unknown> {
           payloadSchema: { type: "object" },
 
           builtin: { type: "string" },
+          options: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              fromBranch: { type: "string", minLength: 1 },
+              remote: { type: "string", minLength: 1 },
+              targetBranch: { type: "string", minLength: 1 },
+              provider: { enum: ["github", "azure-devops", "command"] },
+              command: { type: "array", minItems: 1, items: { type: "string" } },
+              lookupCommand: { type: "array", minItems: 1, items: { type: "string" } },
+            },
+          },
 
           run: { type: "string" },
           shell: { enum: ["auto", "bash", "pwsh"], default: "auto" },

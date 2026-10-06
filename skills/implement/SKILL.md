@@ -89,6 +89,8 @@ Before writing any code:
 - Mark all tasks as `[ ] Not started` in the feature spec's **State Tracking** section (if not already). This confirms the starting baseline.
 - Run `spec-lite hook run implement.pre --feature FEAT-{{ID}}` (see [Hooks](#hooks)) to capture the pre-implementation baseline.
 
+If the command prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every subsequent edit, test, and hook call. Re-open the plan/spec from that worktree; their relative paths are preserved. The CLI has already run the remaining pre hooks there. Resume an existing worktree instead of creating another for each task. Carry `--payload mode=yolo` on every hook call when delegated from YOLO; this temporarily skips the Git workflow hooks without changing the registry.
+
 ### 2. Execute Tasks
 
 For each task in the feature spec, first run `spec-lite hook run implement.task.pre --feature FEAT-{{ID}} --task TASK-{{n}}` (see [Hooks](#hooks)), then follow this sequence:
@@ -127,10 +129,10 @@ After all tasks are complete:
 
 - Run the full test suite to verify nothing is broken.
 - Update the feature spec's State Tracking section — all tasks should be `[x]`.
-- Run `spec-lite hook run implement.post --feature FEAT-{{ID}} --payload summary="{{one-line description of what was implemented}}"` (see [Hooks](#hooks)). This captures the complete changeset deterministically in `changeset.json` — the authoritative scope for future feature and plan reviews. Do not hand-maintain a Touched Files list.
 - Update the governing plan file (`.spec-lite/plan.md` or the named plan): mark this feature's status as `[x] Complete`.
 - **Update `.spec-lite/feature-summary.md`** — Add or update the entry for this feature under the appropriate category. See [Feature Summary Maintenance](#feature-summary-maintenance) for format and rules.
 - Apply [Documentation Maintenance](#documentation-maintenance) for the implemented feature.
+- Complete any required memory capture, then run `spec-lite hook run implement.post --feature FEAT-{{ID}} --payload summary="{{one-line description of what was implemented}}"` (see [Hooks](#hooks)) after all code, documentation, and state updates. This captures the authoritative changeset, then runs any enabled commit/push and PR hooks. Do not hand-maintain a Touched Files list. Report the worktree path and any PR URL/cleanup guidance printed by the hooks; cleanup stays explicit.
 - Notify the user: "Implementation of FEAT-{{ID}} is complete. All tasks verified, including comprehensive unit tests. Ready for review."
 
 ---
@@ -146,6 +148,7 @@ Triggered when the user asks to implement remediations from a consolidated repor
 - Extract `REV-###` findings ordered Critical → High → Medium → Low.
 - If the user specified a subset (e.g., "only Critical and High findings"), filter accordingly.
 - Announce the remediation queue: "I'll implement: REV-001 (Missing rate limiting), REV-003 (Weak password hashing), ..."
+- Before edits, run `spec-lite hook run implement.pre --payload name="{{short review scope}}"` (include `--feature` if the scope identifies one feature). Honor any `SPEC-LITE-WORKTREE` handoff exactly as in Feature Mode, including the YOLO suppression context.
 
 ### 2. Implement Each Remediation
 
@@ -158,6 +161,8 @@ For each finding in the queue, in order:
 5. **Annotate the finding** — In the review report, add a `> ✅ Resolved: {{brief description of fix, file, line}}` note directly under the finding.
 6. **Move to the next finding.**
 
+After resolving and annotating each finding, run `spec-lite hook run implement.task.post --task {{REV-ID}} --payload summary="{{one-line remediation summary}}"` in the active workspace, including `--feature` when applicable.
+
 ### 3. Review Mode Finalize
 
 After all queued findings are addressed:
@@ -165,6 +170,7 @@ After all queued findings are addressed:
 - Run the full test suite.
 - **Update `.spec-lite/feature-summary.md`** — If any remediation changed observable feature behavior (not just internal hardening), update the affected feature entries to reflect the current behavior. See [Feature Summary Maintenance](#feature-summary-maintenance).
 - Apply [Documentation Maintenance](#documentation-maintenance) for observable or structural remediation changes.
+- After all reports, state, documentation, and required memory updates, run `spec-lite hook run implement.post --payload summary="{{one-line remediation summary}}"` (include `--feature` when applicable), and report any PR URL and explicit worktree cleanup guidance.
 - Notify the user: *"All {{n}} findings from `{{report_file}}` have been implemented and verified."*
 - Suggest re-running the consolidated **Review** skill on the same deterministic scope.
 
@@ -193,7 +199,7 @@ For each FEAT-ID in the queue, **in order**, spawn a subagent using the Agent to
 2. An instruction to read this skill file (`<repo>/skills/implement/SKILL.md`) and follow its **Feature Mode Process** end-to-end (Prepare → Execute Tasks → Finalize) for that single spec.
 3. An instruction to read all relevant context files before starting: `.spec-lite/memory.md`, `.spec-lite/plan.md` (or the named plan), `.spec-lite/data_model.md`, `.spec-lite/feature-summary.md` (each only if present).
 4. The mandatory deliverables: (a) implement every task in the feature spec with code + comprehensive unit tests + code-level docs, (b) run the test suite and verify passing, (c) update State Tracking (changeset capture happens automatically through the Hooks run during the subagent's own Feature Mode Process), (d) update the parent plan's `Status` cell for this FEAT-ID from `[/]` to `[x]`, (e) update `.spec-lite/feature-summary.md`, and (f) invoke `document update` when configured.
-5. A request to return a **brief one-line summary** of the result (e.g., `"FEAT-002 implemented: 8 tasks complete, 24 tests passing"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
+5. A request to return a **brief one-line summary** of the result (e.g., `"FEAT-002 implemented: 8 tasks complete, 24 tests passing"`) or a one-line failure reason. Include the active worktree path when one was used, so the orchestrator can read the completed spec, changeset, and plan there. Tell the subagent its return text will be the only thing the orchestrator sees. Propagate YOLO context when applicable.
 
 **Before spawning each subagent**, mark the feature's status in the plan from `[ ]` to `[/]` so it shows as in-progress. (The subagent flips it to `[x]` on success.)
 

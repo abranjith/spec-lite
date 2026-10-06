@@ -121,7 +121,9 @@ hooks. For concepts and worked examples see [Hooks](features/hooks.md).
 
 ```text
 spec-lite hook run <event> [options]
-spec-lite hook list [--event <name>]
+spec-lite hook list [--event <name>] [--all]
+spec-lite hook enable <name> [--global]
+spec-lite hook disable <name> [--global]
 spec-lite hook events
 spec-lite hook vars
 spec-lite hook validate
@@ -132,6 +134,7 @@ spec-lite hook test <name> [options]
 |---|---|
 | [`run <event>`](#hook-run-event) | Fire one event, dispatching every subscribed hook in order |
 | [`list`](#hook-list) | List resolved hooks after merging builtin → global → project |
+| [`enable <name>` / `disable <name>`](#hook-enable--disable-name) | Change a hook's enabled state in the project or global registry |
 | [`events`](#hook-events) | Print the full event catalog with emitted/planned status |
 | [`vars`](#hook-vars) | Print the `${...}` interpolation variable table |
 | [`validate`](#hook-validate) | Validate the merged registry — schema, event names, templates |
@@ -153,6 +156,7 @@ spec-lite hook run review.verdict --payload verdict="Request changes" --json
 | `--run-id <id>` | generated | Reuse one `runId` across multiple `hook run` calls |
 | `--dry-run` | `false` | Resolve and print what would run, without executing; `${env:...}` values are redacted |
 | `--json` | `false` | Machine-readable report on stdout instead of the human summary |
+| `--skip <name>` | none | Suppress a hook for this invocation; repeat for multiple names or use `*` for all |
 
 Exit codes: `0` success (including failures policied `warn`/`ignore`), `1` a hook
 with `onFailure: "abort"` failed, `2` a contract error — the event name is not in
@@ -168,20 +172,52 @@ Agentic hooks (`skill`, `agent`, `prompt`) are never executed. They print a
     SPEC-LITE-DIRECTIVE {"hook":"review-after-implement","type":"skill","event":"implement.post","skill":"spec-review","args":"review feature user_management"}
 ```
 
+`SPEC_LITE_SKIP_HOOKS` accepts comma-separated names for process-scoped
+suppression. `--payload mode=yolo` suppresses the three Git workflow builtins
+without changing the registry. When `prepare-worktree` runs, the CLI prints
+`SPEC-LITE-WORKTREE <json>`; use its `path` for every later edit, test, and hook
+call. With `--json`, read `payload.worktree`. See
+[Git workflow hooks](features/hooks.md#git-workflow-hooks) for configuration,
+provider requirements, retry behavior, and explicit cleanup.
+
 ### hook list
 
 ```bash
 spec-lite hook list
+spec-lite hook list --all
 spec-lite hook list --event implement.post
 ```
 
 | Option | Default | Summary |
 |---|---|---|
 | `--event <name>` | all | Show only hooks subscribed to this concrete event |
+| `--all` | `false` | Include disabled hooks and show their status |
 
 Each entry shows the hook name, its provenance (`builtin`, `global`, `project`),
 its type, and the events it subscribes to. Hooks disabled with
-`"enabled": false` are omitted.
+`"enabled": false` are omitted unless `--all` is supplied.
+
+### hook enable / disable \<name\>
+
+```bash
+spec-lite hook disable capture-changeset
+spec-lite hook enable capture-changeset
+spec-lite hook disable capture-baseline --global
+```
+
+| Option | Default | Summary |
+|---|---|---|
+| `--global` | `false` | Write `~/.spec-lite/hooks.json` using builtin/global definitions instead of writing the project registry |
+
+Writes a complete definition with the requested `enabled` flag, preserving the
+registry's whole-entry replacement behavior and all other hook settings.
+Project overrides take precedence over global settings. Neither command runs
+the hook or changes the repository-wide `hooks.enabled` switch.
+
+Exits `2` without writing for an unknown name or malformed registry. Enabling
+also validates the hook's events and templates. Use `hook list --all` to find
+disabled hooks. Remove an override from its registry file to inherit the earlier
+layer's definition again.
 
 ### hook events
 

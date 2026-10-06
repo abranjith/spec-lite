@@ -3,7 +3,7 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import { Command } from "commander";
 import { runEvent } from "../hooks/runner.js";
-import { loadRegistry, hooksForEvent } from "../hooks/registry.js";
+import { loadRegistry, hooksForEvent, setHookEnabled } from "../hooks/registry.js";
 import { EVENT_CATALOG, getEvent, resolvePattern } from "../hooks/events.js";
 import { describeVars } from "../hooks/interpolation.js";
 
@@ -22,7 +22,7 @@ function collect(value: string, previous: string[]): string[] {
 }
 
 async function runAction(event: string, options: {
-  feature?: string; task?: string; payload?: string[]; dryRun?: boolean; json?: boolean; runId?: string; only?: string;
+  feature?: string; task?: string; payload?: string[]; dryRun?: boolean; json?: boolean; runId?: string; only?: string; skip?: string[];
 }): Promise<void> {
   const root = process.cwd();
   const report = await runEvent({
@@ -34,6 +34,7 @@ async function runAction(event: string, options: {
     extra: parsePayloadFlags(options.payload),
     dryRun: options.dryRun,
     only: options.only,
+    skip: options.skip,
   });
 
   if (options.json) {
@@ -51,6 +52,7 @@ async function runAction(event: string, options: {
         : chalk.red("✗");
       console.log(`  ${icon} ${r.name} (${r.kind}) ${chalk.dim(`[${r.status}]`)}${r.message ? ` — ${r.message}` : ""}`);
       if (r.directive) console.log(`    ${r.directive}`);
+      if (r.worktree) console.log(`SPEC-LITE-WORKTREE ${JSON.stringify(r.worktree)}`);
       if (r.preview) console.log(chalk.dim(`    ${r.preview.split("\n").join("\n    ")}`));
     }
   }
@@ -58,9 +60,9 @@ async function runAction(event: string, options: {
   process.exitCode = report.exitCode;
 }
 
-async function listAction(options: { event?: string }): Promise<void> {
+async function listAction(options: { event?: string; all?: boolean }): Promise<void> {
   const root = process.cwd();
-  const { hooks, issues } = await loadRegistry(root);
+  const { hooks, issues } = await loadRegistry(root, { includeDisabled: options.all });
   const filtered = options.event ? hooksForEvent(hooks, options.event) : hooks;
 
   for (const issue of issues) {
@@ -71,6 +73,17 @@ async function listAction(options: { event?: string }): Promise<void> {
     console.log(`${chalk.bold(hook.name)} ${chalk.dim(`(${hook.source})`)} — ${hook.type} — ${status}`);
     console.log(`  events: ${hook.events.join(", ")}`);
     if (hook.description) console.log(`  ${chalk.dim(hook.description)}`);
+  }
+}
+
+async function toggleAction(name: string, enabled: boolean, options: { global?: boolean }): Promise<void> {
+  try {
+    const file = await setHookEnabled(process.cwd(), name, enabled, options.global ? "global" : "project");
+    console.log(chalk.green(`${enabled ? "Enabled" : "Disabled"} "${name}" in ${file}`));
+    if (options.global) console.log(chalk.dim("Project overrides take precedence over this global setting."));
+  } catch (err) {
+    console.log(chalk.red((err as Error).message));
+    process.exitCode = 2;
   }
 }
 
@@ -181,13 +194,23 @@ export function registerHookCommand(program: Command): void {
     .option("--run-id <id>", "Reuse a runId across multiple hook run calls")
     .option("--dry-run", "Resolve and print without executing", false)
     .option("--json", "Machine-readable output", false)
+    .option("--skip <name>", "Skip a hook for this invocation only (repeatable; * skips all)", collect, [])
     .action(runAction);
 
   hook
     .command("list")
     .description("List resolved hooks, builtins -> global -> project merged")
     .option("--event <name>", "Only hooks subscribed to this concrete event")
+    .option("--all", "Include disabled hooks", false)
     .action(listAction);
+
+  for (const enabled of [true, false]) {
+    hook
+      .command(`${enabled ? "enable" : "disable"} <name>`)
+      .description(`${enabled ? "Enable" : "Disable"} a hook by writing a registry override`)
+      .option("--global", "Write ~/.spec-lite/hooks.json instead of the project registry", false)
+      .action((name: string, options: { global?: boolean }) => toggleAction(name, enabled, options));
+  }
 
   hook
     .command("events")

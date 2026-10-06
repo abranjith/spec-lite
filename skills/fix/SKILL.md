@@ -61,7 +61,7 @@ Diagnose the root cause of a bug or failure, implement a targeted fix, and add a
 
 ### 1. Reproduce & Understand
 
-- If the fix targets a tracked feature, run `spec-lite hook run fix.pre --feature FEAT-{{ID}}` (see [Hooks](#hooks)) to capture the pre-fix baseline; for an ad-hoc fix with no feature, omit `--feature` and changeset capture is skipped.
+- Choose a short issue name such as `auth-issue`. Before edits, run `spec-lite hook run fix.pre --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. Feature-less fixes skip changeset capture. If `SPEC-LITE-WORKTREE <json>` is printed, use its `path` as the workspace root for every subsequent edit, test, and hook call; re-open the spec/plan there. Carry `--payload mode=yolo` on every hook call when delegated from YOLO to temporarily suppress the Git workflow hooks without changing the registry.
 - Read the error output. Understand the *symptom* before looking for the *cause*.
 - Identify the failing assertion, exception, or unexpected behavior.
 - If possible, reproduce the issue locally.
@@ -95,7 +95,7 @@ Follow the signal, not the noise:
 
 ### 5. Document
 
-Run `spec-lite hook run fix.post --feature FEAT-{{ID}} --payload summary="{{one-line description of the fix}}"` (see [Hooks](#hooks)) — when a feature was given, this captures the fix's changeset deterministically in that feature's `changeset.json`, the same way Implement does.
+Write the fix report below, update the relevant state and documentation, and complete any required memory capture before the completion hook.
 
 Add a brief entry to `.spec-lite/TODO.md` or the relevant feature spec if the bug reveals a broader issue that should be tracked.
 
@@ -104,6 +104,8 @@ Add a brief entry to `.spec-lite/TODO.md` or the relevant feature spec if the bu
 When updating, find the affected feature by its stable `FEAT-###` ID, replace the description with current behavior, and update the `*(updated: {{date}} by fix)*` annotation. Update every category occurrence and preserve its `Source spec:` link. See [Implement's Feature Summary Maintenance](../implement/SKILL.md#feature-summary-maintenance).
 
 If `.spec-lite.json.documentation.updateWithDevelopment` is `true` and the fix changes observable behavior, architecture, data, public APIs, or documented operations, invoke **Document** in update mode with the affected paths/feature. If it is `false` or config is absent, do not edit human-facing docs ad hoc; suggest `document update <scope>` in What's Next.
+
+After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the feature changeset, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL/cleanup command. Cleanup stays explicit after merging.
 
 ---
 

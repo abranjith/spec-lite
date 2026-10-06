@@ -18,6 +18,7 @@ can disable, replace, or ignore them without affecting any other hook.
 - [Change or delete a hook](#change-or-delete-a-hook)
 - [More examples](#more-examples)
 - [Built-in hooks](#built-in-hooks)
+- [Git workflow hooks](#git-workflow-hooks)
 - [Hook definition reference](#hook-definition-reference)
 - [Interpolation](#interpolation)
 - [Event catalog](#event-catalog)
@@ -163,6 +164,7 @@ event itself, and the hook goes with it:
 | Command | Answers |
 |---|---|
 | `spec-lite hook list` | Which hooks are active, which layer defined them, what they subscribe to |
+| `spec-lite hook list --all` | Every resolved hook, including disabled hooks and their status |
 | `spec-lite hook list --event implement.post` | Which hooks would fire for one specific event |
 | `spec-lite hook events` | The full event catalog with `emitted`/`planned` status |
 | `spec-lite hook vars` | Every `${...}` variable, its group, and an example value |
@@ -190,19 +192,48 @@ The parenthesised word is provenance: `builtin`, `global`
 replace earlier ones **by name**, wholesale — not a deep merge — so naming your
 hook after a builtin replaces that builtin outright.
 
-`hook list` shows only active hooks. A hook set to `enabled: false` disappears
-from the listing rather than appearing as disabled.
+`hook list` shows only active hooks. Add `--all` to include hooks set to
+`enabled: false`; they appear as disabled and remain excluded from dispatch.
+Combine it with `--event` to inspect disabled subscriptions for one event.
 
 ## Change or delete a hook
 
 | Goal | Do this |
 |---|---|
 | Delete a hook you added | Remove its object from `.spec-lite/hooks.json` |
-| Keep it but stop it firing | Set `"enabled": false` on the entry |
-| Turn off a builtin | Add an entry with the builtin's `name` and `"enabled": false` |
+| Keep it but stop it firing | `spec-lite hook disable <name>` |
+| Enable a disabled hook | `spec-lite hook enable <name>` |
+| Turn off a builtin | `spec-lite hook disable <name>` |
 | Replace a builtin's behavior | Add an entry reusing the builtin's `name` with your own `type` and body |
 | Change it for one repository only | Edit `.spec-lite/hooks.json`; it wins over the global file |
 | Silence everything, everywhere | `"hooks": { "enabled": false }` in `.spec-lite.json` |
+
+Toggle a hook by name without editing JSON:
+
+```bash
+spec-lite hook list --all
+spec-lite hook disable capture-changeset
+spec-lite hook enable capture-changeset
+spec-lite hook disable capture-baseline --global
+```
+
+Both commands write to `.spec-lite/hooks.json` by default. `--global` writes to
+`~/.spec-lite/hooks.json`, resolving only the builtin and global layers;
+project overrides still take precedence. A project-only hook cannot be changed
+with `--global`.
+
+Each command stores the complete effective definition with the requested
+`enabled` value, preserving events, executor settings, order, and failure policy.
+This follows the existing whole-entry replacement rule. An inherited definition
+copied into an override stays pinned there until you remove that override.
+Unknown hook names and malformed registries exit `2` without writing. Enabling
+also checks the hook's event names and templates before saving; neither command
+executes the hook. The repository-wide `hooks.enabled: false` switch still wins
+over any individual hook's state.
+
+To add your own optional hook, include `"enabled": false` in its complete registry
+entry. It is discoverable through `hook list --all`; opt in with `hook enable
+<name>`, then preview the subscribed event with `hook run <event> --dry-run`.
 
 Deleting the linter hook is exactly what it sounds like — drop the object, then
 confirm it is gone:
@@ -321,9 +352,12 @@ getting right by default:
 | `capture-baseline` | `implement.pre`, `implement.task.pre`, `fix.pre` | yes | Records HEAD and whatever is already dirty, so pre-existing edits are never attributed to this run |
 | `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the feature's `changeset.json` |
 | `changeset-from-pr` | — | no (opt-in) | Uses `gh pr diff --name-only` instead of a local git baseline, for PR-first teams |
+| `prepare-worktree` | `implement.pre`, `fix.pre` | no | Creates or resumes a branch under the main checkout's `.worktrees/` |
+| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits verified tasks; commits and pushes at feature/fix completion |
+| `create-pull-request` | `implement.post`, `fix.post` | no | Creates or reuses a PR against an explicitly configured target branch |
 
-Builtins run in-process as native TypeScript — no subprocess, no shell, and no
-dependency on `spec-lite` being on `PATH`.
+Builtin handlers run in-process as native TypeScript. They invoke Git or provider
+CLIs when needed, without depending on `spec-lite` being on `PATH`.
 
 `changeset-from-pr` ships but subscribes to nothing until you opt in. Name it
 through the `builtin` field and choose the events yourself:
@@ -385,6 +419,213 @@ To use hooks without changeset capture at all, disable both builtins as shown in
 [Change or delete a hook](#change-or-delete-a-hook). Every other hook keeps
 working.
 
+## Git workflow hooks
+
+These three builtins ship **disabled** and apply only to Implement (including
+Review Mode) and Fix. They use the same registry and enable/disable commands as
+other hooks. They require Git; the PR adapter additionally needs an authenticated
+provider CLI or your custom commands.
+
+### Configure and enable
+
+An example `.spec-lite/hooks.json` with all three still disabled:
+
+```json
+{
+  "version": 1,
+  "hooks": [
+    {
+      "name": "prepare-worktree",
+      "events": ["implement.pre", "fix.pre"],
+      "type": "builtin",
+      "builtin": "prepare-worktree",
+      "enabled": false,
+      "order": 0,
+      "onFailure": "abort",
+      "options": { "fromBranch": "develop" }
+    },
+    {
+      "name": "commit-progress",
+      "events": ["implement.task.post", "implement.post", "fix.post"],
+      "type": "builtin",
+      "builtin": "commit-progress",
+      "enabled": false,
+      "order": 200,
+      "onFailure": "abort",
+      "timeoutMs": 120000,
+      "options": { "remote": "origin" }
+    },
+    {
+      "name": "create-pull-request",
+      "events": ["implement.post", "fix.post"],
+      "type": "builtin",
+      "builtin": "create-pull-request",
+      "enabled": false,
+      "order": 300,
+      "onFailure": "abort",
+      "timeoutMs": 120000,
+      "options": {
+        "provider": "github",
+        "targetBranch": "develop",
+        "remote": "origin"
+      }
+    }
+  ]
+}
+```
+
+Remove `fromBranch` to start from the branch currently checked out in the main
+repository. An explicit value names an existing local branch (`develop`) or
+remote-tracking branch (`origin/develop`); worktree preparation does not fetch.
+The starting branch and PR target are independent settings.
+
+```bash
+spec-lite hook list --all
+spec-lite hook enable prepare-worktree
+spec-lite hook enable commit-progress
+spec-lite hook enable create-pull-request
+spec-lite hook validate
+```
+
+`targetBranch` and `provider` are required before enabling the PR hook. Missing
+settings fail validation with exit `2`; the target never falls back to the
+repository's default branch. Keep `remote` consistent between commit and PR
+hooks (both default to `origin`). Project entries replace complete definitions,
+so preserve `events`, `order`, and `onFailure` when customizing them.
+
+### Worktree preparation and handoff
+
+Worktrees live at `<main-checkout>/.worktrees/<name>`, even when invoked from a
+linked checkout. The hook creates/appends `/.worktrees/` to `.gitignore` in the
+main checkout and the worktree without replacing existing rules. Source files
+start from the chosen branch's committed contents. Existing source-code edits
+in the caller's checkout stay there.
+
+| Work | Directory name | Branch |
+|---|---|---|
+| `FEAT-020-execute_operations` | `feat-020-execute-operations` | `ft/feat-020-execute-operations` |
+| Fix with `--payload name=auth-issue` | `fix-auth-issue` | `fix/auth-issue` |
+
+Names use lowercase ASCII letters, digits, and hyphens. Names longer than 60
+characters are shortened with an eight-character hash suffix to avoid
+truncation collisions. A fix can also supply `--feature`; its short issue name
+still determines the fix branch. For feature-less Implement Review Mode, supply
+a short review scope through `--payload name=...`.
+
+```bash
+spec-lite hook run implement.pre --feature FEAT-020
+spec-lite hook run fix.pre --payload name=auth-issue
+```
+
+The CLI prints `SPEC-LITE-WORKTREE` followed by JSON containing `path`, `branch`,
+`mainRoot`, and `fromBranch`. **The calling agent must use `path` for all later
+edits, tests, and hook commands.** With `--json`, the same information is in the
+result and `payload.worktree`. A subprocess cannot change its caller's working
+directory; Implement/Fix instructions explicitly handle this handoff.
+
+The remaining hooks in that pre-event run inside the new worktree, so
+`capture-baseline` follows preparation. `.spec-lite/` inputs and
+`.spec-lite.json` are copied on creation, including uncommitted specs and hook
+configuration. Old changeset/log runtime files are excluded. Reusing a worktree
+preserves its edits and local workflow artifacts; those artifacts remain in that
+worktree. Dependencies must be installed there as required by the project.
+
+State and locks live under the common Git directory's `spec-lite/` folder.
+Matching retries reuse the checkout; existing unrelated paths/branches and
+mismatched ownership fail. A crash leaving a lock reports its exact path so it
+can be removed after verifying that the interrupted operation has stopped.
+
+### Commits and pushes
+
+`commit-progress` requires a worktree managed by `prepare-worktree`, including
+when used independently in an existing managed checkout. It refuses to stage or
+commit the parent checkout. At `implement.task.post`, it stages additions,
+modifications, and deletions and commits only when the index has changes. The
+commit message includes the feature/branch, task ID when supplied, and summary.
+
+At `implement.post` or `fix.post`, it commits any remaining changes and pushes
+the current branch with upstream tracking. There are no empty commits or force
+pushes. Runtime `changeset.json` and `hooks.log.jsonl` files are excluded from
+staging so capture timestamps do not manufacture commits on retries. Other
+non-ignored files, including documentation and state updates, are staged.
+
+Keep validators before order `200`: changeset capture runs at `10`, commit/push
+at `200`, and PR creation at `300`. The shipped delivery hooks use
+`onFailure: "abort"`; a failed commit or push stops the chain. Completion events
+in Implement/Fix run after reports, documentation, state, and memory updates.
+
+### PR providers and retries
+
+Git cannot create a hosted pull request. The shipped adapters use:
+
+| `options.provider` | Requirements | Behavior |
+|---|---|---|
+| `github` | Authenticated `gh` on PATH | `gh pr list` followed by `gh pr create` when needed |
+| `azure-devops` | Authenticated `az` with the Azure DevOps extension | `az repos pr list/create`; HTTPS and Azure SSH remotes are supported |
+| `command` | Your configured executable/arguments | Lookup before creation using your provider integration |
+
+The hook verifies that the source branch's current HEAD was pushed to the
+configured remote. It looks up a PR matching the source and target, including
+closed/completed PRs, and reuses it. If none exists, it fetches the target branch
+and skips creation when there is no difference. The PR title/body use the supplied
+summary and the commits made in the worktree. GitHub receives the body through a
+temporary file, which is removed afterwards.
+
+A shared workflow lock prevents concurrent creation by these hooks. After a
+failed create response, the hook queries again, recovering when the provider
+created the PR but its response was lost. Lookup/authentication errors are
+failures, never interpreted as “no PR exists.” Use a new work name/branch for a
+new PR after an earlier workflow has closed; retries of the same workflow return
+the earlier PR.
+
+For another provider, configure both commands as literal executable/argument
+arrays; no shell interpolation is involved:
+
+```json
+{
+  "provider": "command",
+  "targetBranch": "develop",
+  "command": ["node", "scripts/pr-adapter.cjs", "create"],
+  "lookupCommand": ["node", "scripts/pr-adapter.cjs", "lookup"]
+}
+```
+
+These are the PR hook's `options`. Both commands receive
+`SPEC_LITE_PR_HEAD`, `SPEC_LITE_PR_BASE`, `SPEC_LITE_PR_TITLE`,
+`SPEC_LITE_PR_BODY_FILE`, `SPEC_LITE_PR_REMOTE`, and `SPEC_LITE_PR_REMOTE_URL`.
+Lookup must return JSON `null` when absent or `{"url":"https://..."}` for a
+matching PR; creation returns the same URL object. Both exit `0` on success.
+Lookup must include closed/completed matches and fail on API/authentication
+errors. The commands inherit process environment credentials; keep secrets out
+of the registry and command output. A custom adapter can use the provider's API
+without requiring `gh` or `az`.
+
+After creating or finding a PR, the result includes its URL and a command to run
+**after merging** to remove the worktree. Cleanup is explicit: the hook never
+removes a worktree or branch and never adds `--force`. Preserve any local workflow
+artifacts you need before removal; Git refuses removal when uncommitted files
+remain.
+
+### Temporary suppression and YOLO
+
+Suppress hooks for one invocation without modifying enabled states:
+
+```bash
+spec-lite hook run implement.pre --feature FEAT-020 --skip prepare-worktree
+spec-lite hook run implement.post --feature FEAT-020 --payload mode=yolo --payload summary="Done"
+```
+
+Repeat `--skip <name>` for multiple hooks, or use `--skip '*'` for all. Setting
+`SPEC_LITE_SKIP_HOOKS` to comma-separated names applies to calls in that process
+environment and inherited subprocesses. Suppression skips those hooks' semantic
+validation and execution; malformed registry JSON/schema still fails.
+
+`--payload mode=yolo` automatically suppresses the three Git workflow builtins,
+including aliases using their handler IDs, while preserving changeset capture
+and other hooks. YOLO propagates this context to every Implement/Fix delegate
+and every hook call, including on resume. Suppression lasts only for the call;
+it does not rewrite `.spec-lite/hooks.json`.
+
 ## Hook definition reference
 
 | Field | Applies to | Default | Meaning |
@@ -393,13 +634,14 @@ working.
 | `events` | all | — | **Required.** Event names or wildcard patterns (`implement.*`) |
 | `type` | all | — | **Required.** `command`, `script`, `http`, `builtin`, `skill`, `agent`, `prompt` |
 | `description` | all | — | Human-readable note, shown by `hook list` |
-| `enabled` | all | `true` | `false` removes the hook from the resolved registry |
+| `enabled` | all | `true` | `false` excludes the hook from dispatch and the default listing; `hook list --all` includes it |
 | `order` | all | `100` | Lower runs first; ties broken by declaration order |
 | `timeoutMs` | deterministic | `30000` | Wall-clock budget before the hook is killed and reported as failed |
 | `onFailure` | all | `warn` | `warn` (log and continue), `abort` (stop the chain, exit 1), `ignore` (silent) |
 | `once` | all | `false` | Skip if this hook already succeeded for this event on this feature |
 | `payloadSchema` | all | — | JSON Schema checked against the payload *before* invocation |
 | `builtin` | `builtin` | the hook's `name` | Handler id in the builtin registry |
+| `options` | Git workflow builtins | — | `fromBranch`, `remote`, or required PR `provider`/`targetBranch`; custom PR adapters also use `command`/`lookupCommand` arrays |
 | `run` | `command`, `script` | — | Command line or script path. Interpolated |
 | `shell` | `command`, `script` | `auto` | `auto` (sh on POSIX, PowerShell on Windows), `bash`, `pwsh` |
 | `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root. Interpolated |
@@ -619,7 +861,7 @@ Every `hook run` then reports that hooks are disabled and dispatches nothing.
 | `unknown event`, exit `2` | The event name is not in the catalog | `spec-lite hook events` to check the spelling |
 | Exit `2` before anything ran | Registry error, or a `${...}` with no value | `spec-lite hook validate` |
 | `${env:X}` warning at validate time | Variable not set in the current shell | Export it wherever hooks run, or add `:-default` |
-| Builtin still listed after disabling | Entry name does not match the builtin exactly | Reuse the exact name (`capture-changeset`) |
+| Builtin still active after disabling | Entry name does not match the builtin exactly | Reuse the exact name (`capture-changeset`); `list --all` intentionally still shows disabled hooks |
 | Changeset empty | No `--feature`, no baseline, or not a git repository | Check the `capture-baseline` line in `hooks.log.jsonl` |
 | Agentic hook ignored | Directives are best-effort by design | Use a deterministic kind if it must happen |
 

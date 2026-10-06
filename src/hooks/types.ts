@@ -48,6 +48,24 @@ export type HookShell = "auto" | "bash" | "pwsh";
 /** Where a resolved hook came from, for provenance in `spec-lite hook list`. */
 export type HookSource = "builtin" | "global" | "project";
 
+/** Settings for the opt-in Git workflow builtins. Stored with their registry entry. */
+export interface GitHookOptions {
+  fromBranch?: string;
+  remote?: string;
+  targetBranch?: string;
+  provider?: "github" | "azure-devops" | "command";
+  /** Literal executable/argv; custom adapters receive SPEC_LITE_PR_* variables. */
+  command?: string[];
+  lookupCommand?: string[];
+}
+
+export interface WorktreeInfo {
+  mainRoot: string;
+  path: string;
+  branch: string;
+  fromBranch: string;
+}
+
 /**
  * One hook entry as written in `.spec-lite/hooks.json`.
  *
@@ -80,6 +98,7 @@ export interface HookDefinition {
   // --- builtin ---
   /** Handler id in the builtin registry. Defaults to `name` when omitted. */
   builtin?: string;
+  options?: GitHookOptions;
 
   // --- command | script ---
   /** Command line (`command`) or script path (`script`). Supports ${...} interpolation. */
@@ -171,6 +190,7 @@ export interface HookPayload {
   summary?: string;
   /** Review verdict, present on review.verdict. */
   verdict?: string | null;
+  worktree?: WorktreeInfo;
   /** Any additional --payload key=value pairs. */
   [key: string]: unknown;
 }
@@ -186,6 +206,8 @@ export interface HookResult {
   message?: string;
   /** For agentic kinds: the directive line emitted to stdout. */
   directive?: string;
+  /** A builtin can move the remaining dispatch into a prepared worktree. */
+  worktree?: WorktreeInfo;
   /** For --dry-run: the fully resolved command/url/body/directive, with any ${env:...} values redacted. */
   preview?: string;
   /**

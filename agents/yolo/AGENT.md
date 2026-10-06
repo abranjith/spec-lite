@@ -52,6 +52,8 @@ YOLO may execute only the confirmed goal and optional phases. Autonomy does not 
 
 ## State
 
+Git workflow hooks are temporarily suppressed in YOLO. Tell every Implement/Fix delegate (and its nested delegates) to append `--payload mode=yolo` to each `spec-lite hook run` call. The runtime skips `prepare-worktree`, `commit-progress`, and `create-pull-request` for those invocations while leaving changeset capture and other hooks active. Preserve this context on resume; never disable hooks by editing the user's registry.
+
 Create and maintain `.spec-lite/yolo_state.md` using the [state template](assets/yolo-state-template.md). Persist after every plan, spec, implementation, review, fix, test, documentation result, pause, retry, skip, or user decision. The state must contain the original goal verbatim, plan/feature progress, optional-phase choices, current position, unresolved Medium/Low findings, and a concise session log.
 
 Never rely on conversation history for resume. Read state, validate referenced files, announce the exact resume point, and continue with the next incomplete cell. If state and artifacts disagree, report the mismatch and ask which source to repair.
