@@ -18,6 +18,7 @@ Every command supports `-h, --help`; the root command also supports
 | [`list`](#list) | Print every available agent, skill, reference, output, and stack baseline |
 | [`export`](#export) | Build one self-contained Markdown bundle from selected roles and references |
 | [`hook`](#hook) | Run and inspect lifecycle hooks |
+| [`worktree`](#worktree) | List and clean up worktrees made by the Git workflow hooks |
 
 ## init
 
@@ -122,8 +123,8 @@ hooks. For concepts and worked examples see [Hooks](features/hooks.md).
 ```text
 spec-lite hook run <event> [options]
 spec-lite hook list [--event <name>] [--all]
-spec-lite hook enable <name> [--global]
-spec-lite hook disable <name> [--global]
+spec-lite hook enable <names...> [--global]
+spec-lite hook disable <names...> [--global]
 spec-lite hook events
 spec-lite hook vars
 spec-lite hook validate
@@ -134,7 +135,7 @@ spec-lite hook test <name> [options]
 |---|---|
 | [`run <event>`](#hook-run-event) | Fire one event, dispatching every subscribed hook in order |
 | [`list`](#hook-list) | List resolved hooks after merging builtin → global → project |
-| [`enable <name>` / `disable <name>`](#hook-enable--disable-name) | Change a hook's enabled state in the project or global registry |
+| [`enable <names...>` / `disable <names...>`](#hook-enable--disable-names) | Change hooks' enabled state in the project or global registry |
 | [`events`](#hook-events) | Print the full event catalog with emitted/planned status |
 | [`vars`](#hook-vars) | Print the `${...}` interpolation variable table |
 | [`validate`](#hook-validate) | Validate the merged registry — schema, event names, templates |
@@ -173,12 +174,12 @@ Agentic hooks (`skill`, `agent`, `prompt`) are never executed. They print a
 ```
 
 `SPEC_LITE_SKIP_HOOKS` accepts comma-separated names for process-scoped
-suppression. `--payload mode=yolo` suppresses the three Git workflow builtins
-without changing the registry. When `prepare-worktree` runs, the CLI prints
+suppression. When `prepare-worktree` runs, the CLI prints
 `SPEC-LITE-WORKTREE <json>`; use its `path` for every later edit, test, and hook
-call. With `--json`, read `payload.worktree`. See
-[Git workflow hooks](features/hooks.md#git-workflow-hooks) for configuration,
-provider requirements, retry behavior, and explicit cleanup.
+call. With `--json`, read `payload.worktree`. The Git workflow hooks also read
+`--payload name=…`, `--payload plan=<plan file>`, and `--payload yolo=<Run ID>`
+to choose the workflow. See [Git workflow hooks](features/hooks.md#git-workflow-hooks)
+for setup, provider requirements, and retry behavior.
 
 ### hook list
 
@@ -197,11 +198,12 @@ Each entry shows the hook name, its provenance (`builtin`, `global`, `project`),
 its type, and the events it subscribes to. Hooks disabled with
 `"enabled": false` are omitted unless `--all` is supplied.
 
-### hook enable / disable \<name\>
+### hook enable / disable \<names...\>
 
 ```bash
 spec-lite hook disable capture-changeset
 spec-lite hook enable capture-changeset
+spec-lite hook enable prepare-worktree commit-progress create-pull-request
 spec-lite hook disable capture-baseline --global
 ```
 
@@ -214,8 +216,13 @@ registry's whole-entry replacement behavior and all other hook settings.
 Project overrides take precedence over global settings. Neither command runs
 the hook or changes the repository-wide `hooks.enabled` switch.
 
+Several names are changed together and validated as a whole, which the Git
+workflow hooks need because they depend on each other.
+
 Exits `2` without writing for an unknown name or malformed registry. Enabling
-also validates the hook's events and templates. Use `hook list --all` to find
+also validates the hook's events and templates, and the Git workflow rules
+(dependencies, order, `gitWorkflow` settings). Disabling refuses to leave a
+hook without one it depends on. Use `hook list --all` to find
 disabled hooks. Remove an override from its registry file to inherit the earlier
 layer's definition again.
 
@@ -266,3 +273,24 @@ spec-lite hook test notify-slack --event review.verdict --payload ./payload.json
 `hook test` runs the real executor — a `command` hook really executes and an
 `http` hook really posts. Use `hook run --dry-run` when you want resolution
 without side effects.
+
+## worktree
+
+List and clean up the worktrees made by the [Git workflow hooks](features/hooks.md#git-workflow-hooks).
+
+```text
+spec-lite worktree list [--json]
+spec-lite worktree cleanup <name>
+spec-lite worktree cleanup --merged
+```
+
+| Subcommand | Behavior |
+|---|---|
+| `list` | Each workflow's name, scope (`feature:FEAT-020`, `plan:orders`, …), branch, path, and status: `active`, `no worktree`, or `incomplete` |
+| `cleanup <name>` | After merging: verify the merge, remove the worktree (never forced), delete the local branch, reset specs copied from the main checkout, and forget the workflow |
+| `cleanup --merged` | Clean up every merged workflow and report the rest as skipped |
+
+Run `cleanup` from the main checkout, before `git pull`. It removes nothing
+unless the branch is merged into `targetBranch` (or `fromBranch`), or the PR
+provider reports that exact commit merged (squash merges). Exits `1` when it
+refuses or Git fails, `2` for invalid arguments.

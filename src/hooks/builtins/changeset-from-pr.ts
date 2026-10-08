@@ -24,7 +24,7 @@ export async function changesetFromPr(
   const file = changesetPath(root, featureDir);
   const doc: ChangesetDoc = (await fs.pathExists(file))
     ? await fs.readJson(file)
-    : { vcs: "git", captures: [], files: [], excluded: [] };
+    : { vcs: "git", files: [], excluded: [] };
 
   const { stdout } = await execFileAsync("gh", ["pr", "diff", "--name-only"], { cwd: root });
   const paths = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -35,7 +35,7 @@ export async function changesetFromPr(
     byPath.set(p, { path: p, status: existing?.status ?? "M", role: existing?.role ?? opts.role });
   }
   doc.files = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
-  doc.captures.push({ event: opts.event, at: new Date().toISOString() });
+  delete (doc as { captures?: unknown }).captures;
 
   await fs.ensureDir(path.dirname(file));
   await fs.writeJson(file, doc, { spaces: 2 });

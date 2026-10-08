@@ -4,6 +4,7 @@
 import path from "node:path";
 import os from "node:os";
 import fs from "fs-extra";
+import type { GitWorkflowConfig } from "./types.js";
 import {
   featureNumbersInText,
   normalizeFeatureId,
@@ -25,6 +26,8 @@ export interface HookRelevantConfig {
   /** Every configured harness alias. */
   providers?: string[];
   hooks?: { enabled?: boolean };
+  /** Settings for the opt-in Git workflow builtins. */
+  gitWorkflow?: GitWorkflowConfig;
 }
 
 /**

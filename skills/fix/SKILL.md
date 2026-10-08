@@ -61,7 +61,8 @@ Diagnose the root cause of a bug or failure, implement a targeted fix, and add a
 
 ### 1. Reproduce & Understand
 
-- Choose a short issue name such as `auth-issue`. Before edits, run `spec-lite hook run fix.pre --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. Feature-less fixes skip changeset capture. If `SPEC-LITE-WORKTREE <json>` is printed, use its `path` as the workspace root for every subsequent edit, test, and hook call; re-open the spec/plan there. Carry `--payload mode=yolo` on every hook call when delegated from YOLO to temporarily suppress the Git workflow hooks without changing the registry.
+- Name the issue once and reuse that name for the whole fix, including the report `fix_{{issue-name}}.md`. Use the user's ticket or issue ID when one is given (e.g. `PROJ-123`); otherwise use a short kebab-case name such as `auth-issue`. When resuming a fix, run `spec-lite worktree list` first and reuse the name of the matching `fix:` workflow.
+- Before edits, run `spec-lite hook run fix.pre --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. Feature-less fixes skip changeset capture. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call.
 - Read the error output. Understand the *symptom* before looking for the *cause*.
 - Identify the failing assertion, exception, or unexpected behavior.
 - If possible, reproduce the issue locally.
@@ -105,7 +106,7 @@ When updating, find the affected feature by its stable `FEAT-###` ID, replace th
 
 If `.spec-lite.json.documentation.updateWithDevelopment` is `true` and the fix changes observable behavior, architecture, data, public APIs, or documented operations, invoke **Document** in update mode with the affected paths/feature. If it is `false` or config is absent, do not edit human-facing docs ad hoc; suggest `document update <scope>` in What's Next.
 
-After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the feature changeset, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL/cleanup command. Cleanup stays explicit after merging.
+After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --payload name="{{issue-name}}" --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the feature changeset, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL and cleanup command it prints.
 
 ---
 

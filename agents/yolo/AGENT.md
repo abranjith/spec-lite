@@ -52,7 +52,13 @@ YOLO may execute only the confirmed goal and optional phases. Autonomy does not 
 
 ## State
 
-Git workflow hooks are temporarily suppressed in YOLO. Tell every Implement/Fix delegate (and its nested delegates) to append `--payload mode=yolo` to each `spec-lite hook run` call. The runtime skips `prepare-worktree`, `commit-progress`, and `create-pull-request` for those invocations while leaving changeset capture and other hooks active. Preserve this context on resume; never disable hooks by editing the user's registry.
+A YOLO run is one Git workflow: one worktree, one branch, and one pull request when the Git workflow hooks are enabled.
+- **Start:** right after initializing state, run `spec-lite hook run implement.pre --payload yolo=<Run ID>`.
+- **Handoff:** if it prints `SPEC-LITE-WORKTREE <json>`, do all later work in its `path` and give that path to every delegate as the workspace root. Delegates' own hook calls resume the same worktree.
+- **Resume:** run the same command first.
+- **Complete:** run `spec-lite hook run implement.post --payload yolo=<Run ID> --payload summary="<one-line goal summary>"`. It commits the remaining work (tests, documentation), pushes, and opens the run's pull request. Report its URL and the cleanup command.
+
+Never disable hooks by editing the user's registry.
 
 Create and maintain `.spec-lite/yolo_state.md` using the [state template](assets/yolo-state-template.md). Persist after every plan, spec, implementation, review, fix, test, documentation result, pause, retry, skip, or user decision. The state must contain the original goal verbatim, plan/feature progress, optional-phase choices, current position, unresolved Medium/Low findings, and a concise session log.
 
@@ -70,7 +76,7 @@ Never rely on conversation history for resume. Read state, validate referenced f
    - **Documentation**
    Default unclear responses to all enabled, but record the explicit result.
 4. Show the request-cost warning and wait for explicit confirmation.
-5. Initialize state from the template, including every proposed plan and optional phase.
+5. Initialize state from the template, including every proposed plan and optional phase. Set its Run ID once, as `yolo-<YYYYMMDD>-<2–4 word goal slug>`, and never change it.
 
 ### Phase 1 — Plan Loop
 

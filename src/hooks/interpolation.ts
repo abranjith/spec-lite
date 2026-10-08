@@ -130,7 +130,7 @@ export const INTERPOLATION_VARS: readonly VarDefinition[] = [
     (c) => c.payload.changes?.source),
   V("changes.baseline", "changes", "Baseline commit the changeset is diffed against.", "abc1234",
     (c) => c.payload.changes?.baseline),
-  V("changes.head", "changes", "HEAD at capture time.", "def5678",
+  V("changes.head", "changes", "HEAD of the checkout when the event fired.", "def5678",
     (c) => c.payload.changes?.head),
   V("changes.files", "changes", "Changed paths, newline-separated.", "src/a.ts\\nsrc/b.ts",
     (c) =>

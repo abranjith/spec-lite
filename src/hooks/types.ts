@@ -48,22 +48,47 @@ export type HookShell = "auto" | "bash" | "pwsh";
 /** Where a resolved hook came from, for provenance in `spec-lite hook list`. */
 export type HookSource = "builtin" | "global" | "project";
 
-/** Settings for the opt-in Git workflow builtins. Stored with their registry entry. */
-export interface GitHookOptions {
-  fromBranch?: string;
-  remote?: string;
-  targetBranch?: string;
+/** PR settings for `create-pull-request`, under `gitWorkflow.pullRequest` in `.spec-lite.json`. */
+export interface PullRequestConfig {
   provider?: "github" | "azure-devops" | "command";
+  targetBranch?: string;
   /** Literal executable/argv; custom adapters receive SPEC_LITE_PR_* variables. */
   command?: string[];
   lookupCommand?: string[];
 }
 
+/**
+ * Shared settings for the opt-in Git workflow builtins, read from the
+ * `gitWorkflow` block of `.spec-lite.json`. One block, rather than per-hook
+ * options, keeps the remote and branches consistent across all three hooks.
+ */
+export interface GitWorkflowConfig {
+  /** Branch new worktrees start from. Default: the main checkout's current branch. */
+  fromBranch?: string;
+  /** Fetch `fromBranch` from `remote` and start from the remote's tip. */
+  fetch?: boolean;
+  /** Default "origin". */
+  remote?: string;
+  /** Directory for worktrees, relative to the main checkout. Default ".worktrees". */
+  worktreeRoot?: string;
+  /** Commit subject template: ${id}, ${task}, ${summary}, ${branch}, with ${name:-default}. */
+  commitMessage?: string;
+  pullRequest?: PullRequestConfig;
+}
+
+/** What a workflow is scoped to; decides its branch name and who completes it. */
+export type WorkflowKind = "feature" | "fix" | "review" | "plan" | "yolo";
+
+/** The managed worktree handed to the calling agent (`SPEC-LITE-WORKTREE`). */
 export interface WorktreeInfo {
   mainRoot: string;
   path: string;
   branch: string;
   fromBranch: string;
+  /** Workflow identity, e.g. `feature:FEAT-020` or `plan:orders`. */
+  identity: string;
+  /** Commit the branch started from. */
+  initialHead: string;
 }
 
 /**
@@ -98,7 +123,6 @@ export interface HookDefinition {
   // --- builtin ---
   /** Handler id in the builtin registry. Defaults to `name` when omitted. */
   builtin?: string;
-  options?: GitHookOptions;
 
   // --- command | script ---
   /** Command line (`command`) or script path (`script`). Supports ${...} interpolation. */

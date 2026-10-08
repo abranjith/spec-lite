@@ -6,7 +6,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { loadRegistry, hooksForEvent, hookIsSkipped } from "./registry.js";
-import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
+import { excludeHookLogs } from "./builtins/git-workflow.js";
 import { buildPayload, writePayloadFile, refreshChanges, type BuildPayloadOptions } from "./payload.js";
 import { runShellHook } from "./executors/shell.js";
 import { runHttpHook } from "./executors/http.js";
@@ -53,6 +53,8 @@ function currentChain(): { depth: number; chain: string[] } {
 
 async function appendLog(root: string, featureDir: string | undefined, result: HookResult): Promise<void> {
   if (!featureDir) return;
+  // The log is a local audit trail; keep it out of every commit in this clone.
+  await excludeHookLogs(root);
   const file = hooksLogPath(root, featureDir);
   await fs.ensureDir(path.dirname(file));
   const line = JSON.stringify({ at: new Date().toISOString(), ...result }) + "\n";
@@ -77,7 +79,6 @@ async function alreadyRanOnce(root: string, featureDir: string | undefined, hook
 
 export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   const skip = [...(opts.skip ?? []), ...(process.env.SPEC_LITE_SKIP_HOOKS ?? "").split(",").map((name) => name.trim()).filter(Boolean)];
-  if (opts.extra?.mode === "yolo") skip.push(...GIT_WORKFLOW_HOOKS);
   opts = { ...opts, skip };
   const { depth, chain } = currentChain();
   const payload = await buildPayload(opts);

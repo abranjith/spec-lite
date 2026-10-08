@@ -1,6 +1,6 @@
 // Regenerates the marker-delimited hook tables in docs/features/hooks.md from
 // the code. Run via `npm run generate:hook-docs` after changing
-// INTERPOLATION_VARS or EVENT_CATALOG. A test asserts the doc matches, so CI
+// INTERPOLATION_VARS, EVENT_CATALOG, or BUILTIN_HOOKS. A test asserts the doc matches, so CI
 // catches drift.
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,6 +13,12 @@ import {
   VARS_TABLE_END,
   EVENTS_TABLE_START,
   EVENTS_TABLE_END,
+  renderBuiltinHooksJson,
+  renderGitWorkflowHooksJson,
+  BUILTIN_HOOKS_START,
+  BUILTIN_HOOKS_END,
+  GIT_WORKFLOW_HOOKS_START,
+  GIT_WORKFLOW_HOOKS_END,
 } from "../src/hooks/docs.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,5 +38,17 @@ if (withEvents === null) {
   process.exit(1);
 }
 
-writeFileSync(docPath, withEvents, "utf-8");
+let withJson = withEvents;
+for (const [start, end, render] of [
+  [BUILTIN_HOOKS_START, BUILTIN_HOOKS_END, renderBuiltinHooksJson],
+  [GIT_WORKFLOW_HOOKS_START, GIT_WORKFLOW_HOOKS_END, renderGitWorkflowHooksJson],
+]) {
+  withJson = replaceBetweenMarkers(withJson, start, end, render());
+  if (withJson === null) {
+    console.error(`Missing ${start} / ${end} markers in ${docPath}`);
+    process.exit(1);
+  }
+}
+
+writeFileSync(docPath, withJson, "utf-8");
 console.log(`Wrote hook tables to ${docPath}`);

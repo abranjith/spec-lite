@@ -9,8 +9,9 @@ import path from "node:path";
 import fs from "fs-extra";
 import Ajv2020 from "ajv/dist/2020.js";
 import { BUILTIN_HOOKS } from "./builtins/index.js";
-import { validatePrOptions } from "./builtins/pull-request.js";
-import { hooksJsonPath, globalHooksJsonPath } from "./workspace.js";
+import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
+import { validateGitWorkflowConfig } from "./builtins/git-config.js";
+import { hooksJsonPath, globalHooksJsonPath, readProjectConfig } from "./workspace.js";
 import { buildHooksSchema } from "./schema.js";
 import { resolvePattern, getEvent, type EventDefinition } from "./events.js";
 import { validateTemplate } from "./interpolation.js";
@@ -106,19 +107,83 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
     for (const message of d.warnings) issues.push({ level: "warning", hook: hook.name, message });
   }
 
-  if (hook.type === "builtin") {
-    if ((hook.builtin ?? hook.name) === "create-pull-request") {
-      for (const message of validatePrOptions(hook.options)) issues.push({ level: "error", hook: hook.name, message });
-    }
-    for (const [name, value] of Object.entries(hook.options ?? {})) {
-      if (["fromBranch", "remote", "targetBranch"].includes(name) && typeof value === "string" && (!value.trim() || value.startsWith("-"))) {
-        issues.push({ level: "error", hook: hook.name, message: `options.${name} must be non-empty and cannot start with a hyphen.` });
-      }
-    }
-    // handler existence is checked at dispatch time in runner.ts, since it
-    // only matters if the hook is actually enabled and fires.
+  // A builtin's handler existence is checked at dispatch time in runner.ts,
+  // since it only matters if the hook is actually enabled and fires.
+  return issues;
+}
+
+/** Events each Git workflow builtin must handle for the chain to hold together. */
+const GIT_WORKFLOW_EVENTS: Record<(typeof GIT_WORKFLOW_HOOKS)[number], string[]> = {
+  "prepare-worktree": ["implement.pre", "implement.task.pre", "fix.pre"],
+  "commit-progress": ["implement.task.post", "implement.post", "fix.post"],
+  "create-pull-request": ["implement.post", "fix.post"],
+};
+
+const handlerOf = (hook: HookDefinition) => (hook.type === "builtin" ? hook.builtin ?? hook.name : undefined);
+const subscribes = (hook: HookDefinition, event: string) =>
+  hook.events.some((pattern) => resolvePattern(pattern).matched.some((e) => e.name === event));
+
+/** `commit-progress` cannot commit outside a managed worktree, and a PR needs the pushed branch. */
+function gitWorkflowDependencies(enabled: ResolvedHook[]): RegistryIssue[] {
+  const has = (id: string) => enabled.some((hook) => handlerOf(hook) === id);
+  const issues: RegistryIssue[] = [];
+  if (has("commit-progress") && !has("prepare-worktree")) {
+    issues.push({ level: "error", hook: "commit-progress", message: "commit-progress needs prepare-worktree. Enable both: spec-lite hook enable prepare-worktree commit-progress" });
+  }
+  if (has("create-pull-request") && !has("commit-progress")) {
+    issues.push({ level: "error", hook: "create-pull-request", message: "create-pull-request needs commit-progress to push the branch. Enable both: spec-lite hook enable commit-progress create-pull-request" });
+  }
+  return issues;
+}
+
+/**
+ * Whole-chain rules for the Git workflow builtins. Overrides replace entire
+ * entries, so a hand-written entry could otherwise drop an event, an abort
+ * policy, or its place in the order without anything failing loudly.
+ */
+function validateGitWorkflow(enabled: ResolvedHook[], config: unknown, skip: string[]): RegistryIssue[] {
+  const git = new Map(GIT_WORKFLOW_HOOKS.map((id) => [id, enabled.find((hook) => handlerOf(hook) === id)]));
+  if (![...git.values()].some(Boolean)) return [];
+  const issues = gitWorkflowDependencies(enabled);
+  const error = (hook: HookDefinition, message: string) => issues.push({ level: "error", hook: hook.name, message });
+
+  for (const [id, hook] of git) {
+    if (!hook) continue;
+    const missing = GIT_WORKFLOW_EVENTS[id].filter((event) => !subscribes(hook, event));
+    if (missing.length) error(hook, `${hook.name} must subscribe to ${missing.join(", ")}.`);
+    if (hook.onFailure !== "abort") error(hook, `${hook.name} must use "onFailure": "abort", so a failed step stops the workflow.`);
   }
 
+  const prepare = git.get("prepare-worktree");
+  const commit = git.get("commit-progress");
+  const pr = git.get("create-pull-request");
+  const position = (event: string, hook: ResolvedHook) => hooksForEvent(enabled, event).indexOf(hook);
+  if (prepare) {
+    for (const event of GIT_WORKFLOW_EVENTS["prepare-worktree"]) {
+      const first = hooksForEvent(enabled, event)[0];
+      if (first && first !== prepare) {
+        error(prepare, `${prepare.name} must run first on ${event} so later hooks run in the worktree, but ${first.name} (order ${first.order ?? 100}) runs before it.`);
+      }
+    }
+  }
+  if (commit) {
+    const capture = enabled.find((hook) => handlerOf(hook) === "capture-changeset");
+    for (const event of GIT_WORKFLOW_EVENTS["commit-progress"]) {
+      if (capture && subscribes(capture, event) && position(event, capture) > position(event, commit)) {
+        error(commit, `${commit.name} must run after ${capture.name} on ${event}, so the commit includes changeset.json.`);
+      }
+    }
+  }
+  if (commit && pr) {
+    for (const event of GIT_WORKFLOW_EVENTS["create-pull-request"]) {
+      if (position(event, pr) < position(event, commit)) error(pr, `${pr.name} must run after ${commit.name} on ${event}, which pushes the branch.`);
+    }
+  }
+
+  const needsPullRequest = !!pr && !hookIsSkipped(pr, skip);
+  const report = validateGitWorkflowConfig(config, needsPullRequest);
+  for (const message of report.errors) issues.push({ level: "error", hook: "gitWorkflow", message });
+  for (const message of report.warnings) issues.push({ level: "warning", hook: "gitWorkflow", message });
   return issues;
 }
 
@@ -171,6 +236,10 @@ export async function loadRegistry(root: string, options: LoadRegistryOptions = 
   const enabled = merged.filter((h) => h.enabled !== false);
 
   for (const hook of enabled) if (!hookIsSkipped(hook, options.skip ?? [])) issues.push(...validateHook(hook));
+  // Project settings apply only when resolving a project.
+  if (options.scope !== "global") {
+    issues.push(...validateGitWorkflow(enabled, (await readProjectConfig(root)).gitWorkflow, options.skip ?? []));
+  }
 
   return { hooks: options.includeDisabled ? merged : enabled, issues };
 }
@@ -182,33 +251,61 @@ export async function setHookEnabled(
   enabled: boolean,
   scope: "global" | "project" = "project"
 ): Promise<string> {
+  return setHooksEnabled(root, [name], enabled, scope);
+}
+
+/**
+ * Change several hooks at once, validating the result as a whole: the Git
+ * workflow builtins depend on each other, so enabling them one at a time
+ * would fail on the first.
+ */
+export async function setHooksEnabled(
+  root: string,
+  names: string[],
+  enabled: boolean,
+  scope: "global" | "project" = "project"
+): Promise<string> {
   const { hooks, issues } = await loadRegistry(root, { includeDisabled: true, scope });
   // Never overwrite a malformed file. Semantic errors on enabled hooks may
   // still be repaired by disabling them.
   const fileErrors = issues.filter((issue) => issue.level === "error" && !issue.hook);
   if (fileErrors.length) throw new Error(fileErrors.map((issue) => issue.message).join("\n"));
 
-  const hook = hooks.find((entry) => entry.name === name);
-  if (!hook) throw new Error(`No hook named "${name}". Run \`spec-lite hook list --all\` to see available hooks.`);
-
-  if (enabled) {
-    const errors = validateHook(hook).filter((issue) => issue.level === "error");
-    if (errors.length) throw new Error(errors.map((issue) => issue.message).join("\n"));
-  }
+  const targets = names.map((name) => {
+    const hook = hooks.find((entry) => entry.name === name);
+    if (!hook) throw new Error(`No hook named "${name}". Run \`spec-lite hook list --all\` to see available hooks.`);
+    return hook;
+  });
+  const next = hooks.map((hook) => (names.includes(hook.name) ? { ...hook, enabled } : hook));
+  const active = (list: ResolvedHook[]) => list.filter((hook) => hook.enabled !== false);
+  const config = scope === "project" ? (await readProjectConfig(root)).gitWorkflow : undefined;
+  // Disabling must not strand a hook that depends on the disabled one;
+  // enabling must leave a valid workflow. Pre-existing problems are left to
+  // `hook validate`, so they never block an unrelated change.
+  const chain = (list: ResolvedHook[]) => (enabled && scope === "project" ? validateGitWorkflow(active(list), config, []) : gitWorkflowDependencies(active(list)))
+    .filter((issue) => issue.level === "error").map((issue) => issue.message);
+  const before = new Set(chain(hooks));
+  const errors = [
+    ...(enabled ? targets.flatMap((hook) => validateHook(hook)).filter((issue) => issue.level === "error").map((issue) => issue.message) : []),
+    ...chain(next).filter((message) => !before.has(message)),
+  ];
+  if (errors.length) throw new Error(errors.join("\n"));
 
   const file = scope === "global" ? globalHooksJsonPath() : hooksJsonPath(root);
   const doc: HookRegistryFile = await fs.pathExists(file)
     ? await fs.readJson(file)
     : { version: 1, hooks: [] };
-  const { source: _source, ...definition } = hook;
-  const override = { ...definition, enabled };
-  const index = doc.hooks.findIndex((entry) => entry.name === name);
-  if (index === -1) doc.hooks.push(override);
-  else {
-    // Duplicate names already resolve to the last entry; collapse them when
-    // changing state so an earlier duplicate cannot undo the requested state.
-    doc.hooks = doc.hooks.filter((entry) => entry.name !== name);
-    doc.hooks.splice(index, 0, override);
+  for (const hook of targets) {
+    const { source: _source, ...definition } = hook;
+    const override = { ...definition, enabled };
+    const index = doc.hooks.findIndex((entry) => entry.name === hook.name);
+    if (index === -1) doc.hooks.push(override);
+    else {
+      // Duplicate names already resolve to the last entry; collapse them when
+      // changing state so an earlier duplicate cannot undo the requested state.
+      doc.hooks = doc.hooks.filter((entry) => entry.name !== hook.name);
+      doc.hooks.splice(index, 0, override);
+    }
   }
   await fs.ensureDir(path.dirname(file));
   await fs.writeJson(file, doc, { spaces: 2 });

@@ -13,6 +13,7 @@
 
 ## Status
 
+**Run ID**: yolo-{{yyyymmdd}}-{{goal-slug}} <!-- set once; names the run's Git workflow -->
 **Overall**: In Progress | Paused | Complete
 **Current Position**: Phase {{N}} — {{plan_name}} — {{feature_name or "N/A"}}
 **Last Updated**: {{date}}

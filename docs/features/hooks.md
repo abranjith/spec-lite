@@ -343,21 +343,67 @@ It never recurses into itself:
 
 ## Built-in hooks
 
-Three builtins ship with the CLI. They are ordinary hooks — same registry, same
-fields, same failure policy — that exist because file-scope capture is worth
-getting right by default:
+Six builtins ship with the CLI. They are ordinary hooks, with the same registry,
+fields, and failure policy as yours. Two capture changesets and are on by default.
+One is an alternative capture strategy. Three run the
+[Git workflow](#git-workflow-hooks) and stay off until you enable them.
 
 | Name | Events | Enabled | Does |
 |---|---|---|---|
 | `capture-baseline` | `implement.pre`, `implement.task.pre`, `fix.pre` | yes | Records HEAD and whatever is already dirty, so pre-existing edits are never attributed to this run |
 | `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the feature's `changeset.json` |
 | `changeset-from-pr` | — | no (opt-in) | Uses `gh pr diff --name-only` instead of a local git baseline, for PR-first teams |
-| `prepare-worktree` | `implement.pre`, `fix.pre` | no | Creates or resumes a branch under the main checkout's `.worktrees/` |
-| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits verified tasks; commits and pushes at feature/fix completion |
-| `create-pull-request` | `implement.post`, `fix.post` | no | Creates or reuses a PR against an explicitly configured target branch |
+| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | no | Creates or resumes the work's worktree and branch |
+| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits each task; commits the rest and pushes at completion |
+| `create-pull-request` | `implement.post`, `fix.post` | no | Opens or reuses the work's pull request |
 
 Builtin handlers run in-process as native TypeScript. They invoke Git or provider
 CLIs when needed, without depending on `spec-lite` being on `PATH`.
+
+### Shipped definitions
+
+The capture builtins ship with these definitions. To change one, copy its entry
+into `.spec-lite/hooks.json` and edit it. Your entry replaces the shipped one by
+`name`, as a whole, so keep every property you don't mean to change. The Git
+workflow builtins are listed under [Hook entries](#hook-entries).
+
+<!-- builtin-hooks-json:start -->
+```json
+{
+  "version": 1,
+  "hooks": [
+    {
+      "name": "capture-baseline",
+      "events": [
+        "implement.pre",
+        "implement.task.pre",
+        "fix.pre"
+      ],
+      "type": "builtin",
+      "builtin": "capture-baseline",
+      "description": "Records HEAD and pre-existing dirt so later diffs are scoped to this run.",
+      "enabled": true,
+      "order": 10,
+      "onFailure": "warn"
+    },
+    {
+      "name": "capture-changeset",
+      "events": [
+        "implement.post",
+        "implement.task.post",
+        "fix.post"
+      ],
+      "type": "builtin",
+      "builtin": "capture-changeset",
+      "description": "Diffs against the captured baseline and merges the result into changeset.json.",
+      "enabled": true,
+      "order": 10,
+      "onFailure": "warn"
+    }
+  ]
+}
+```
+<!-- builtin-hooks-json:end -->
 
 `changeset-from-pr` ships but subscribes to nothing until you opt in. Name it
 through the `builtin` field and choose the events yourself:
@@ -389,7 +435,6 @@ for the current branch.
     "capturedAt": "2026-08-21T14:03:11.204Z",
     "dirtyAtBaseline": []
   },
-  "captures": [{ "event": "implement.post", "at": "2026-08-21T14:31:02.028Z", "head": "bc8bd13" }],
   "files": [
     { "path": "src/auth/session.ts", "status": "M", "role": "implement" },
     { "path": "src/auth/expiry.ts", "status": "U", "role": "implement" }
@@ -408,6 +453,10 @@ Generated output is filtered out automatically: `dist/`, `build/`, `out/`,
 `node_modules/`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and
 `.spec-lite/` itself.
 
+Commit `changeset.json` with the work, because Review reads it. It records no
+timestamps or HEAD, so its content changes only when the set of changed files
+does. Capture times are in the [audit log](#audit-log), which stays local.
+
 ### When they do nothing
 
 - **No `--feature`.** Capture is skipped with a note rather than failing — an
@@ -421,210 +470,343 @@ working.
 
 ## Git workflow hooks
 
-These three builtins ship **disabled** and apply only to Implement (including
-Review Mode) and Fix. They use the same registry and enable/disable commands as
-other hooks. They require Git; the PR adapter additionally needs an authenticated
-provider CLI or your custom commands.
+Three opt-in builtins give each piece of work its own branch and pull request:
 
-### Configure and enable
+| Hook | Runs at | Does |
+|---|---|---|
+| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | Creates or resumes the work's worktree and branch |
+| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | Commits each finished task; at completion, commits the rest and pushes |
+| `create-pull-request` | `implement.post`, `fix.post` | Opens the pull request, or reuses the existing one |
 
-An example `.spec-lite/hooks.json` with all three still disabled:
+They cover Implement (every mode) and Fix. A run goes like this:
 
+1. **Start.** A worktree is created at `.worktrees/<name>` on a new branch from
+   `fromBranch`. The work's specs, plan, and settings are copied in, including
+   uncommitted ones, and the agent works there from then on.
+2. **Each task.** The worktree path is announced again before the task, and the
+   task is committed after it.
+3. **Completion.** Remaining changes are committed, the branch is pushed, and the
+   pull request is opened.
+4. **After you merge.** Run `spec-lite worktree cleanup <name>` in your main
+   checkout, then pull.
+
+### Requirements
+
+- Git 2.36 or newer.
+- Push access that never prompts: SSH, or HTTPS with a credential helper. Hooks
+  run with `GIT_TERMINAL_PROMPT=0`.
+- For pull requests, one of:
+  - **GitHub:** `gh` on `PATH` and signed in (`gh auth status`).
+  - **Azure DevOps:** `az` with `az extension add --name azure-devops`, signed in
+    with `az login` or `AZURE_DEVOPS_EXT_PAT`.
+  - **Anything else:** your own adapter. See [Custom PR provider](#custom-pr-provider).
+
+### Set up
+
+1. **Settings.** Add a `gitWorkflow` block to `.spec-lite.json`:
+
+   ```json
+   {
+     "gitWorkflow": {
+       "fromBranch": "develop",
+       "pullRequest": { "provider": "github", "targetBranch": "develop" }
+     }
+   }
+   ```
+
+   To stop at a pushed branch with no pull request, leave out `pullRequest`.
+   [Settings](#settings) lists every option.
+
+2. **Hooks.** Enable the three hooks with the CLI:
+
+   ```bash
+   spec-lite hook enable prepare-worktree commit-progress create-pull-request
+   ```
+
+   Or add their entries to `.spec-lite/hooks.json` yourself; see
+   [Hook entries](#hook-entries). Leave out `create-pull-request` if you left out
+   `pullRequest`. `commit-progress` needs `prepare-worktree`, and
+   `create-pull-request` needs `commit-progress`.
+
+3. **Check.** Validate, then preview what the next feature will do:
+
+   ```bash
+   spec-lite hook validate
+   spec-lite hook run implement.pre --feature FEAT-001 --dry-run
+   ```
+
+#### Settings
+
+All Git workflow settings live in the `gitWorkflow` block of `.spec-lite.json`.
+Every key is shown here:
+
+```json
+{
+  "gitWorkflow": {
+    "fromBranch": "develop",
+    "fetch": true,
+    "remote": "origin",
+    "worktreeRoot": ".worktrees",
+    "commitMessage": "feat(${id}): ${summary}",
+    "pullRequest": {
+      "provider": "github",
+      "targetBranch": "develop"
+    }
+  }
+}
+```
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `fromBranch` | the main checkout's current branch | Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Set it; otherwise the start point depends on what is checked out, and `validate` warns. |
+| `fetch` | `false` | Fetch `fromBranch` from `remote` first, and start from the remote's latest commit. Needs `fromBranch`. |
+| `remote` | `origin` | Remote to push to |
+| `worktreeRoot` | `.worktrees` | Folder for worktrees, relative to the main checkout |
+| `commitMessage` | `FEAT-020 TASK-003: <summary>` | Commit subject template using `${id}` (feature ID, or the branch), `${task}`, `${summary}`, and `${branch}`. Write `${task:-final}` for a default. |
+| `pullRequest.provider` | — | **Required for PRs.** `github`, `azure-devops`, or `command` |
+| `pullRequest.targetBranch` | — | **Required for PRs.** Branch PRs merge into. It is never inferred. |
+| `pullRequest.command`, `pullRequest.lookupCommand` | — | Custom provider only; see [Custom PR provider](#custom-pr-provider) |
+
+Unknown keys are rejected by `hook validate`.
+
+#### Hook entries
+
+`hook enable` writes these entries to `.spec-lite/hooks.json`. Writing them by
+hand has the same effect, and lets you adjust the properties marked as
+changeable:
+
+<!-- git-workflow-hooks-json:start -->
 ```json
 {
   "version": 1,
   "hooks": [
     {
       "name": "prepare-worktree",
-      "events": ["implement.pre", "fix.pre"],
+      "events": [
+        "implement.pre",
+        "implement.task.pre",
+        "fix.pre"
+      ],
       "type": "builtin",
       "builtin": "prepare-worktree",
-      "enabled": false,
+      "description": "Create or resume the workflow's branch and worktree before code changes.",
+      "enabled": true,
       "order": 0,
       "onFailure": "abort",
-      "options": { "fromBranch": "develop" }
+      "timeoutMs": 300000
     },
     {
       "name": "commit-progress",
-      "events": ["implement.task.post", "implement.post", "fix.post"],
+      "events": [
+        "implement.task.post",
+        "implement.post",
+        "fix.post"
+      ],
       "type": "builtin",
       "builtin": "commit-progress",
-      "enabled": false,
+      "description": "Commit verified tasks; commit and push completed implementations and fixes.",
+      "enabled": true,
       "order": 200,
       "onFailure": "abort",
-      "timeoutMs": 120000,
-      "options": { "remote": "origin" }
+      "timeoutMs": 120000
     },
     {
       "name": "create-pull-request",
-      "events": ["implement.post", "fix.post"],
+      "events": [
+        "implement.post",
+        "fix.post"
+      ],
       "type": "builtin",
       "builtin": "create-pull-request",
-      "enabled": false,
+      "description": "Create or reuse the workflow's PR against the configured target branch.",
+      "enabled": true,
       "order": 300,
       "onFailure": "abort",
-      "timeoutMs": 120000,
-      "options": {
-        "provider": "github",
-        "targetBranch": "develop",
-        "remote": "origin"
-      }
+      "timeoutMs": 120000
     }
   ]
 }
 ```
+<!-- git-workflow-hooks-json:end -->
 
-Remove `fromBranch` to start from the branch currently checked out in the main
-repository. An explicit value names an existing local branch (`develop`) or
-remote-tracking branch (`origin/develop`); worktree preparation does not fetch.
-The starting branch and PR target are independent settings.
+| Property | Can you change it? |
+|---|---|
+| `name` | No. Keep it, so your entry replaces the shipped definition. |
+| `type`, `builtin` | No. They select the built-in handler. |
+| `events` | No. Validation rejects an entry missing any of the events shown. |
+| `enabled` | Yes. `false` turns the hook off. Leaving `prepare-worktree` off while `commit-progress` is on fails validation, and so does leaving `commit-progress` off while `create-pull-request` is on. |
+| `order` | Within limits. `prepare-worktree` must run first on its events. `commit-progress` must run after `capture-changeset` (order `10`), and `create-pull-request` after `commit-progress`. Give your own checks, such as lint or tests, an order between `10` and `200` so they run before the commit. |
+| `onFailure` | No. Validation requires `"abort"`, so a failed step stops the run. |
+| `timeoutMs` | Yes. This is the budget for each Git or provider command the hook runs: creating the worktree, a commit or push, or a PR call. |
+| `description` | Yes. It's shown by `hook list`. |
+
+Hook entries take no settings: there is no `options` property. Settings go in
+`.spec-lite.json`, as shown in [Settings](#settings).
+
+### Branches and worktrees
+
+| Work | Started by | Branch | Worktree |
+|---|---|---|---|
+| One feature | Implement | `ft/feat-020-execute-operations` | `.worktrees/feat-020-execute-operations` |
+| A whole plan | Implement, Plan Mode | `plan/orders` (from `plan_orders.md`) | `.worktrees/plan-orders` |
+| A fix | Fix | `fix/auth-issue` | `.worktrees/fix-auth-issue` |
+| Review findings | Implement, Review Mode | `review/checkout` (from `review_checkout.md`) | `.worktrees/review-checkout` |
+| A YOLO run | YOLO | `yolo/20261006-store` | `.worktrees/yolo-20261006-store` |
+
+- **Names are stable.** They come from the feature directory, the plan file, the
+  review report, or the YOLO Run ID, so a retry or a resumed session gets the same
+  branch. A fix uses the name the agent passes: your ticket ID when you give one.
+- **A plan or YOLO run is one branch.** Each feature builds on the previous ones,
+  and the pull request opens when the whole run completes. A feature implemented
+  on its own gets its own branch.
+- **Follow-up work joins its feature.** A fix or review remediation for a feature
+  whose worktree still exists goes onto that branch and updates its pull request.
+- **Name format.** Names use lowercase letters, digits, and hyphens. Names longer
+  than 60 characters end in a short hash.
+
+### After merging
 
 ```bash
-spec-lite hook list --all
-spec-lite hook enable prepare-worktree
-spec-lite hook enable commit-progress
-spec-lite hook enable create-pull-request
-spec-lite hook validate
+spec-lite worktree list
+spec-lite worktree cleanup feat-020-execute-operations   # or --merged for all
+git pull
 ```
 
-`targetBranch` and `provider` are required before enabling the PR hook. Missing
-settings fail validation with exit `2`; the target never falls back to the
-repository's default branch. Keep `remote` consistent between commit and PR
-hooks (both default to `origin`). Project entries replace complete definitions,
-so preserve `events`, `order`, and `onFailure` when customizing them.
+Run cleanup from the main checkout, before pulling. It first checks that the
+branch is merged into `targetBranch` (or `fromBranch`). For a squash merge, it
+asks the PR provider whether that exact commit merged. If the branch isn't
+merged, cleanup removes nothing. Otherwise it:
 
-### Worktree preparation and handoff
+1. Removes the worktree. This is never forced; Git refuses if there are
+   uncommitted changes.
+2. Deletes the local branch. Remote branches are left to your Git host.
+3. Resets specs copied from your main checkout while they were uncommitted, so
+   your identical local copies don't block `git pull`. Files you've changed since
+   are kept.
+4. Forgets the workflow. Starting the same work again creates a fresh branch from
+   the current `fromBranch`.
 
-Worktrees live at `<main-checkout>/.worktrees/<name>`, even when invoked from a
-linked checkout. The hook creates/appends `/.worktrees/` to `.gitignore` in the
-main checkout and the worktree without replacing existing rules. Source files
-start from the chosen branch's committed contents. Existing source-code edits
-in the caller's checkout stay there.
+### What the hooks guarantee
 
-| Work | Directory name | Branch |
-|---|---|---|
-| `FEAT-020-execute_operations` | `feat-020-execute-operations` | `ft/feat-020-execute-operations` |
-| Fix with `--payload name=auth-issue` | `fix-auth-issue` | `fix/auth-issue` |
+- **No duplicates.** Retrying any step reuses the same worktree, branch, and pull
+  request. There are no empty commits and no force-pushes.
+- **Each task is committed with its `changeset.json`.** Its content changes only
+  when the changed files do, so a retry commits nothing.
+- **Hook logs are never committed.** spec-lite adds `.spec-lite/**/hooks.log.jsonl`
+  and the worktree folder to `.git/info/exclude`, and edits no tracked file. A log
+  committed by an earlier version stays tracked until you `git rm --cached` it.
+- **Failures stop the run.** Each hook uses `onFailure: "abort"`. Your own hooks
+  ordered before `200`, such as lint or tests, run before the commit.
+- **Work in the wrong checkout is caught.** Committing outside a managed worktree
+  is refused, and a completion with no changes outside `.spec-lite/` fails instead
+  of pushing.
+- **New work never goes silently onto a merged PR.** If the branch's PR is merged
+  or closed and the branch has new commits, the PR step fails.
+- **Interrupted runs recover.** A rerun finishes an interrupted setup, and a lock
+  left by a killed process is taken over once that process has exited.
 
-Names use lowercase ASCII letters, digits, and hyphens. Names longer than 60
-characters are shortened with an eight-character hash suffix to avoid
-truncation collisions. A fix can also supply `--feature`; its short issue name
-still determines the fix branch. For feature-less Implement Review Mode, supply
-a short review scope through `--payload name=...`.
+### Limitations
 
-```bash
-spec-lite hook run implement.pre --feature FEAT-020
-spec-lite hook run fix.pre --payload name=auth-issue
-```
+- **Tools scan the worktree folder.** `.worktrees/` is inside your checkout, and
+  test runners and compilers ignore `.gitignore`. Exclude it from them, for
+  example vitest `exclude: ["**/.worktrees/**"]`, jest `testPathIgnorePatterns`,
+  tsconfig `exclude`, or ESLint `ignores`. Alternatively, point `worktreeRoot`
+  outside the checkout, if your agent is allowed to write there.
+- **Dependencies aren't installed.** A new worktree has no `node_modules` and none
+  of your git-ignored files, such as `.env`. A `command` hook on `implement.pre`
+  and `fix.pre` with `order: 5` runs inside the new worktree and can install them.
+- **Only Implement and Fix are covered.** Document, test-writing, and DevOps roles
+  edit whichever checkout they run in.
+- **Completions can be slow.** Pushing and opening a PR can take minutes. Give your
+  agent's command timeout at least 5 minutes for `implement.post` and `fix.post`.
+- **One set of branches per repository.** All workflows use the same `remote`,
+  `fromBranch`, and `targetBranch`.
 
-The CLI prints `SPEC-LITE-WORKTREE` followed by JSON containing `path`, `branch`,
-`mainRoot`, and `fromBranch`. **The calling agent must use `path` for all later
-edits, tests, and hook commands.** With `--json`, the same information is in the
-result and `payload.worktree`. A subprocess cannot change its caller's working
-directory; Implement/Fix instructions explicitly handle this handoff.
-
-The remaining hooks in that pre-event run inside the new worktree, so
-`capture-baseline` follows preparation. `.spec-lite/` inputs and
-`.spec-lite.json` are copied on creation, including uncommitted specs and hook
-configuration. Old changeset/log runtime files are excluded. Reusing a worktree
-preserves its edits and local workflow artifacts; those artifacts remain in that
-worktree. Dependencies must be installed there as required by the project.
-
-State and locks live under the common Git directory's `spec-lite/` folder.
-Matching retries reuse the checkout; existing unrelated paths/branches and
-mismatched ownership fail. A crash leaving a lock reports its exact path so it
-can be removed after verifying that the interrupted operation has stopped.
-
-### Commits and pushes
-
-`commit-progress` requires a worktree managed by `prepare-worktree`, including
-when used independently in an existing managed checkout. It refuses to stage or
-commit the parent checkout. At `implement.task.post`, it stages additions,
-modifications, and deletions and commits only when the index has changes. The
-commit message includes the feature/branch, task ID when supplied, and summary.
-
-At `implement.post` or `fix.post`, it commits any remaining changes and pushes
-the current branch with upstream tracking. There are no empty commits or force
-pushes. Runtime `changeset.json` and `hooks.log.jsonl` files are excluded from
-staging so capture timestamps do not manufacture commits on retries. Other
-non-ignored files, including documentation and state updates, are staged.
-
-Keep validators before order `200`: changeset capture runs at `10`, commit/push
-at `200`, and PR creation at `300`. The shipped delivery hooks use
-`onFailure: "abort"`; a failed commit or push stops the chain. Completion events
-in Implement/Fix run after reports, documentation, state, and memory updates.
-
-### PR providers and retries
-
-Git cannot create a hosted pull request. The shipped adapters use:
-
-| `options.provider` | Requirements | Behavior |
-|---|---|---|
-| `github` | Authenticated `gh` on PATH | `gh pr list` followed by `gh pr create` when needed |
-| `azure-devops` | Authenticated `az` with the Azure DevOps extension | `az repos pr list/create`; HTTPS and Azure SSH remotes are supported |
-| `command` | Your configured executable/arguments | Lookup before creation using your provider integration |
-
-The hook verifies that the source branch's current HEAD was pushed to the
-configured remote. It looks up a PR matching the source and target, including
-closed/completed PRs, and reuses it. If none exists, it fetches the target branch
-and skips creation when there is no difference. The PR title/body use the supplied
-summary and the commits made in the worktree. GitHub receives the body through a
-temporary file, which is removed afterwards.
-
-A shared workflow lock prevents concurrent creation by these hooks. After a
-failed create response, the hook queries again, recovering when the provider
-created the PR but its response was lost. Lookup/authentication errors are
-failures, never interpreted as “no PR exists.” Use a new work name/branch for a
-new PR after an earlier workflow has closed; retries of the same workflow return
-the earlier PR.
-
-For another provider, configure both commands as literal executable/argument
-arrays; no shell interpolation is involved:
-
-```json
-{
-  "provider": "command",
-  "targetBranch": "develop",
-  "command": ["node", "scripts/pr-adapter.cjs", "create"],
-  "lookupCommand": ["node", "scripts/pr-adapter.cjs", "lookup"]
-}
-```
-
-These are the PR hook's `options`. Both commands receive
-`SPEC_LITE_PR_HEAD`, `SPEC_LITE_PR_BASE`, `SPEC_LITE_PR_TITLE`,
-`SPEC_LITE_PR_BODY_FILE`, `SPEC_LITE_PR_REMOTE`, and `SPEC_LITE_PR_REMOTE_URL`.
-Lookup must return JSON `null` when absent or `{"url":"https://..."}` for a
-matching PR; creation returns the same URL object. Both exit `0` on success.
-Lookup must include closed/completed matches and fail on API/authentication
-errors. The commands inherit process environment credentials; keep secrets out
-of the registry and command output. A custom adapter can use the provider's API
-without requiring `gh` or `az`.
-
-After creating or finding a PR, the result includes its URL and a command to run
-**after merging** to remove the worktree. Cleanup is explicit: the hook never
-removes a worktree or branch and never adds `--force`. Preserve any local workflow
-artifacts you need before removal; Git refuses removal when uncommitted files
-remain.
-
-### Temporary suppression and YOLO
-
-Suppress hooks for one invocation without modifying enabled states:
+### Skipping for one run
 
 ```bash
 spec-lite hook run implement.pre --feature FEAT-020 --skip prepare-worktree
-spec-lite hook run implement.post --feature FEAT-020 --payload mode=yolo --payload summary="Done"
 ```
 
-Repeat `--skip <name>` for multiple hooks, or use `--skip '*'` for all. Setting
-`SPEC_LITE_SKIP_HOOKS` to comma-separated names applies to calls in that process
-environment and inherited subprocesses. Suppression skips those hooks' semantic
-validation and execution; malformed registry JSON/schema still fails.
+Repeat `--skip`, pass `--skip '*'` for every hook, or set
+`SPEC_LITE_SKIP_HOOKS=prepare-worktree,commit-progress` for a process and its
+children. The registry is not changed. Skipping one hook doesn't skip validation
+of the others. YOLO runs the hooks like any other role.
 
-`--payload mode=yolo` automatically suppresses the three Git workflow builtins,
-including aliases using their handler IDs, while preserving changeset capture
-and other hooks. YOLO propagates this context to every Implement/Fix delegate
-and every hook call, including on resume. Suppression lasts only for the call;
-it does not rewrite `.spec-lite/hooks.json`.
+### Custom PR provider
+
+Set `pullRequest.provider` to `command`, and give both commands as literal
+executable/argument arrays. No shell is involved:
+
+```json
+{
+  "gitWorkflow": {
+    "fromBranch": "develop",
+    "pullRequest": {
+      "provider": "command",
+      "targetBranch": "develop",
+      "command": ["node", "scripts/pr-adapter.cjs", "create"],
+      "lookupCommand": ["node", "scripts/pr-adapter.cjs", "lookup"]
+    }
+  }
+}
+```
+
+**Inputs.** Both commands receive `SPEC_LITE_PR_HEAD`, `SPEC_LITE_PR_BASE`,
+`SPEC_LITE_PR_TITLE`, `SPEC_LITE_PR_BODY_FILE`, `SPEC_LITE_PR_REMOTE`, and
+`SPEC_LITE_PR_REMOTE_URL`. Pull request text only ever arrives this way, never as
+arguments. In a `.cmd` adapter, don't expand `%SPEC_LITE_PR_TITLE%` unquoted; a
+Node or Python adapter avoids cmd.exe parsing altogether.
+
+**Lookup output.** Print JSON `null` when there is no PR, or an object (or an
+array of objects) for matching PRs, including closed and merged ones:
+- `url` — required.
+- `state` — `open`, `closed`, or `merged`. Without it, the PR is treated as open.
+- `headSha` — the PR's source commit. Cleanup needs it to confirm a squash merge.
+
+Fail with a non-zero exit on API or authentication errors; never print `null` for
+a failed lookup.
+
+**Create output.** Print `{"url": "https://..."}`.
+
+The commands inherit the process environment for credentials. Keep secrets out of
+the registry and out of command output.
+
+### How it works
+
+- **Handoff.** A subprocess can't change its caller's directory. So
+  `prepare-worktree` prints `SPEC-LITE-WORKTREE {"path": …, "branch": …}` (or
+  `payload.worktree` with `--json`), and Implement and Fix move to that path. The
+  remaining hooks of the same event already run there.
+- **Choosing the workflow.** The CLI checks these in order:
+  1. Already inside a managed worktree: continue in it.
+  2. `--payload plan=<file>` or `--payload yolo=<Run ID>` given: use that workflow.
+  3. `--feature` given: use the open workflow that owns the feature. That is
+     either its own, or a plan or YOLO workflow whose plans list it.
+  4. Otherwise: create or resume the feature, fix (`fix.pre --payload name=…`), or
+     review (`implement.pre --payload name=…`) workflow.
+- **State.** Workflow state and locks live in `.git/spec-lite/`, outside every
+  commit.
+- **Manual calls.** The skills make these calls themselves. By hand they look like:
+
+  ```bash
+  spec-lite hook run implement.pre --feature FEAT-020
+  spec-lite hook run implement.pre --payload plan=.spec-lite/plan_orders.md
+  spec-lite hook run fix.pre --payload name=auth-issue
+  ```
+
+### Git workflow troubleshooting
+
+| Message | What to do |
+|---|---|
+| `Another spec-lite hook is using this workflow` | Wait for the other run. If no spec-lite process is running, delete the lock file the message names. |
+| `… has no worktree, but branch … still exists` | If it was merged: `spec-lite worktree cleanup <name>`. If not: `git worktree add <path> <branch>` resumes it. |
+| `Branch … already exists outside this workflow` | Rename or delete that branch. |
+| `… has no changes outside .spec-lite` | The edits landed in another checkout. Move them into the worktree and rerun. |
+| `Pull request … is merged, and the branch has commits it does not contain` | Reopen the PR, or move those commits to a new workflow. |
+| `Cannot continue here: this worktree belongs to …` | Run that work from the main checkout. |
+| Push rejected | Someone else pushed to the branch. Pull in the worktree and rerun. |
+| Tests run twice in the main checkout | Exclude the worktree folder; see [Limitations](#limitations). |
 
 ## Hook definition reference
 
@@ -641,7 +823,6 @@ it does not rewrite `.spec-lite/hooks.json`.
 | `once` | all | `false` | Skip if this hook already succeeded for this event on this feature |
 | `payloadSchema` | all | — | JSON Schema checked against the payload *before* invocation |
 | `builtin` | `builtin` | the hook's `name` | Handler id in the builtin registry |
-| `options` | Git workflow builtins | — | `fromBranch`, `remote`, or required PR `provider`/`targetBranch`; custom PR adapters also use `command`/`lookupCommand` arrays |
 | `run` | `command`, `script` | — | Command line or script path. Interpolated |
 | `shell` | `command`, `script` | `auto` | `auto` (sh on POSIX, PowerShell on Windows), `bash`, `pwsh` |
 | `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root. Interpolated |
@@ -725,7 +906,7 @@ token itself.
 | `${changes.count}` | changes | Number of files in the captured changeset. | `12` |
 | `${changes.source}` | changes | How the changeset was captured: git, gh, or none. | `git` |
 | `${changes.baseline}` | changes | Baseline commit the changeset is diffed against. | `abc1234` |
-| `${changes.head}` | changes | HEAD at capture time. | `def5678` |
+| `${changes.head}` | changes | HEAD of the checkout when the event fired. | `def5678` |
 | `${changes.files}` | changes | Changed paths, newline-separated. | `src/a.ts\nsrc/b.ts` |
 | `${verdict}` | verdict | Review verdict. | `Request changes` |
 | `${summary}` | summary | One-line summary supplied by the emitting role. | `Added session expiry handling` |
@@ -840,6 +1021,9 @@ Every dispatch for a feature is appended to
 ```
 
 This is also what `once: true` reads to decide whether a hook has already run.
+The log is local: the first time a clone writes one, spec-lite adds
+`.spec-lite/**/hooks.log.jsonl` to `.git/info/exclude`, so it is never committed.
+To make that rule visible to your team, add the same line to `.gitignore`.
 
 ## Turning hooks off
 

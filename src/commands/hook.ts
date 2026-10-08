@@ -3,7 +3,7 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import { Command } from "commander";
 import { runEvent } from "../hooks/runner.js";
-import { loadRegistry, hooksForEvent, setHookEnabled } from "../hooks/registry.js";
+import { loadRegistry, hooksForEvent, setHooksEnabled } from "../hooks/registry.js";
 import { EVENT_CATALOG, getEvent, resolvePattern } from "../hooks/events.js";
 import { describeVars } from "../hooks/interpolation.js";
 
@@ -76,10 +76,10 @@ async function listAction(options: { event?: string; all?: boolean }): Promise<v
   }
 }
 
-async function toggleAction(name: string, enabled: boolean, options: { global?: boolean }): Promise<void> {
+async function toggleAction(names: string[], enabled: boolean, options: { global?: boolean }): Promise<void> {
   try {
-    const file = await setHookEnabled(process.cwd(), name, enabled, options.global ? "global" : "project");
-    console.log(chalk.green(`${enabled ? "Enabled" : "Disabled"} "${name}" in ${file}`));
+    const file = await setHooksEnabled(process.cwd(), names, enabled, options.global ? "global" : "project");
+    console.log(chalk.green(`${enabled ? "Enabled" : "Disabled"} ${names.map((name) => `"${name}"`).join(", ")} in ${file}`));
     if (options.global) console.log(chalk.dim("Project overrides take precedence over this global setting."));
   } catch (err) {
     console.log(chalk.red((err as Error).message));
@@ -206,10 +206,10 @@ export function registerHookCommand(program: Command): void {
 
   for (const enabled of [true, false]) {
     hook
-      .command(`${enabled ? "enable" : "disable"} <name>`)
-      .description(`${enabled ? "Enable" : "Disable"} a hook by writing a registry override`)
+      .command(`${enabled ? "enable" : "disable"} <names...>`)
+      .description(`${enabled ? "Enable" : "Disable"} one or more hooks by writing registry overrides`)
       .option("--global", "Write ~/.spec-lite/hooks.json instead of the project registry", false)
-      .action((name: string, options: { global?: boolean }) => toggleAction(name, enabled, options));
+      .action((names: string[], options: { global?: boolean }) => toggleAction(names, enabled, options));
   }
 
   hook

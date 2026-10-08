@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import fs from "fs-extra";
 import { getEvent } from "./events.js";
 import { resolveFeature, resolveProvider } from "./workspace.js";
-import { readChangeset } from "./changeset.js";
+import { currentHead, readChangeset } from "./changeset.js";
 import type { HookPayload, ChangesPayload } from "./types.js";
 
 export interface BuildPayloadOptions {
@@ -20,12 +20,14 @@ export interface BuildPayloadOptions {
   extra?: Record<string, string>;
 }
 
-function toChangesPayload(doc: Awaited<ReturnType<typeof readChangeset>>): ChangesPayload | undefined {
+/** The feature's changeset, with HEAD read live: changeset.json records no HEAD, so committing it is idempotent. */
+async function changesFor(root: string, featureDir: string): Promise<ChangesPayload | undefined> {
+  const doc = await readChangeset(root, featureDir);
   if (!doc) return undefined;
   return {
     source: doc.vcs === "git" ? "git" : "none",
     baseline: doc.baseline?.sha,
-    head: doc.captures.at(-1)?.head,
+    head: doc.vcs === "git" ? await currentHead(root) : undefined,
     files: doc.files.map((f) => ({ path: f.path, status: f.status, role: f.role, task: f.task })),
   };
 }
@@ -53,7 +55,7 @@ export async function buildPayload(opts: BuildPayloadOptions): Promise<HookPaylo
     const feature = await resolveFeature(opts.root, opts.featureId);
     if (feature) {
       payload.feature = feature;
-      const changes = toChangesPayload(await readChangeset(opts.root, feature.dir));
+      const changes = await changesFor(opts.root, feature.dir);
       if (changes) payload.changes = changes;
     } else {
       payload.feature = { id: opts.featureId.toUpperCase() };
@@ -68,7 +70,7 @@ export async function buildPayload(opts: BuildPayloadOptions): Promise<HookPaylo
 /** Re-read changeset.json after a builtin runs, so later hooks in the same chain see it. */
 export async function refreshChanges(root: string, payload: HookPayload): Promise<void> {
   if (!payload.feature?.dir) return;
-  const changes = toChangesPayload(await readChangeset(root, payload.feature.dir));
+  const changes = await changesFor(root, payload.feature.dir);
   if (changes) payload.changes = changes;
 }
 

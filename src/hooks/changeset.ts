@@ -87,8 +87,13 @@ export interface ChangesetDoc {
      * silently dropped from the changeset for the rest of the run.
      */
     dirtyBlobHashes: Record<string, string | null>;
+    /**
+     * `<branch>@<start commit>` of the Git workflow that captured this
+     * baseline. A different workflow starts a new changeset, so a committed
+     * changeset from an earlier branch is never extended.
+     */
+    workflow?: string;
   };
-  captures: Array<{ event: string; task?: string; at: string; head?: string }>;
   files: ChangesetFile[];
   excluded: string[];
   /** Why no diff was possible, when capture ran without a usable baseline. */
@@ -103,7 +108,27 @@ async function readDoc(file: string): Promise<ChangesetDoc> {
   if (await fs.pathExists(file)) {
     return (await fs.readJson(file)) as ChangesetDoc;
   }
-  return { vcs: "none", captures: [], files: [], excluded: [] };
+  return { vcs: "none", files: [], excluded: [] };
+}
+
+/**
+ * changeset.json is committed alongside the work, so its content must change
+ * only when the changed files do. Capture times live in hooks.log.jsonl; a
+ * `captures` history from older versions is dropped here.
+ */
+async function writeDoc(file: string, doc: ChangesetDoc): Promise<void> {
+  delete (doc as { captures?: unknown }).captures;
+  await fs.ensureDir(path.dirname(file));
+  await fs.writeJson(file, doc, { spaces: 2 });
+}
+
+/** HEAD of the checkout, or undefined outside Git or before the first commit. */
+export async function currentHead(root: string): Promise<string | undefined> {
+  try {
+    return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -137,21 +162,26 @@ async function porcelainPaths(root: string): Promise<string[]> {
 export async function captureBaseline(
   root: string,
   featureDir: string,
-  opts: { featureId?: string; event: string }
+  opts: { featureId?: string; event: string; workflow?: string }
 ): Promise<ChangesetDoc> {
   const file = changesetPath(root, featureDir);
-  const doc = await readDoc(file);
+  let doc = await readDoc(file);
 
   if (!(await isGitRepo(root))) {
     doc.vcs = "none";
-    await fs.ensureDir(path.dirname(file));
-    await fs.writeJson(file, doc, { spaces: 2 });
+    await writeDoc(file, doc);
     return doc;
   }
 
-  // Only the first *.pre in a feature's lifetime sets the baseline — a later
-  // implement.task.pre must not reset it, or task 2's baseline would exclude
-  // task 1's own changes.
+  // A new Git workflow starts a new changeset: the existing one (perhaps
+  // committed by an earlier branch) describes different work.
+  if (doc.baseline && opts.workflow && doc.baseline.workflow !== opts.workflow) {
+    doc = { vcs: "git", featureId: doc.featureId, files: [], excluded: [] };
+  }
+
+  // Only the first *.pre in a feature's lifetime (or workflow's) sets the
+  // baseline — a later implement.task.pre must not reset it, or task 2's
+  // baseline would exclude task 1's own changes.
   if (!doc.baseline) {
     const sha = (await git(root, ["rev-parse", "HEAD"])).trim();
     const dirty = await porcelainPaths(root);
@@ -160,12 +190,15 @@ export async function captureBaseline(
       dirtyBlobHashes[p] = (await hashWorkingTreeFile(root, p)) ?? null;
     }
     doc.vcs = "git";
-    doc.baseline = { sha, capturedAt: new Date().toISOString(), dirtyAtBaseline: dirty, dirtyBlobHashes };
+    doc.baseline = {
+      sha, capturedAt: new Date().toISOString(), dirtyAtBaseline: dirty, dirtyBlobHashes,
+      ...(opts.workflow ? { workflow: opts.workflow } : {}),
+    };
+    delete doc.noBaselineReason;
   }
   if (opts.featureId) doc.featureId = opts.featureId;
 
-  await fs.ensureDir(path.dirname(file));
-  await fs.writeJson(file, doc, { spaces: 2 });
+  await writeDoc(file, doc);
   return doc;
 }
 
@@ -201,20 +234,17 @@ export async function captureChangeset(
     doc.noBaselineReason = (await isGitRepo(root))
       ? "no baseline recorded — the matching *.pre event did not run for this feature"
       : "not a git repository";
-    doc.captures.push({ event: opts.event, task: opts.task, at: new Date().toISOString() });
-    await fs.ensureDir(path.dirname(file));
-    await fs.writeJson(file, doc, { spaces: 2 });
+    await writeDoc(file, doc);
     return doc;
   }
 
   const baselineSha = doc.baseline.sha;
   const dirtyAtBaseline = new Set(doc.baseline.dirtyAtBaseline);
 
-  const [committed, workingTree, untracked, head] = await Promise.all([
+  const [committed, workingTree, untracked] = await Promise.all([
     git(root, ["diff", "--name-status", baselineSha, "HEAD"]),
     git(root, ["diff", "--name-status", baselineSha]),
     git(root, ["ls-files", "--others", "--exclude-standard"]),
-    git(root, ["rev-parse", "HEAD"]),
   ]);
 
   const found = new Map<string, ChangedFile["status"]>();
@@ -254,10 +284,8 @@ export async function captureChangeset(
 
   doc.files = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
   doc.excluded = [...new Set([...doc.excluded, ...excluded])].sort();
-  doc.captures.push({ event: opts.event, task: opts.task, at: new Date().toISOString(), head: head.trim() });
 
-  await fs.ensureDir(path.dirname(file));
-  await fs.writeJson(file, doc, { spaces: 2 });
+  await writeDoc(file, doc);
   return doc;
 }
 

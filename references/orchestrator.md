@@ -131,7 +131,11 @@ Two hook classes:
 
 The registry (`.spec-lite/hooks.json`, plus `~/.spec-lite/hooks.json` globally) merges builtins → global → project by `name`, replacing an entire entry rather than deep-merging — a project hook can override a builtin outright by reusing its name, or disable it with `enabled: false`. `spec-lite hook validate` checks the merged registry, including every `${...}` interpolation against `spec-lite hook vars`, before any hook runs.
 
-The opt-in Git workflow builtins apply only to Implement and Fix. `prepare-worktree` prints `SPEC-LITE-WORKTREE <json>` after creating/resuming a checkout; the calling role must use its `path` for every later edit, test, and hook call. The runtime runs remaining pre hooks there, including changeset baseline capture. Completion hooks run only after reports, documentation, and state are finalized. Relay the resulting worktree path, PR URL, and explicit cleanup guidance to the user. Hook suppression is temporary: repeat `--skip <name>`, set `SPEC_LITE_SKIP_HOOKS` to comma-separated hook names, or carry `--payload mode=yolo` to suppress the three Git workflow hooks in YOLO without changing the registry.
+The opt-in Git workflow builtins apply only to Implement and Fix.
+- **Scope:** each workflow is one feature, fix, review, plan (`--payload plan=<file>`), or YOLO run (`--payload yolo=<Run ID>`). Plan Mode and YOLO open one workflow for the whole run, so later features build on earlier ones.
+- **Handoff:** `prepare-worktree` prints `SPEC-LITE-WORKTREE <json>` after creating or resuming a worktree. The calling role must use its `path` for every later read, edit, test, and hook call. The runtime runs the remaining pre hooks there, including changeset baseline capture.
+- **Completion:** completion hooks run only after reports, documentation, and state are final. Relay the worktree path, the PR URL, and the `spec-lite worktree cleanup` command to the user.
+- **Suppression** is per invocation only: repeat `--skip <name>`, or set `SPEC_LITE_SKIP_HOOKS` to comma-separated hook names.
 
 `hook run` exit codes are part of the contract: **0** all hooks succeeded, **1** a hook with `onFailure: "abort"` failed (stop and report), **2** a *contract* error — unknown event, unresolvable `${...}`, or a payload failing a hook's `payloadSchema`. Exit 2 means nothing with side effects ran; report it rather than retrying. Subscribe a hook to `hook.error` to route failures somewhere visible.
 

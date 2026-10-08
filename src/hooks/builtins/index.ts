@@ -51,9 +51,12 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
     const dir = await optionalFeatureDir(ctx);
     if (!dir) return { message: "no --feature given; changeset capture skipped" };
 
+    const worktree = ctx.payload.worktree;
     const doc = await captureBaseline(ctx.root, dir, {
       featureId: ctx.payload.feature?.id,
       event: ctx.payload.event,
+      // Set when prepare-worktree ran first: a new workflow starts a new changeset.
+      workflow: worktree ? `${worktree.branch}@${worktree.initialHead}` : undefined,
     });
     return {
       message:
@@ -109,8 +112,10 @@ export async function runBuiltin(
  */
 export const BUILTIN_HOOKS: HookDefinition[] = [
   {
-    name: "prepare-worktree", events: ["implement.pre", "fix.pre"], type: "builtin", builtin: "prepare-worktree",
-    description: "Create or resume a branch in .worktrees before code changes.", enabled: false, order: 0, onFailure: "abort",
+    // implement.task.pre re-announces the worktree before every task, so a
+    // missed handoff is caught before edits land in the wrong checkout.
+    name: "prepare-worktree", events: ["implement.pre", "implement.task.pre", "fix.pre"], type: "builtin", builtin: "prepare-worktree",
+    description: "Create or resume the workflow's branch and worktree before code changes.", enabled: false, order: 0, onFailure: "abort", timeoutMs: 300000,
   },
   {
     name: "capture-baseline",
@@ -138,6 +143,6 @@ export const BUILTIN_HOOKS: HookDefinition[] = [
   },
   {
     name: "create-pull-request", events: ["implement.post", "fix.post"], type: "builtin", builtin: "create-pull-request",
-    description: "Create or reuse a PR against an explicitly configured target branch.", enabled: false, order: 300, onFailure: "abort", timeoutMs: 120000,
+    description: "Create or reuse the workflow's PR against the configured target branch.", enabled: false, order: 300, onFailure: "abort", timeoutMs: 120000,
   },
 ];
