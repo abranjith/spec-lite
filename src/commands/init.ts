@@ -14,12 +14,14 @@ import {
   DEFAULT_DOCUMENTATION_SETTINGS,
 } from "../utils/documentation.js";
 import { getPackageVersion } from "../utils/package-version.js";
+import { offerHookSetup, undecidedHooks } from "../hooks/setup.js";
 
 interface InitOptions {
   ai?: string | string[];
   exclude?: string;
   force?: boolean;
   skipProfile?: boolean;
+  skipHooks?: boolean;
 }
 interface ProjectProfileAnswers {
   languages: string[];
@@ -257,6 +259,25 @@ function buildSeededMemory(
     "<!-- seed-end -->",
     "",
   ].join("\n");
+}
+
+/**
+ * Offer the optional builtin hooks the project hasn't decided on. Skipped with
+ * --skip-hooks, or when there is no terminal to ask in (CI); `spec-lite hook
+ * setup` covers both later.
+ */
+export async function offerHooks(cwd: string, skip: boolean | undefined): Promise<void> {
+  if (skip || !process.stdin.isTTY) {
+    if ((await undecidedHooks(cwd)).length) console.log(chalk.dim("  Optional hooks not set up. Run `spec-lite hook setup` to choose them."));
+    return;
+  }
+  try {
+    for (const line of await offerHookSetup(cwd)) {
+      console.log(line.startsWith("Enabled") ? chalk.green(`  ✓ ${line}`) : chalk.dim(`  ${line}`));
+    }
+  } catch (err) {
+    console.log(chalk.yellow(`  Hook setup skipped: ${(err as Error).message}`));
+  }
 }
 
 export async function initCommand(options: InitOptions): Promise<void> {
@@ -630,6 +651,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
       )
     );
   }
+
+  // 8d. Offer the optional hooks (Git worktree, commits, pull requests)
+  await offerHooks(cwd, options.skipHooks);
 
   // 9. Copy bundled stack snippets to .spec-lite/stacks/ (if profile was collected)
   if (projectProfile) {

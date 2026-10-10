@@ -23,9 +23,7 @@
     "hook": {
       "type": "object",
       "required": [
-        "name",
-        "events",
-        "type"
+        "name"
       ],
       "properties": {
         "name": {
@@ -141,6 +139,39 @@
       "allOf": [
         {
           "if": {
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "events"
+            ]
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "type"
+              ]
+            }
+          },
+          "then": {
+            "propertyNames": {
+              "enum": [
+                "name",
+                "enabled",
+                "options",
+                "order",
+                "timeoutMs",
+                "onFailure"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
             "properties": {
               "type": {
                 "const": "command"
@@ -243,39 +274,56 @@
         },
         {
           "if": {
-            "required": [
-              "type"
-            ],
-            "properties": {
-              "type": {
-                "const": "builtin"
-              }
-            },
-            "anyOf": [
+            "allOf": [
               {
-                "required": [
-                  "builtin"
-                ],
-                "properties": {
-                  "builtin": {
-                    "const": "prepare-worktree"
+                "anyOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  {
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "builtin"
+                      }
+                    }
                   }
-                }
+                ]
               },
               {
-                "not": {
-                  "required": [
-                    "builtin"
-                  ]
-                },
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "const": "prepare-worktree"
+                "anyOf": [
+                  {
+                    "required": [
+                      "builtin"
+                    ],
+                    "properties": {
+                      "builtin": {
+                        "const": "prepare-worktree"
+                      }
+                    }
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "builtin"
+                      ]
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "properties": {
+                      "name": {
+                        "const": "prepare-worktree"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           },
@@ -311,39 +359,56 @@
         },
         {
           "if": {
-            "required": [
-              "type"
-            ],
-            "properties": {
-              "type": {
-                "const": "builtin"
-              }
-            },
-            "anyOf": [
+            "allOf": [
               {
-                "required": [
-                  "builtin"
-                ],
-                "properties": {
-                  "builtin": {
-                    "const": "commit-progress"
+                "anyOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  {
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "builtin"
+                      }
+                    }
                   }
-                }
+                ]
               },
               {
-                "not": {
-                  "required": [
-                    "builtin"
-                  ]
-                },
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "const": "commit-progress"
+                "anyOf": [
+                  {
+                    "required": [
+                      "builtin"
+                    ],
+                    "properties": {
+                      "builtin": {
+                        "const": "commit-progress"
+                      }
+                    }
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "builtin"
+                      ]
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "properties": {
+                      "name": {
+                        "const": "commit-progress"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           },
@@ -370,39 +435,56 @@
         },
         {
           "if": {
-            "required": [
-              "type"
-            ],
-            "properties": {
-              "type": {
-                "const": "builtin"
-              }
-            },
-            "anyOf": [
+            "allOf": [
               {
-                "required": [
-                  "builtin"
-                ],
-                "properties": {
-                  "builtin": {
-                    "const": "create-pull-request"
+                "anyOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  {
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "builtin"
+                      }
+                    }
                   }
-                }
+                ]
               },
               {
-                "not": {
-                  "required": [
-                    "builtin"
-                  ]
-                },
-                "required": [
-                  "name"
-                ],
-                "properties": {
-                  "name": {
-                    "const": "create-pull-request"
+                "anyOf": [
+                  {
+                    "required": [
+                      "builtin"
+                    ],
+                    "properties": {
+                      "builtin": {
+                        "const": "create-pull-request"
+                      }
+                    }
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "builtin"
+                      ]
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "properties": {
+                      "name": {
+                        "const": "create-pull-request"
+                      }
+                    }
                   }
-                }
+                ]
               }
             ]
           },

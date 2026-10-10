@@ -112,8 +112,8 @@ export async function runBuiltin(
  */
 export const BUILTIN_HOOKS: HookDefinition[] = [
   {
-    // implement.task.pre re-announces the worktree before every task, so a
-    // missed handoff is caught before edits land in the wrong checkout.
+    // Creates one worktree per implementation or fix (implement.pre, fix.pre);
+    // implement.task.pre only resumes the feature's worktree, never creates one.
     name: "prepare-worktree", events: ["implement.pre", "implement.task.pre", "fix.pre"], type: "builtin", builtin: "prepare-worktree",
     description: "Create or resume the workflow's branch and worktree before code changes.", enabled: false, order: 0, onFailure: "abort", timeoutMs: 300000,
   },

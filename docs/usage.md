@@ -37,6 +37,7 @@ root-instruction blocks, selected stack baselines, and an optional memory seed.
 | `--exclude <names>` | none | Exclude comma/space-separated source names; hyphen and underscore forms are accepted |
 | `--force` | `false` | Overwrite existing generated files without prompting |
 | `--skip-profile` | `false` | Skip project profile and documentation questions for scripting |
+| `--skip-hooks` | `false` | Don't offer the optional hooks; they are also skipped when there is no terminal. Run [`hook setup`](#hook-setup-names) later |
 
 `--skip-profile` uses documentation defaults of `docs`, `technical`, and
 `updateWithDevelopment: false`. Explicit `--ai` values override harness
@@ -54,6 +55,7 @@ spec-lite update --force
 |---|---|---|
 | `--ai <provider>` | providers in `.spec-lite.json` | Update only the named provider(s); repeat or pass comma-separated values |
 | `--force` | `false` | Overwrite Project Context edits and remove detected obsolete generated outputs without confirmation |
+| `--skip-hooks` | `false` | Don't offer optional hooks this project hasn't decided on; they are also skipped when there is no terminal |
 
 Update performs the complete project migration:
 
@@ -125,6 +127,7 @@ spec-lite hook run <event> [options]
 spec-lite hook list [--event <name>] [--all]
 spec-lite hook enable <names...> [--global]
 spec-lite hook disable <names...> [--global]
+spec-lite hook setup [names...]
 spec-lite hook events
 spec-lite hook vars
 spec-lite hook validate
@@ -136,6 +139,7 @@ spec-lite hook test <name> [options]
 | [`run <event>`](#hook-run-event) | Fire one event, dispatching every subscribed hook in order |
 | [`list`](#hook-list) | List resolved hooks after merging builtin → global → project |
 | [`enable <names...>` / `disable <names...>`](#hook-enable--disable-names) | Change hooks' enabled state in the project or global registry |
+| [`setup [names...]`](#hook-setup-names) | Enable or skip the optional hooks and answer their options |
 | [`events`](#hook-events) | Print the full event catalog with emitted/planned status |
 | [`vars`](#hook-vars) | Print the `${...}` interpolation variable table |
 | [`validate`](#hook-validate) | Validate the merged registry — schema, event names, templates |
@@ -211,10 +215,11 @@ spec-lite hook disable capture-baseline --global
 |---|---|---|
 | `--global` | `false` | Write `~/.spec-lite/hooks.json` using builtin/global definitions instead of writing the project registry |
 
-Writes a complete definition with the requested `enabled` flag, preserving the
-registry's whole-entry replacement behavior and all other hook settings.
-Project overrides take precedence over global settings. Neither command runs
-the hook or changes the repository-wide `hooks.enabled` switch.
+Writes only the `enabled` value: on the hook's existing entry in that file, or as
+a new `{ "name": …, "enabled": … }` entry that configures the hook an earlier
+layer defines, so builtins keep receiving updates. Project entries take
+precedence over global ones. Neither command runs the hook or changes the
+repository-wide `hooks.enabled` switch.
 
 Several names are changed together and validated as a whole, which the Git
 workflow hooks need because they depend on each other.
@@ -223,8 +228,26 @@ Exits `2` without writing for an unknown name or malformed registry. Enabling
 also validates the hook's events and templates, and the Git workflow rules
 (dependencies, order, builtin `options`). Disabling refuses to leave a
 hook without one it depends on. Use `hook list --all` to find
-disabled hooks. Remove an override from its registry file to inherit the earlier
-layer's definition again.
+disabled hooks. Remove an entry from its registry file to inherit the earlier
+layer's settings again.
+
+### hook setup [names...]
+
+```bash
+spec-lite hook setup
+spec-lite hook setup create-pull-request
+```
+
+Asks, for each optional hook (`prepare-worktree`, `commit-progress`,
+`create-pull-request`), whether to enable it, and for the options it needs, with
+your current answers as defaults. A hook that needs one you skipped is recorded
+as skipped without asking. Answers are saved as short entries in
+`.spec-lite/hooks.json`; an entry you defined in full (with `type`) is left alone.
+Nothing is saved if the result would fail validation.
+
+`init` runs the same questions, and `update` runs them for optional hooks the
+project hasn't decided on yet. Exits `2` for an unknown hook name or when the
+result can't be saved.
 
 ### hook events
 

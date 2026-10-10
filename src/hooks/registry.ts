@@ -10,12 +10,13 @@ import fs from "fs-extra";
 import Ajv2020 from "ajv/dist/2020.js";
 import { BUILTIN_HOOKS } from "./builtins/index.js";
 import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
-import { validateBuiltinOptions } from "./builtins/options.js";
+import { BUILTIN_REQUIRES, validateBuiltinOptions } from "./builtins/options.js";
 import { hooksJsonPath, globalHooksJsonPath } from "./workspace.js";
 import { buildHooksSchema } from "./schema.js";
 import { resolvePattern, getEvent, type EventDefinition } from "./events.js";
 import { validateTemplate } from "./interpolation.js";
-import type { HookDefinition, HookRegistryFile, HookSource, ResolvedHook } from "./types.js";
+import { isHookDefinition, SETTINGS_FIELDS } from "./types.js";
+import type { HookDefinition, HookEntry, HookRegistryFile, HookSource, ResolvedHook } from "./types.js";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 const validateSchema = ajv.compile(buildHooksSchema());
@@ -32,7 +33,7 @@ export interface LoadedRegistry {
 }
 
 async function readRegistryFile(file: string, source: HookSource): Promise<{
-  hooks: HookDefinition[];
+  hooks: HookEntry[];
   issues: RegistryIssue[];
 }> {
   if (!(await fs.pathExists(file))) return { hooks: [], issues: [] };
@@ -48,12 +49,19 @@ async function readRegistryFile(file: string, source: HookSource): Promise<{
   }
 
   if (!validateSchema(raw)) {
-    // An `if`/`then` failure only restates the error inside it, and a bare
-    // additionalProperties error does not say which key is wrong.
-    const issues: RegistryIssue[] = (validateSchema.errors ?? []).filter((e) => e.keyword !== "if").map((e) => ({
-      level: "error" as const,
-      message: `${file}${e.instancePath || ""}: ${e.message}${e.keyword === "additionalProperties" ? ` ("${(e.params as { additionalProperty: string }).additionalProperty}")` : ""}`,
-    }));
+    // An `if`/`then` failure only restates the error inside it, and the
+    // key-level errors do not say which key is wrong.
+    // An inner property-name error only restates its propertyNames error.
+    const issues: RegistryIssue[] = (validateSchema.errors ?? [])
+      .filter((e) => e.keyword !== "if" && !(e.propertyName !== undefined && e.keyword !== "propertyNames"))
+      .map((e) => {
+        const params = e.params as { additionalProperty?: string; propertyName?: string };
+        const key = params.additionalProperty ?? params.propertyName;
+        const hint = e.keyword === "propertyNames"
+          ? ` ("${key}"): an entry without "type" configures an existing hook and may set only ${SETTINGS_FIELDS.filter((field) => field !== "name").join(", ")}`
+          : key ? ` ("${key}")` : "";
+        return { level: "error" as const, message: `${file}${e.instancePath || ""}: ${e.message}${hint}` };
+      });
     return { hooks: [], issues };
   }
 
@@ -133,15 +141,14 @@ const handlerOf = (hook: HookDefinition) => (hook.type === "builtin" ? hook.buil
 const subscribes = (hook: HookDefinition, event: string) =>
   hook.events.some((pattern) => resolvePattern(pattern).matched.some((e) => e.name === event));
 
-/** `commit-progress` cannot commit outside a managed worktree, and a PR needs the pushed branch. */
+/** A builtin that depends on another (builtins/options.ts) needs it enabled too. */
 function gitWorkflowDependencies(enabled: ResolvedHook[]): RegistryIssue[] {
   const has = (id: string) => enabled.some((hook) => handlerOf(hook) === id);
   const issues: RegistryIssue[] = [];
-  if (has("commit-progress") && !has("prepare-worktree")) {
-    issues.push({ level: "error", hook: "commit-progress", message: "commit-progress needs prepare-worktree. Enable both: spec-lite hook enable prepare-worktree commit-progress" });
-  }
-  if (has("create-pull-request") && !has("commit-progress")) {
-    issues.push({ level: "error", hook: "create-pull-request", message: "create-pull-request needs commit-progress to push the branch. Enable both: spec-lite hook enable commit-progress create-pull-request" });
+  for (const [id, requirement] of Object.entries(BUILTIN_REQUIRES)) {
+    if (has(id) && !has(requirement.hook)) {
+      issues.push({ level: "error", hook: id, message: `${id} needs ${requirement.hook}, which ${requirement.why}. Enable both: spec-lite hook enable ${requirement.hook} ${id}` });
+    }
   }
   return issues;
 }
@@ -192,21 +199,40 @@ function validateGitWorkflow(enabled: ResolvedHook[]): RegistryIssue[] {
   return issues;
 }
 
-/** Merge layers by `name`; a later layer replaces the earlier entry wholesale. */
+/**
+ * Merge layers by `name`. An entry with `type` replaces the earlier entry
+ * wholesale. An entry without one carries only settings, applied on top of
+ * the definition an earlier layer provides; its `options` replace the earlier
+ * options as a whole.
+ */
 function mergeLayers(
-  layers: Array<{ hooks: HookDefinition[]; source: HookSource }>
-): ResolvedHook[] {
+  layers: Array<{ hooks: HookEntry[]; source: HookSource }>
+): { hooks: ResolvedHook[]; issues: RegistryIssue[] } {
   const byName = new Map<string, ResolvedHook>();
   const order: string[] = [];
+  const issues: RegistryIssue[] = [];
 
   for (const layer of layers) {
-    for (const hook of layer.hooks) {
-      if (!byName.has(hook.name)) order.push(hook.name);
-      byName.set(hook.name, { ...hook, source: layer.source });
+    for (const entry of layer.hooks) {
+      if (isHookDefinition(entry)) {
+        if (!byName.has(entry.name)) order.push(entry.name);
+        byName.set(entry.name, { ...entry, source: layer.source });
+        continue;
+      }
+      const base = byName.get(entry.name);
+      if (!base) {
+        issues.push({
+          level: "error",
+          hook: entry.name,
+          message: `"${entry.name}" in the ${layer.source} registry has no "type", so it configures an existing hook, but no hook with that name exists. Add "type" and "events" to define a new hook.`,
+        });
+        continue;
+      }
+      byName.set(entry.name, { ...base, ...entry, source: layer.source });
     }
   }
 
-  return order.map((name) => byName.get(name)!);
+  return { hooks: order.map((name) => byName.get(name)!), issues };
 }
 
 export interface LoadRegistryOptions {
@@ -230,13 +256,12 @@ export async function loadRegistry(root: string, options: LoadRegistryOptions = 
       : readRegistryFile(hooksJsonPath(root), "project"),
   ]);
 
-  const issues: RegistryIssue[] = [...global.issues, ...project.issues];
-
-  const merged = mergeLayers([
+  const { hooks: merged, issues: mergeIssues } = mergeLayers([
     { hooks: BUILTIN_HOOKS, source: "builtin" },
     { hooks: global.hooks, source: "global" },
     { hooks: project.hooks, source: "project" },
   ]);
+  const issues: RegistryIssue[] = [...global.issues, ...project.issues, ...mergeIssues];
 
   const enabled = merged.filter((h) => h.enabled !== false);
 
@@ -246,7 +271,7 @@ export async function loadRegistry(root: string, options: LoadRegistryOptions = 
   return { hooks: options.includeDisabled ? merged : enabled, issues };
 }
 
-/** Persist a complete override, preserving the registry's replace-by-name contract. */
+/** Change one hook's enabled state; see setHooksEnabled. */
 export async function setHookEnabled(
   root: string,
   name: string,
@@ -297,16 +322,19 @@ export async function setHooksEnabled(
     ? await fs.readJson(file)
     : { version: 1, hooks: [] };
   for (const hook of targets) {
-    const { source: _source, ...definition } = hook;
-    const override = { ...definition, enabled };
+    const entries = doc.hooks.filter((entry) => entry.name === hook.name);
     const index = doc.hooks.findIndex((entry) => entry.name === hook.name);
-    if (index === -1) doc.hooks.push(override);
-    else {
-      // Duplicate names already resolve to the last entry; collapse them when
-      // changing state so an earlier duplicate cannot undo the requested state.
-      doc.hooks = doc.hooks.filter((entry) => entry.name !== hook.name);
-      doc.hooks.splice(index, 0, override);
+    if (index === -1) {
+      // Settings only: the definition stays with the layer that provides it,
+      // so a builtin keeps receiving updates.
+      doc.hooks.push({ name: hook.name, enabled });
+      continue;
     }
+    // Duplicate names already resolve to the last entry; collapse them when
+    // changing state so an earlier duplicate cannot undo the requested state.
+    const effective = { ...entries[entries.length - 1], enabled };
+    doc.hooks = doc.hooks.filter((entry) => entry.name !== hook.name);
+    doc.hooks.splice(index, 0, effective);
   }
   await fs.ensureDir(path.dirname(file));
   await fs.writeJson(file, doc, { spaces: 2 });

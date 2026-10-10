@@ -14,7 +14,7 @@ import { runBuiltinHook } from "./executors/builtin.js";
 import { emitAgenticDirective } from "./executors/agentic.js";
 import { isAgenticKind } from "./types.js";
 import { getEvent } from "./events.js";
-import { hooksLogPath, readProjectConfig } from "./workspace.js";
+import { hooksLogPath, readProjectConfig, resolveFeature } from "./workspace.js";
 import { previewHook } from "./preview.js";
 import { validatePayloadForHook } from "./payload-validation.js";
 import type { HookPayload, HookResult, ResolvedHook } from "./types.js";
@@ -180,6 +180,8 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
       opts = { ...opts, root: result.worktree.path };
       payload.cwd = result.worktree.path;
       payload.worktree = result.worktree;
+      // Called from another checkout, the feature directory may exist only in the worktree.
+      if (payload.feature?.id && !payload.feature.dir) payload.feature = (await resolveFeature(opts.root, payload.feature.id)) ?? payload.feature;
       delete payload.changes;
       if (payloadFile) await fs.writeJson(payloadFile, payload);
     }

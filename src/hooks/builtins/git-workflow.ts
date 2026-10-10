@@ -22,6 +22,12 @@ export const GIT_WORKFLOW_HOOKS = ["prepare-worktree", "commit-progress", "creat
 /** Hook logs are local audit trails: excluded in every clone that writes one, never committed. */
 export const HOOK_LOG_PATTERN = ".spec-lite/**/hooks.log.jsonl";
 const COMPLETION_EVENTS = ["implement.post", "fix.post"];
+/**
+ * Events where prepare-worktree only resumes: a task of an implementation
+ * switches to the feature's open worktree, but never creates one. Worktrees
+ * are created per implementation or fix, at implement.pre and fix.pre.
+ */
+const RESUME_ONLY_EVENTS = ["implement.task.pre"];
 const RUNTIME_FILES = ["changeset.json", "hooks.log.jsonl"];
 const FEATURE_ID = /\bFEAT-(?:FP-)?\d+\b/gi;
 
@@ -343,12 +349,26 @@ export async function localBranchExists(root: string, branch: string): Promise<b
   return succeeds(git(root, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]));
 }
 
+/** Point a hook run from the wrong checkout at the worktree its work belongs to. */
+async function whereToWork(repo: Repository, payload: HookPayload | undefined): Promise<string> {
+  const fallback = "Run it from the worktree path prepare-worktree printed, or start the work with implement.pre or fix.pre, which create its worktree.";
+  if (!payload || !identifiesWork(payload)) return fallback;
+  try {
+    const owner = payload.feature?.id ? (await activeOwners(repo, payload.feature.id))[0] : undefined;
+    const state = owner ?? await readState(repo.commonDir, workItem(payload).name);
+    if (state && isActive(state, repo)) return `This work belongs to ${state.path}: make the edits there and run the hook from there.`;
+  } catch {
+    // An unidentifiable invocation gets the general advice.
+  }
+  return fallback;
+}
+
 /** The workflow the checkout at `root` belongs to, found through its saved state rather than settings. */
-export async function managedWorktree(root: string): Promise<{ state: WorkflowState; repo: Repository }> {
+export async function managedWorktree(root: string, payload?: HookPayload): Promise<{ state: WorkflowState; repo: Repository }> {
   const repo = await repository(root);
   const top = path.resolve(await git(root, ["rev-parse", "--show-toplevel"]));
   const state = await stateFor(repo, top);
-  if (!state) throw new Error("Run this hook inside a worktree created by prepare-worktree.");
+  if (!state) throw new Error(`${top} is not a worktree made by prepare-worktree, so nothing was committed or pushed. ${await whereToWork(repo, payload)}`);
   const branch = await git(top, ["symbolic-ref", "--short", "HEAD"]).catch(() => undefined);
   if (!state?.ready || path.resolve(state.path) !== top || path.resolve(state.mainRoot) !== repo.mainRoot || state.branch !== branch) {
     throw new Error("Worktree state does not match this checkout and branch; refusing to stage, push, or create a PR.");
@@ -471,16 +491,11 @@ export async function prepareWorktree(ctx: BuiltinContext): Promise<BuiltinOutco
   const directory = worktreesDirectory(repo.mainRoot, options);
   const top = path.resolve(await git(ctx.root, ["rev-parse", "--show-toplevel"]));
   const feature = ctx.payload.feature?.id;
+  const container = !!(text(ctx.payload.plan) || text(ctx.payload.yolo));
 
-  if (await stateFor(repo, top)) {
-    const { state } = await managedWorktree(top);
-    const conflict = incompatibility(state, identifiesWork(ctx.payload) ? workItem(ctx.payload) : undefined, feature);
-    if (conflict) throw new Error(`Cannot continue here: ${conflict}.`);
-    return { message: `Using ${state.branch} in ${state.path}`, worktree: handoff(state) };
-  }
-
-  const work = workItem(ctx.payload);
-  if (feature && work.kind !== "plan" && work.kind !== "yolo") {
+  // A feature's open workflow wins wherever this runs from, so work stopped
+  // mid-feature resumes in its own worktree even from another workflow's.
+  if (feature && !container) {
     const owners = await activeOwners(repo, feature);
     if (owners.length > 1) {
       throw new Error(`${feature} belongs to more than one active workflow (${owners.map((owner) => owner.identity).join(", ")}). Clean up the finished one with \`spec-lite worktree cleanup <name>\`.`);
@@ -490,6 +505,19 @@ export async function prepareWorktree(ctx: BuiltinContext): Promise<BuiltinOutco
       return { message: `Using ${owners[0].branch} (${owners[0].identity}) in ${owners[0].path}`, worktree: handoff(owners[0]) };
     }
   }
+
+  if (await stateFor(repo, top)) {
+    const { state } = await managedWorktree(top);
+    const conflict = incompatibility(state, identifiesWork(ctx.payload) ? workItem(ctx.payload) : undefined, feature);
+    if (conflict) throw new Error(`Cannot continue here: ${conflict}.`);
+    return { message: `Using ${state.branch} in ${state.path}`, worktree: handoff(state) };
+  }
+
+  if (RESUME_ONLY_EVENTS.includes(ctx.payload.event)) {
+    return { message: `No open worktree for ${feature ?? "this work"} to resume; implement.pre creates one.` };
+  }
+
+  const work = workItem(ctx.payload);
   if (await fs.pathExists(directory) && (await fs.lstat(directory)).isSymbolicLink()) throw new Error("The worktree directory must not be a symlink or junction.");
   const destination = path.join(directory, work.name);
   return withWorkflowLock(repo.commonDir, destination, () => createOrResume(ctx, options, repo, work, top, destination));
@@ -508,7 +536,7 @@ const LOG_PATHSPEC = ".spec-lite/**/hooks.log.jsonl";
 
 export async function commitProgress(ctx: BuiltinContext): Promise<BuiltinOutcome> {
   const options = hookOptions<CommitProgressOptions>(ctx);
-  const { state, repo } = await managedWorktree(ctx.root);
+  const { state, repo } = await managedWorktree(ctx.root, ctx.payload);
   return withWorkflowLock(repo.commonDir, state.path, async () => {
     const stagedLogs = await git(state.path, ["diff", "--cached", "--name-only", "--", LOG_PATHSPEC]);
     if (stagedLogs) throw new Error(`Unstage hook logs before committing progress: ${stagedLogs.split("\n").join(", ")}`);

@@ -51,13 +51,24 @@ afterEach(async () => {
 });
 
 describe("hook enable/disable", () => {
-  it("creates a complete builtin override and restores it without losing defaults", async () => {
+  it("writes only the enabled state for a builtin, so its definition keeps coming from spec-lite", async () => {
     const builtin = BUILTIN_HOOKS.find((hook) => hook.name === "capture-baseline")!;
     const file = await setHookEnabled(root, builtin.name, false);
-    expect((await fs.readJson(file)).hooks).toEqual([{ ...builtin, enabled: false }]);
+    expect((await fs.readJson(file)).hooks).toEqual([{ name: builtin.name, enabled: false }]);
     expect((await loadRegistry(root)).hooks.some((hook) => hook.name === builtin.name)).toBe(false);
     await setHookEnabled(root, builtin.name, true);
-    expect((await fs.readJson(file)).hooks).toEqual([{ ...builtin, enabled: true }]);
+    expect((await fs.readJson(file)).hooks).toEqual([{ name: builtin.name, enabled: true }]);
+    const { hooks } = await loadRegistry(root);
+    expect(hooks.find((hook) => hook.name === builtin.name)).toEqual({ ...builtin, enabled: true, source: "project" });
+  });
+
+  it("applies a settings-only entry on top of an earlier layer, replacing its options as a whole", async () => {
+    await writeHooks(home, [{ ...custom, enabled: true, order: 70 }]);
+    await writeHooks(root, [{ name: custom.name, order: 20, timeoutMs: 5000 } as HookDefinition]);
+    const resolved = (await loadRegistry(root)).hooks.find((hook) => hook.name === custom.name);
+    expect(resolved).toEqual({ ...custom, enabled: true, order: 20, timeoutMs: 5000, source: "project" });
+    await writeHooks(home, []);
+    expect((await loadRegistry(root)).issues.map((issue) => issue.message).join("\n")).toContain("no hook with that name exists");
   });
 
   it("keeps disabled hooks inspectable while excluding them from dispatch", async () => {
@@ -85,7 +96,7 @@ describe("hook enable/disable", () => {
     ]);
   });
 
-  it("copies a global definition into a project override without changing the global registry", async () => {
+  it("enables a global hook with a project settings entry without changing the global registry", async () => {
     await writeHooks(home, [custom]);
     await setHookEnabled(root, custom.name, true);
     expect((await fs.readJson(path.join(home, ".spec-lite", "hooks.json"))).hooks).toEqual([custom]);

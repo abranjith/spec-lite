@@ -42,6 +42,7 @@ program
     "--skip-profile",
     "Skip the project profile questionnaire (for CI/scripting)"
   )
+  .option("--skip-hooks", "Don't offer the optional hooks; run `spec-lite hook setup` later")
   .action(initCommand);
 
 program
@@ -56,6 +57,7 @@ program
     []
   )
   .option("--force", "Overwrite all files including user-modified ones", false)
+  .option("--skip-hooks", "Don't offer optional hooks this project hasn't decided on")
   .action(updateCommand);
 
 program

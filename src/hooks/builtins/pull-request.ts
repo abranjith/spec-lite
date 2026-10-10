@@ -140,7 +140,7 @@ export async function createPullRequest(ctx: BuiltinContext): Promise<BuiltinOut
   const options = hookOptions<PullRequestOptions>(ctx);
   const errors = validateBuiltinOptions("create-pull-request", options).errors;
   if (errors.length) throw new Error(errors.join("\n"));
-  const { state, repo } = await managedWorktree(ctx.root);
+  const { state, repo } = await managedWorktree(ctx.root, ctx.payload);
   return withWorkflowLock(repo.commonDir, state.path, async () => {
     // The remote commit-progress pushed to, recorded in the workflow's state.
     const remote = state.remote;

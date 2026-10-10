@@ -6,6 +6,7 @@ import { runEvent } from "../hooks/runner.js";
 import { loadRegistry, hooksForEvent, setHooksEnabled } from "../hooks/registry.js";
 import { EVENT_CATALOG, getEvent, resolvePattern } from "../hooks/events.js";
 import { describeVars } from "../hooks/interpolation.js";
+import { OPT_IN_HOOKS, inquirerPrompter, runHookSetup } from "../hooks/setup.js";
 
 function parsePayloadFlags(values: string[] | undefined): Record<string, string> {
   const out: Record<string, string> = {};
@@ -81,6 +82,23 @@ async function toggleAction(names: string[], enabled: boolean, options: { global
     const file = await setHooksEnabled(process.cwd(), names, enabled, options.global ? "global" : "project");
     console.log(chalk.green(`${enabled ? "Enabled" : "Disabled"} ${names.map((name) => `"${name}"`).join(", ")} in ${file}`));
     if (options.global) console.log(chalk.dim("Project overrides take precedence over this global setting."));
+  } catch (err) {
+    console.log(chalk.red((err as Error).message));
+    process.exitCode = 2;
+  }
+}
+
+async function setupAction(names: string[]): Promise<void> {
+  const unknown = names.filter((name) => !OPT_IN_HOOKS.includes(name));
+  if (unknown.length) {
+    console.log(chalk.red(`Not an optional hook: ${unknown.join(", ")}. Available: ${OPT_IN_HOOKS.join(", ")}.`));
+    process.exitCode = 2;
+    return;
+  }
+  try {
+    const { file, lines } = await runHookSetup(process.cwd(), names.length ? names : OPT_IN_HOOKS, inquirerPrompter);
+    for (const line of lines) console.log(line.startsWith("Enabled") ? chalk.green(`  ✓ ${line}`) : chalk.dim(`  - ${line}`));
+    console.log(chalk.dim(`Saved to ${file}. Check with \`spec-lite hook validate\`.`));
   } catch (err) {
     console.log(chalk.red((err as Error).message));
     process.exitCode = 2;
@@ -212,6 +230,11 @@ export function registerHookCommand(program: Command): void {
       .option("--global", "Write ~/.spec-lite/hooks.json instead of the project registry", false)
       .action((names: string[], options: { global?: boolean }) => toggleAction(names, enabled, options));
   }
+
+  hook
+    .command("setup [names...]")
+    .description(`Enable or skip the optional hooks and set their options (${OPT_IN_HOOKS.join(", ")})`)
+    .action(setupAction);
 
   hook
     .command("events")

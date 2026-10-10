@@ -1,15 +1,24 @@
 /**
  * The settings builtin hooks accept in their registry entry's `options`
- * object. Each builtin declares its own here, and everything else derives
- * from this table: the hooks JSON schema (editor autocomplete per builtin),
- * `hook validate`, and the options table in docs/features/hooks.md. A new
- * builtin with settings needs only an entry below.
+ * object, and which builtins depend on others. Each builtin declares its own
+ * here, and everything else derives from this table: the hooks JSON schema
+ * (editor autocomplete per builtin), `hook validate`, the interactive hook
+ * setup in `init`/`update`/`hook setup`, and the options table in
+ * docs/features/hooks.md. A new builtin with settings needs only an entry
+ * below.
  *
  * Pure: no Git or filesystem access.
  */
 import path from "node:path";
 
 type JsonSchema = Record<string, unknown>;
+
+/** What hook setup knows while asking: the repository and the answers so far. */
+export interface SetupContext {
+  currentBranch?: string;
+  /** Options chosen so far, by hook name. */
+  chosen: Record<string, Record<string, unknown>>;
+}
 
 export interface OptionSpec {
   schema: JsonSchema;
@@ -18,6 +27,12 @@ export interface OptionSpec {
   required?: boolean;
   /** A branch or remote name, passed to Git and provider CLIs as one argument. */
   ref?: boolean;
+  /** The setup question. Setup asks required options, and optional ones that have a label. */
+  label?: string;
+  /** Ask only when this holds for the hook's answers so far. */
+  askIf?: (answers: Record<string, unknown>) => boolean;
+  /** The default offered by setup. */
+  suggest?: (context: SetupContext) => string | undefined;
 }
 
 export interface BuiltinOptionsSpec {
@@ -41,6 +56,8 @@ export const BUILTIN_OPTIONS: Record<string, BuiltinOptionsSpec> = {
       fromBranch: {
         schema: text, ref: true,
         description: "Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Default: the main checkout's current branch; `validate` warns when unset.",
+        label: "Branch new worktrees start from (e.g. develop or origin/develop)",
+        suggest: (context) => context.currentBranch,
       },
       fetch: {
         schema: { type: "boolean" },
@@ -87,10 +104,22 @@ export const BUILTIN_OPTIONS: Record<string, BuiltinOptionsSpec> = {
       provider: {
         schema: { enum: ["github", "azure-devops", "command"] }, required: true,
         description: "Where pull requests are opened; `command` runs your own adapter.",
+        label: "Where are pull requests opened?",
       },
-      targetBranch: { schema: text, ref: true, required: true, description: "Branch pull requests merge into. Never inferred." },
-      command: { schema: argv, description: "`command` provider: executable and arguments that create a PR." },
-      lookupCommand: { schema: argv, description: "`command` provider: executable and arguments that find existing PRs." },
+      targetBranch: {
+        schema: text, ref: true, required: true, description: "Branch pull requests merge into. Never inferred.",
+        label: "Branch pull requests merge into",
+        // A remote-tracking start branch (origin/develop) targets develop.
+        suggest: (context) => (context.chosen["prepare-worktree"]?.fromBranch as string | undefined)?.replace(/^origin\//, "") ?? context.currentBranch,
+      },
+      command: {
+        schema: argv, description: "`command` provider: executable and arguments that create a PR.",
+        label: "Command that creates a PR (executable and arguments)", askIf: (answers) => answers.provider === "command",
+      },
+      lookupCommand: {
+        schema: argv, description: "`command` provider: executable and arguments that find existing PRs.",
+        label: "Command that finds existing PRs (executable and arguments)", askIf: (answers) => answers.provider === "command",
+      },
     },
     validate: (options) => {
       const errors: string[] = [];
@@ -101,6 +130,16 @@ export const BUILTIN_OPTIONS: Record<string, BuiltinOptionsSpec> = {
       return { errors, warnings: [] };
     },
   },
+};
+
+/**
+ * Builtins that only work alongside another. `hook validate` rejects one
+ * enabled without its requirement, and hook setup only offers it once the
+ * requirement is enabled.
+ */
+export const BUILTIN_REQUIRES: Record<string, { hook: string; why: string }> = {
+  "commit-progress": { hook: "prepare-worktree", why: "creates the worktree it commits in" },
+  "create-pull-request": { hook: "commit-progress", why: "pushes the branch the pull request is opened from" },
 };
 
 /** JSON Schema for one builtin's `options` object. */

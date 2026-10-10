@@ -80,7 +80,7 @@ Take a completed feature spec (`.spec-lite/features/FEAT-###-<name>/spec.md`) an
 
 Before writing any code:
 
-- First, run `spec-lite hook run implement.pre --feature FEAT-{{ID}}` (see [Hooks](#hooks)) to capture the pre-implementation baseline. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call, including the plan and spec updates below. The CLI has already run the remaining pre hooks there. Every `implement.task.pre` prints the same line; if you are not in that `path`, move there before editing.
+- First, run `spec-lite hook run implement.pre --feature FEAT-{{ID}}` (see [Hooks](#hooks)) to capture the pre-implementation baseline. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call, including the plan and spec updates below. The CLI has already run the remaining pre hooks there. The worktree is for the whole implementation. When you resume at a task, `implement.task.pre` prints the same line for the feature's existing worktree (it never creates one); move to that `path` before editing.
 - Read the feature spec thoroughly. Understand all tasks, dependencies, and verification criteria.
 - Treat the feature's `**ID**: FEAT-###` as read-only. Verify it matches the parent plan row; flag mismatches instead of allocating or renumbering IDs.
 - Read `.spec-lite/memory.md` for standing coding standards, architecture principles, testing conventions, and logging rules. Then read the plan for any plan-specific overrides. Adhere to both strictly.

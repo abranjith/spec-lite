@@ -165,11 +165,33 @@ export interface ResolvedHook extends HookDefinition {
   source: HookSource;
 }
 
+/**
+ * Fields a registry entry may set on a hook an earlier layer already defines.
+ * The defining layer owns the rest (type, events, executor fields), so a
+ * builtin configured this way keeps receiving fixes from spec-lite updates.
+ */
+export const SETTINGS_FIELDS = ["name", "enabled", "options", "order", "timeoutMs", "onFailure"] as const;
+
+/** A registry entry without `type`: settings for a hook defined by an earlier layer. */
+export interface HookSettings {
+  name: string;
+  enabled?: boolean;
+  options?: Record<string, unknown>;
+  order?: number;
+  timeoutMs?: number;
+  onFailure?: HookFailurePolicy;
+}
+
+/** One entry in a registry file: a complete hook (it has `type`), or settings for an existing one. */
+export type HookEntry = HookDefinition | HookSettings;
+
+export const isHookDefinition = (entry: HookEntry): entry is HookDefinition => "type" in entry && entry.type !== undefined;
+
 /** Shape of `.spec-lite/hooks.json` and `~/.spec-lite/hooks.json`. */
 export interface HookRegistryFile {
   /** Registry format version. Currently 1. */
   version: number;
-  hooks: HookDefinition[];
+  hooks: HookEntry[];
 }
 
 // ---------------------------------------------------------------------------

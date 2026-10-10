@@ -95,12 +95,11 @@ export function extractBetweenMarkers(content: string, start: string, end: strin
   return content.slice(startIndex + start.length, endIndex).trim();
 }
 
-const isGitWorkflowHook = (name: string) => (GIT_WORKFLOW_HOOKS as readonly string[]).includes(name);
 const registryJson = (hooks: unknown[]) => ["```json", JSON.stringify({ version: 1, hooks }, null, 2), "```"].join("\n");
 
-/** The shipped definitions of the builtins that are on by default. */
+/** Every builtin as it ships: a reference, never something to copy. */
 export function renderBuiltinHooksJson(): string {
-  return registryJson(BUILTIN_HOOKS.filter((hook) => !isGitWorkflowHook(hook.name)));
+  return registryJson(BUILTIN_HOOKS);
 }
 
 /** Options the docs' Git workflow example sets; everything else keeps its default. */
@@ -109,11 +108,11 @@ const EXAMPLE_OPTIONS: Record<string, Record<string, unknown>> = {
   "create-pull-request": { provider: "github", targetBranch: "develop" },
 };
 
-/** The Git workflow builtins enabled with example options: a complete, valid setup. */
+/** The Git workflow builtins enabled with example options, as settings-only entries. */
 export function renderGitWorkflowHooksJson(): string {
   return registryJson(GIT_WORKFLOW_HOOKS.map((name) => {
     const options = EXAMPLE_OPTIONS[name];
-    return { ...BUILTIN_HOOKS.find((hook) => hook.name === name)!, enabled: true, ...(options ? { options } : {}) };
+    return { name, enabled: true, ...(options ? { options } : {}) };
   }));
 }
 

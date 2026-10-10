@@ -11,7 +11,7 @@ import * as workflow from "../src/hooks/builtins/git-workflow.js";
 import { validateBuiltinOptions } from "../src/hooks/builtins/options.js";
 import { cleanupMerged, cleanupWorkflow, listWorkflows } from "../src/hooks/builtins/worktree-lifecycle.js";
 import { loadRegistry, setHooksEnabled } from "../src/hooks/registry.js";
-import type { HookDefinition, PullRequestOptions } from "../src/hooks/types.js";
+import type { HookDefinition, HookEntry, HookSettings, PullRequestOptions } from "../src/hooks/types.js";
 
 // Each scenario drives real Git repositories end to end.
 vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
@@ -23,7 +23,7 @@ const featureDir = ".spec-lite/features/FEAT-020-execute_operations";
 const otherDir = ".spec-lite/features/FEAT-021-report_results";
 const featureTree = "feat-020-execute-operations";
 
-async function configure(hooks: HookDefinition[], at = root): Promise<void> {
+async function configure(hooks: HookEntry[], at = root): Promise<void> {
   await fs.outputJson(path.join(at, ".spec-lite", "hooks.json"), { version: 1, hooks }, { spaces: 2 });
 }
 
@@ -31,11 +31,12 @@ function enabled(name: string, overrides: Partial<HookDefinition> = {}): HookDef
   return { ...BUILTIN_HOOKS.find((hook) => hook.name === name)!, enabled: true, ...overrides };
 }
 
+// Settings-only entries, as setup writes them: the definitions stay shipped.
 type Options = Record<string, unknown>;
-const prepareHook = (options: Options = { fromBranch: "main" }) => enabled("prepare-worktree", { options });
-const commitHook = (options?: Options) => enabled("commit-progress", options ? { options } : {});
-const prHook = (options: PullRequestOptions, overrides: Partial<HookDefinition> = {}) =>
-  enabled("create-pull-request", { options: options as Options, ...overrides });
+const prepareHook = (options: Options = { fromBranch: "main" }): HookSettings => ({ name: "prepare-worktree", enabled: true, options });
+const commitHook = (options?: Options): HookSettings => ({ name: "commit-progress", enabled: true, ...(options ? { options } : {}) });
+const prHook = (options: PullRequestOptions, overrides: Partial<HookSettings> = {}): HookSettings =>
+  ({ name: "create-pull-request", enabled: true, options: options as Options, ...overrides });
 const github: PullRequestOptions = { provider: "github", targetBranch: "main" };
 const commitChain = (commit?: Options) => [prepareHook(), commitHook(commit)];
 const fullChain = (pr: PullRequestOptions, commit?: Options) => [...commitChain(commit), prHook(pr)];
@@ -109,7 +110,7 @@ describe("prepare-worktree", () => {
     expect(await fs.readFile(path.join(tree.path, ".gitignore"), "utf8")).toBe("node_modules/\n");
   });
 
-  it("resumes the same worktree from either checkout and from each task, without overwriting work", async () => {
+  it("resumes the same worktree from either checkout and from a task, without overwriting work", async () => {
     await configure([prepareHook()]);
     const tree = (await prepare()).payload.worktree!;
     await fs.writeFile(path.join(tree.path, "code.txt"), "work in progress\n");
@@ -118,13 +119,40 @@ describe("prepare-worktree", () => {
     expect(again.exitCode).toBe(0);
     expect(again.payload.worktree).toEqual(tree);
     expect(await fs.readFile(path.join(tree.path, "code.txt"), "utf8")).toBe("work in progress\n");
-    // Each task re-announces the worktree, so a missed handoff is caught before edits.
+    // Resuming at a task from the main checkout switches to the feature's worktree.
     const task = await runEvent({ root, event: "implement.task.pre", featureId: "FEAT-020", taskId: "TASK-002" });
+    expect(task.exitCode).toBe(0);
     expect(task.payload.worktree?.path).toBe(tree.path);
+    expect(task.results.find((result) => result.name === "capture-baseline")?.status).toBe("ok");
+    expect(await fs.pathExists(path.join(root, featureDir, "changeset.json"))).toBe(false);
     const inside = await runEvent({ root: tree.path, event: "fix.pre", featureId: "FEAT-020", extra: { name: "edge-case" } });
     expect(inside.exitCode).toBe(0);
     expect(inside.payload.worktree?.path).toBe(tree.path);
     expect(await fs.pathExists(path.join(tree.path, ".worktrees"))).toBe(false);
+  });
+
+  it("never creates a worktree for a task: only implement.pre and fix.pre do", async () => {
+    await configure([prepareHook()]);
+    const task = await runEvent({ root, event: "implement.task.pre", featureId: "FEAT-020", taskId: "TASK-001" });
+    expect(task.exitCode).toBe(0);
+    expect(task.payload.worktree).toBeUndefined();
+    expect(task.results.find((result) => result.name === "prepare-worktree")?.message).toContain("No open worktree for FEAT-020 to resume");
+    expect(await fs.pathExists(path.join(root, ".worktrees"))).toBe(false);
+  });
+
+  it("switches back to a feature's worktree when resuming it from another workflow's worktree", async () => {
+    await configure([prepareHook()]);
+    const feature = (await prepare()).payload.worktree!;
+    const fix = (await runEvent({ root, event: "fix.pre", extra: { name: "urgent-bug" } })).payload.worktree!;
+    expect(fix.path).not.toBe(feature.path);
+    // The fix's worktree has no copy of FEAT-020's spec; the feature resolves in its own worktree.
+    const resumed = await runEvent({ root: fix.path, event: "implement.task.pre", featureId: "FEAT-020", taskId: "TASK-004" });
+    expect(resumed.exitCode).toBe(0);
+    expect(resumed.payload.worktree?.path).toBe(feature.path);
+    expect(resumed.payload.feature?.dir).toBe(featureDir);
+    expect(resumed.results.find((result) => result.name === "capture-baseline")?.status).toBe("ok");
+    const restarted = await runEvent({ root: fix.path, event: "implement.pre", featureId: "FEAT-020" });
+    expect(restarted.payload.worktree?.path).toBe(feature.path);
   });
 
   it("starts from options.fromBranch, or from the remote's tip with fetch", async () => {
@@ -303,6 +331,8 @@ describe("plan and YOLO workflows", () => {
     // The next feature builds on the first: same branch, FEAT-020's code present.
     const second = await runEvent({ root, event: "implement.pre", featureId: "FEAT-021" });
     expect(second.payload.worktree?.path).toBe(tree.path);
+    const task = await runEvent({ root, event: "implement.task.pre", featureId: "FEAT-021", taskId: "TASK-001" });
+    expect(task.payload.worktree?.path).toBe(tree.path);
     expect(await fs.readFile(path.join(tree.path, "code.txt"), "utf8")).toBe("feature 20\n");
     await fs.writeFile(path.join(tree.path, "report.txt"), "feature 21\n");
     expect((await runEvent({ root: tree.path, event: "implement.post", featureId: "FEAT-021", extra: { summary: "Report results" } })).exitCode).toBe(0);
@@ -389,11 +419,16 @@ describe("commit-progress", () => {
     expect((await runEvent({ root: tree.path, event: "implement.task.post", featureId: "FEAT-020", taskId: "TASK-001" })).exitCode).toBe(0);
   });
 
-  it("refuses to commit in the main checkout", async () => {
+  it("refuses to commit in the main checkout, and names the worktree the work belongs to", async () => {
     await configure(commitChain());
     const head = await git(root, ["rev-parse", "HEAD"]);
     const report = await runEvent({ root, event: "fix.post", extra: { summary: "Done" } });
     expect(report.exitCode).toBe(1);
+    expect(await git(root, ["rev-parse", "HEAD"])).toBe(head);
+    const tree = (await prepare()).payload.worktree!;
+    const misplaced = await runEvent({ root, event: "implement.task.post", featureId: "FEAT-020", taskId: "TASK-001" });
+    expect(misplaced.exitCode).toBe(1);
+    expect(misplaced.results.at(-1)?.message).toContain(`This work belongs to ${tree.path}`);
     expect(await git(root, ["rev-parse", "HEAD"])).toBe(head);
   });
 
@@ -429,7 +464,9 @@ describe("workflow validation", () => {
     await check([enabled("capture-baseline", { options: { fromBranch: "main" } })], "takes no options");
     await check([{ name: "prepare-worktree", type: "builtin", events: ["implement.pre", "implement.task.pre", "fix.pre"], onFailure: "abort" }], "must run first on implement.pre");
     await check([prepareHook(), commitHook()].map((hook, i) => (i ? hook : { ...hook, onFailure: "warn" as const })), '"onFailure": "abort"');
-    await check([{ ...prepareHook(), events: ["implement.pre"] }], "must subscribe to implement.task.pre, fix.pre");
+    await check([enabled("prepare-worktree", { events: ["implement.pre"] })], "must subscribe to implement.task.pre, fix.pre");
+    await check([{ ...prepareHook(), events: ["implement.pre"] } as HookEntry], `("events"): an entry without "type" configures an existing hook`);
+    await check([{ name: "lint", enabled: true }], `"lint" in the project registry has no "type"`);
     await check([commitHook()], "commit-progress needs prepare-worktree");
     await check([...commitChain(), prHook(github, { order: 150 })], "must run after commit-progress");
     await check([...commitChain(), enabled("create-pull-request")], "options.targetBranch is required");

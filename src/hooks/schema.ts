@@ -6,19 +6,24 @@
  */
 import { allEventNames } from "./events.js";
 import { BUILTIN_OPTIONS, optionsSchema } from "./builtins/options.js";
+import { SETTINGS_FIELDS } from "./types.js";
 
 /**
  * A builtin's `options` are typed by its handler: the `builtin` field, or the
- * hook's `name` when that field is omitted.
+ * hook's `name` when that field is omitted. That covers both a complete
+ * builtin entry and a settings-only entry (no `type`) for a builtin.
  */
 function builtinOptionsRules(): Record<string, unknown>[] {
   return Object.entries(BUILTIN_OPTIONS).map(([id, spec]) => ({
     if: {
-      required: ["type"],
-      properties: { type: { const: "builtin" } },
-      anyOf: [
-        { required: ["builtin"], properties: { builtin: { const: id } } },
-        { not: { required: ["builtin"] }, required: ["name"], properties: { name: { const: id } } },
+      allOf: [
+        { anyOf: [{ not: { required: ["type"] } }, { required: ["type"], properties: { type: { const: "builtin" } } }] },
+        {
+          anyOf: [
+            { required: ["builtin"], properties: { builtin: { const: id } } },
+            { not: { required: ["builtin"] }, required: ["name"], properties: { name: { const: id } } },
+          ],
+        },
       ],
     },
     then: { properties: { options: optionsSchema(spec) } },
@@ -43,7 +48,8 @@ export function buildHooksSchema(): Record<string, unknown> {
     $defs: {
       hook: {
         type: "object",
-        required: ["name", "events", "type"],
+        // Without `type`, an entry configures a hook an earlier layer defines.
+        required: ["name"],
         properties: {
           name: { type: "string", minLength: 1 },
           events: {
@@ -83,6 +89,8 @@ export function buildHooksSchema(): Record<string, unknown> {
         },
         additionalProperties: false,
         allOf: [
+          { if: { required: ["type"] }, then: { required: ["events"] } },
+          { if: { not: { required: ["type"] } }, then: { propertyNames: { enum: [...SETTINGS_FIELDS] } } },
           {
             if: { properties: { type: { const: "command" } }, required: ["type"] },
             then: { required: ["run"] },

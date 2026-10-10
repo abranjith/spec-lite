@@ -189,8 +189,19 @@ lint-after-implement (project) — command — enabled
 
 The parenthesised word is provenance: `builtin`, `global`
 (`~/.spec-lite/hooks.json`), or `project` (`.spec-lite/hooks.json`). Later layers
-replace earlier ones **by name**, wholesale — not a deep merge — so naming your
-hook after a builtin replaces that builtin outright.
+win **by name**, in one of two ways:
+
+- **An entry with `type` replaces** the earlier hook of that name outright. That's
+  how you define a hook, or replace a builtin with your own.
+- **An entry without `type` configures** the earlier hook. It may set only
+  `enabled`, `options`, `order`, `timeoutMs`, and `onFailure`; everything else
+  comes from the layer that defines the hook. A configured builtin therefore keeps
+  receiving fixes when you update spec-lite. Its `options` replace the earlier
+  options as a whole.
+
+```json
+{ "name": "capture-changeset", "enabled": false }
+```
 
 `hook list` shows only active hooks. Add `--all` to include hooks set to
 `enabled: false`; they appear as disabled and remain excluded from dispatch.
@@ -204,6 +215,7 @@ Combine it with `--event` to inspect disabled subscriptions for one event.
 | Keep it but stop it firing | `spec-lite hook disable <name>` |
 | Enable a disabled hook | `spec-lite hook enable <name>` |
 | Turn off a builtin | `spec-lite hook disable <name>` |
+| Configure a builtin | Add `{ "name": …, "enabled": …, "options": … }`; see [Built-in hooks](#built-in-hooks) |
 | Replace a builtin's behavior | Add an entry reusing the builtin's `name` with your own `type` and body |
 | Change it for one repository only | Edit `.spec-lite/hooks.json`; it wins over the global file |
 | Silence everything, everywhere | `"hooks": { "enabled": false }` in `.spec-lite.json` |
@@ -222,11 +234,10 @@ Both commands write to `.spec-lite/hooks.json` by default. `--global` writes to
 project overrides still take precedence. A project-only hook cannot be changed
 with `--global`.
 
-Each command stores the complete effective definition with the requested
-`enabled` value, preserving events, executor settings, order, and failure policy.
-This follows the existing whole-entry replacement rule. An inherited definition
-copied into an override stays pinned there until you remove that override.
-Unknown hook names and malformed registries exit `2` without writing. Enabling
+Each command writes only the `enabled` value: on the hook's existing entry in that
+file, or as a new `{ "name": …, "enabled": … }` entry that configures the hook
+defined by an earlier layer. Nothing else is copied, so builtins keep receiving
+updates. Unknown hook names and malformed registries exit `2` without writing. Enabling
 also checks the hook's event names and templates before saving; neither command
 executes the hook. The repository-wide `hooks.enabled: false` switch still wins
 over any individual hook's state.
@@ -248,7 +259,7 @@ Turning off a shipped builtin without redefining it:
 {
   "version": 1,
   "hooks": [
-    { "name": "capture-changeset", "events": ["implement.post"], "type": "builtin", "enabled": false }
+    { "name": "capture-changeset", "enabled": false }
   ]
 }
 ```
@@ -353,7 +364,7 @@ One is an alternative capture strategy. Three run the
 | `capture-baseline` | `implement.pre`, `implement.task.pre`, `fix.pre` | yes | Records HEAD and whatever is already dirty, so pre-existing edits are never attributed to this run |
 | `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the feature's `changeset.json` |
 | `changeset-from-pr` | — | no (opt-in) | Uses `gh pr diff --name-only` instead of a local git baseline, for PR-first teams |
-| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | no | Creates or resumes the work's worktree and branch |
+| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | no | Creates or resumes the work's worktree and branch; at a task, only resumes |
 | `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits each task; commits the rest and pushes at completion |
 | `create-pull-request` | `implement.post`, `fix.post` | no | Opens or reuses the work's pull request |
 
@@ -362,16 +373,31 @@ CLIs when needed, without depending on `spec-lite` being on `PATH`.
 
 ### Shipped definitions
 
-The capture builtins ship with these definitions. To change one, copy its entry
-into `.spec-lite/hooks.json` and edit it. Your entry replaces the shipped one by
-`name`, as a whole, so keep every property you don't mean to change. The Git
-workflow builtins are shown under [Set up](#set-up).
+For reference, this is how every builtin ships. You never copy these: to turn one
+on or off, or set its options, add a short entry with only those settings, such
+as `{ "name": "capture-changeset", "enabled": false }`. An entry with its own
+`type` replaces the builtin outright instead.
 
 <!-- builtin-hooks-json:start -->
 ```json
 {
   "version": 1,
   "hooks": [
+    {
+      "name": "prepare-worktree",
+      "events": [
+        "implement.pre",
+        "implement.task.pre",
+        "fix.pre"
+      ],
+      "type": "builtin",
+      "builtin": "prepare-worktree",
+      "description": "Create or resume the workflow's branch and worktree before code changes.",
+      "enabled": false,
+      "order": 0,
+      "onFailure": "abort",
+      "timeoutMs": 300000
+    },
     {
       "name": "capture-baseline",
       "events": [
@@ -399,6 +425,35 @@ workflow builtins are shown under [Set up](#set-up).
       "enabled": true,
       "order": 10,
       "onFailure": "warn"
+    },
+    {
+      "name": "commit-progress",
+      "events": [
+        "implement.task.post",
+        "implement.post",
+        "fix.post"
+      ],
+      "type": "builtin",
+      "builtin": "commit-progress",
+      "description": "Commit verified tasks; commit and push completed implementations and fixes.",
+      "enabled": false,
+      "order": 200,
+      "onFailure": "abort",
+      "timeoutMs": 120000
+    },
+    {
+      "name": "create-pull-request",
+      "events": [
+        "implement.post",
+        "fix.post"
+      ],
+      "type": "builtin",
+      "builtin": "create-pull-request",
+      "description": "Create or reuse the workflow's PR against the configured target branch.",
+      "enabled": false,
+      "order": 300,
+      "onFailure": "abort",
+      "timeoutMs": 120000
     }
   ]
 }
@@ -496,17 +551,20 @@ Three opt-in builtins give each piece of work its own branch and pull request:
 
 | Hook | Runs at | Does |
 |---|---|---|
-| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | Creates or resumes the work's worktree and branch |
+| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | Creates or resumes the work's worktree and branch; at a task, only resumes |
 | `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | Commits each finished task; at completion, commits the rest and pushes |
 | `create-pull-request` | `implement.post`, `fix.post` | Opens the pull request, or reuses the existing one |
 
 They cover Implement (every mode) and Fix. A run goes like this:
 
-1. **Start.** A worktree is created at `.worktrees/<name>` on a new branch from
-   the configured start branch. The work's specs, plan, and settings are copied in, including
-   uncommitted ones, and the agent works there from then on.
-2. **Each task.** The worktree path is announced again before the task, and the
-   task is committed after it.
+1. **Start.** At the start of an implementation or fix, a worktree is created at
+   `.worktrees/<name>` on a new branch from the configured start branch: one
+   worktree for the whole implementation, not one per task. The work's specs,
+   plan, and settings are copied in, including uncommitted ones, and the agent
+   works there from then on.
+2. **Each task.** Before a task, the feature's worktree is resumed if it exists,
+   so you can stop mid-feature, work on something else, and later pick up at the
+   next task. A task never creates a worktree. Each finished task is committed.
 3. **Completion.** Remaining changes are committed, the branch is pushed, and the
    pull request is opened.
 4. **After you merge.** Run `spec-lite worktree cleanup <name>` in your main
@@ -525,9 +583,22 @@ They cover Implement (every mode) and Fix. A run goes like this:
 
 ### Set up
 
-**1. Add the hooks.** Put these entries in `.spec-lite/hooks.json`, creating the
-file if it doesn't exist. Set `fromBranch` and the `create-pull-request` options
-for your repository:
+`spec-lite init` asks whether to set up these hooks. For each one, you choose to
+enable or skip it, and are asked only for the options it needs. A hook that needs
+one you skipped isn't offered. `spec-lite update` asks the same about any of these
+hooks you haven't decided on yet, such as one added in a newer release. Change
+your answers at any time with:
+
+```bash
+spec-lite hook setup                        # all three
+spec-lite hook setup create-pull-request    # just one
+```
+
+Without a terminal (CI), or with `--skip-hooks`, `init` and `update` don't ask.
+
+Setup writes short entries to `.spec-lite/hooks.json`. Each holds only your
+choices; the hook definitions stay in spec-lite and update with it. You can also
+write them by hand:
 
 <!-- git-workflow-hooks-json:start -->
 ```json
@@ -536,50 +607,18 @@ for your repository:
   "hooks": [
     {
       "name": "prepare-worktree",
-      "events": [
-        "implement.pre",
-        "implement.task.pre",
-        "fix.pre"
-      ],
-      "type": "builtin",
-      "builtin": "prepare-worktree",
-      "description": "Create or resume the workflow's branch and worktree before code changes.",
       "enabled": true,
-      "order": 0,
-      "onFailure": "abort",
-      "timeoutMs": 300000,
       "options": {
         "fromBranch": "develop"
       }
     },
     {
       "name": "commit-progress",
-      "events": [
-        "implement.task.post",
-        "implement.post",
-        "fix.post"
-      ],
-      "type": "builtin",
-      "builtin": "commit-progress",
-      "description": "Commit verified tasks; commit and push completed implementations and fixes.",
-      "enabled": true,
-      "order": 200,
-      "onFailure": "abort",
-      "timeoutMs": 120000
+      "enabled": true
     },
     {
       "name": "create-pull-request",
-      "events": [
-        "implement.post",
-        "fix.post"
-      ],
-      "type": "builtin",
-      "builtin": "create-pull-request",
-      "description": "Create or reuse the workflow's PR against the configured target branch.",
       "enabled": true,
-      "order": 300,
-      "onFailure": "abort",
-      "timeoutMs": 120000,
       "options": {
         "provider": "github",
         "targetBranch": "develop"
@@ -590,15 +629,12 @@ for your repository:
 ```
 <!-- git-workflow-hooks-json:end -->
 
-- **No pull request:** to stop at a pushed branch, leave out the
-  `create-pull-request` entry.
+- **No pull request:** to stop at a pushed branch, leave out
+  `create-pull-request` or set it to `"enabled": false`.
 - **Dependencies:** `commit-progress` needs `prepare-worktree`, and
   `create-pull-request` needs `commit-progress`.
-- **With the CLI:** `spec-lite hook enable prepare-worktree commit-progress` adds
-  the first two with default options, which you can then edit.
-  `create-pull-request` has required options, so add its entry by hand.
 
-**2. Check.** Validate, then preview what the next feature will do:
+Then check, and preview what the next feature will do:
 
 ```bash
 spec-lite hook validate
@@ -620,22 +656,18 @@ repeat a setting or keep two copies in sync:
 - `spec-lite worktree cleanup` reads `targetBranch` and `provider` from the
   `create-pull-request` entry, even when that hook is disabled.
 
-### Changing the entries
+### What you can change
 
-Your entry replaces the shipped definition as a whole, so keep every property
-from the example above. Validation enforces these rules:
+A short entry may set these; everything else comes from spec-lite. Validation
+enforces the limits:
 
-| Property | Can you change it? |
+| Property | Limits |
 |---|---|
-| `name` | No. Keep it, so your entry replaces the shipped definition. |
-| `type`, `builtin` | No. They select the built-in handler. |
-| `events` | No. Validation rejects an entry missing any of the events shown. |
-| `options` | Yes. See [Builtin options](#builtin-options). |
-| `enabled` | Yes. `false` turns the hook off, within the dependencies above. |
-| `order` | Within limits. `prepare-worktree` must run first on its events. `commit-progress` must run after `capture-changeset` (order `10`), and `create-pull-request` after `commit-progress`. Give your own checks, such as lint or tests, an order between `10` and `200` so they run before the commit. |
-| `onFailure` | No. Validation requires `"abort"`, so a failed step stops the run. |
-| `timeoutMs` | Yes. It's the budget for each Git or provider command the hook runs: creating the worktree, a commit or push, or a PR call. |
-| `description` | Yes. It's shown by `hook list`. |
+| `enabled` | Within the dependencies above. |
+| `options` | See [Builtin options](#builtin-options). |
+| `order` | `prepare-worktree` must run first on its events. `commit-progress` must run after `capture-changeset` (order `10`), and `create-pull-request` after `commit-progress`. Give your own checks, such as lint or tests, an order between `10` and `200` so they run before the commit. |
+| `timeoutMs` | None. It's the budget for each Git or provider command the hook runs: creating the worktree, a commit or push, or a PR call. |
+| `onFailure` | Must stay `"abort"`, so a failed step stops the run. |
 
 ### Branches and worktrees
 
@@ -693,8 +725,8 @@ merged, cleanup removes nothing. Otherwise it:
 - **Failures stop the run.** Each hook uses `onFailure: "abort"`. Your own hooks
   ordered before `200`, such as lint or tests, run before the commit.
 - **Work in the wrong checkout is caught.** Committing outside a managed worktree
-  is refused, and a completion with no changes outside `.spec-lite/` fails instead
-  of pushing.
+  is refused, and the error names the worktree the work belongs to. A completion
+  with no changes outside `.spec-lite/` fails instead of pushing.
 - **New work never goes silently onto a merged PR.** If the branch's PR is merged
   or closed and the branch has new commits, the PR step fails.
 - **Interrupted runs recover.** A rerun finishes an interrupted setup, and a lock
@@ -732,19 +764,14 @@ of the others. YOLO runs the hooks like any other role.
 
 ### Custom PR provider
 
-Set the `create-pull-request` entry's `provider` option to `command`, and give
-both commands as literal executable/argument arrays. No shell is involved:
+Choose `command` as the provider in `spec-lite hook setup`, or set it in the
+`create-pull-request` entry. Give both commands as literal executable/argument
+arrays. No shell is involved:
 
 ```json
 {
   "name": "create-pull-request",
-  "events": ["implement.post", "fix.post"],
-  "type": "builtin",
-  "builtin": "create-pull-request",
   "enabled": true,
-  "order": 300,
-  "onFailure": "abort",
-  "timeoutMs": 120000,
   "options": {
     "provider": "command",
     "targetBranch": "develop",
@@ -781,12 +808,17 @@ the registry and out of command output.
   `payload.worktree` with `--json`), and Implement and Fix move to that path. The
   remaining hooks of the same event already run there.
 - **Choosing the workflow.** The CLI checks these in order:
-  1. Already inside a managed worktree: continue in it.
-  2. `--payload plan=<file>` or `--payload yolo=<Run ID>` given: use that workflow.
-  3. `--feature` given: use the open workflow that owns the feature. That is
-     either its own, or a plan or YOLO workflow whose plans list it.
-  4. Otherwise: create or resume the feature, fix (`fix.pre --payload name=…`), or
-     review (`implement.pre --payload name=…`) workflow.
+  1. `--feature` given, and the feature has an open workflow: use it, wherever
+     the hook runs from. That is either the feature's own workflow, or a plan or
+     YOLO workflow whose plans list it. This is how a task resumes its feature,
+     even from another workflow's worktree.
+  2. Already inside a managed worktree: continue in it. Starting different work
+     there is an error; start it from the main checkout.
+  3. At `implement.task.pre`: stop. A task resumes a worktree but never creates
+     one.
+  4. Otherwise: create or resume the feature, plan (`--payload plan=<file>`),
+     YOLO (`--payload yolo=<Run ID>`), fix (`fix.pre --payload name=…`), or review
+     (`implement.pre --payload name=…`) workflow.
 - **State.** Workflow state and locks live in `.git/spec-lite/`, outside every
   commit.
 - **Manual calls.** The skills make these calls themselves. By hand they look like:

@@ -19,10 +19,12 @@ import { resolveStaleOutputPaths } from "../utils/stale-sources.js";
 import { buildGroupedSourceChoices } from "../utils/source-selection.js";
 import { getPackageVersion } from "../utils/package-version.js";
 import { planFeatureMigration, runFeatureMigration } from "../utils/feature-migration.js";
+import { offerHooks } from "./init.js";
 
 interface UpdateOptions {
   ai?: string | string[];
   force?: boolean;
+  skipHooks?: boolean;
 }
 
 function normalizePromptToken(value: string): string {
@@ -476,6 +478,9 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       console.log(chalk.green(`  ✓ .spec-lite/stacks/${snippet.fileName} (added; existing snippets preserved)`));
     }
   }
+
+  // Offer optional hooks this project hasn't decided on, including new ones.
+  await offerHooks(cwd, options.skipHooks);
 
   // 4. Update config timestamp
   config.updatedAt = new Date().toISOString();
