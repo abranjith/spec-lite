@@ -10,8 +10,8 @@ import fs from "fs-extra";
 import Ajv2020 from "ajv/dist/2020.js";
 import { BUILTIN_HOOKS } from "./builtins/index.js";
 import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
-import { validateGitWorkflowConfig } from "./builtins/git-config.js";
-import { hooksJsonPath, globalHooksJsonPath, readProjectConfig } from "./workspace.js";
+import { validateBuiltinOptions } from "./builtins/options.js";
+import { hooksJsonPath, globalHooksJsonPath } from "./workspace.js";
 import { buildHooksSchema } from "./schema.js";
 import { resolvePattern, getEvent, type EventDefinition } from "./events.js";
 import { validateTemplate } from "./interpolation.js";
@@ -48,9 +48,11 @@ async function readRegistryFile(file: string, source: HookSource): Promise<{
   }
 
   if (!validateSchema(raw)) {
-    const issues: RegistryIssue[] = (validateSchema.errors ?? []).map((e) => ({
+    // An `if`/`then` failure only restates the error inside it, and a bare
+    // additionalProperties error does not say which key is wrong.
+    const issues: RegistryIssue[] = (validateSchema.errors ?? []).filter((e) => e.keyword !== "if").map((e) => ({
       level: "error" as const,
-      message: `${file}${e.instancePath || ""}: ${e.message}`,
+      message: `${file}${e.instancePath || ""}: ${e.message}${e.keyword === "additionalProperties" ? ` ("${(e.params as { additionalProperty: string }).additionalProperty}")` : ""}`,
     }));
     return { hooks: [], issues };
   }
@@ -107,8 +109,16 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
     for (const message of d.warnings) issues.push({ level: "warning", hook: hook.name, message });
   }
 
-  // A builtin's handler existence is checked at dispatch time in runner.ts,
-  // since it only matters if the hook is actually enabled and fires.
+  // Options are checked against what the builtin declares; any other kind
+  // of hook takes none. A builtin's handler existence is checked at dispatch
+  // time in runner.ts, since it only matters if the hook fires.
+  if (hook.type === "builtin") {
+    const report = validateBuiltinOptions(hook.builtin ?? hook.name, hook.options);
+    for (const message of report.errors) issues.push({ level: "error", hook: hook.name, message: `${hook.name}: ${message}` });
+    for (const message of report.warnings) issues.push({ level: "warning", hook: hook.name, message: `${hook.name}: ${message}` });
+  } else if (hook.options !== undefined) {
+    issues.push({ level: "error", hook: hook.name, message: `${hook.name}: only builtin hooks take options.` });
+  }
   return issues;
 }
 
@@ -141,7 +151,7 @@ function gitWorkflowDependencies(enabled: ResolvedHook[]): RegistryIssue[] {
  * entries, so a hand-written entry could otherwise drop an event, an abort
  * policy, or its place in the order without anything failing loudly.
  */
-function validateGitWorkflow(enabled: ResolvedHook[], config: unknown, skip: string[]): RegistryIssue[] {
+function validateGitWorkflow(enabled: ResolvedHook[]): RegistryIssue[] {
   const git = new Map(GIT_WORKFLOW_HOOKS.map((id) => [id, enabled.find((hook) => handlerOf(hook) === id)]));
   if (![...git.values()].some(Boolean)) return [];
   const issues = gitWorkflowDependencies(enabled);
@@ -179,11 +189,6 @@ function validateGitWorkflow(enabled: ResolvedHook[], config: unknown, skip: str
       if (position(event, pr) < position(event, commit)) error(pr, `${pr.name} must run after ${commit.name} on ${event}, which pushes the branch.`);
     }
   }
-
-  const needsPullRequest = !!pr && !hookIsSkipped(pr, skip);
-  const report = validateGitWorkflowConfig(config, needsPullRequest);
-  for (const message of report.errors) issues.push({ level: "error", hook: "gitWorkflow", message });
-  for (const message of report.warnings) issues.push({ level: "warning", hook: "gitWorkflow", message });
   return issues;
 }
 
@@ -236,10 +241,7 @@ export async function loadRegistry(root: string, options: LoadRegistryOptions = 
   const enabled = merged.filter((h) => h.enabled !== false);
 
   for (const hook of enabled) if (!hookIsSkipped(hook, options.skip ?? [])) issues.push(...validateHook(hook));
-  // Project settings apply only when resolving a project.
-  if (options.scope !== "global") {
-    issues.push(...validateGitWorkflow(enabled, (await readProjectConfig(root)).gitWorkflow, options.skip ?? []));
-  }
+  issues.push(...validateGitWorkflow(enabled));
 
   return { hooks: options.includeDisabled ? merged : enabled, issues };
 }
@@ -278,11 +280,10 @@ export async function setHooksEnabled(
   });
   const next = hooks.map((hook) => (names.includes(hook.name) ? { ...hook, enabled } : hook));
   const active = (list: ResolvedHook[]) => list.filter((hook) => hook.enabled !== false);
-  const config = scope === "project" ? (await readProjectConfig(root)).gitWorkflow : undefined;
   // Disabling must not strand a hook that depends on the disabled one;
   // enabling must leave a valid workflow. Pre-existing problems are left to
   // `hook validate`, so they never block an unrelated change.
-  const chain = (list: ResolvedHook[]) => (enabled && scope === "project" ? validateGitWorkflow(active(list), config, []) : gitWorkflowDependencies(active(list)))
+  const chain = (list: ResolvedHook[]) => (enabled ? validateGitWorkflow(active(list)) : gitWorkflowDependencies(active(list)))
     .filter((issue) => issue.level === "error").map((issue) => issue.message);
   const before = new Set(chain(hooks));
   const errors = [

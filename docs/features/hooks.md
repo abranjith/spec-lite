@@ -365,7 +365,7 @@ CLIs when needed, without depending on `spec-lite` being on `PATH`.
 The capture builtins ship with these definitions. To change one, copy its entry
 into `.spec-lite/hooks.json` and edit it. Your entry replaces the shipped one by
 `name`, as a whole, so keep every property you don't mean to change. The Git
-workflow builtins are listed under [Hook entries](#hook-entries).
+workflow builtins are shown under [Set up](#set-up).
 
 <!-- builtin-hooks-json:start -->
 ```json
@@ -404,6 +404,28 @@ workflow builtins are listed under [Hook entries](#hook-entries).
 }
 ```
 <!-- builtin-hooks-json:end -->
+
+### Builtin options
+
+A builtin that has settings takes them in the `options` object of its entry.
+Other builtins, and hooks of other kinds, take no `options`; `hook validate`
+rejects unknown or misplaced options, and the published schema gives editors
+autocomplete for each builtin's options.
+
+<!-- builtin-options-table:start -->
+| Hook | Option | Type | Meaning |
+|---|---|---|---|
+| `prepare-worktree` | `fromBranch` | string | Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Default: the main checkout's current branch; `validate` warns when unset. |
+| `prepare-worktree` | `fetch` | boolean | Fetch `fromBranch` from `remote` first and start from the remote's latest commit. Default: `false`. |
+| `prepare-worktree` | `remote` | string | Remote `fetch` reads from. Default: `origin`. |
+| `prepare-worktree` | `worktreeRoot` | string | Folder for worktrees, relative to the main checkout. Default: `.worktrees`. |
+| `commit-progress` | `remote` | string | Remote to push to. Recorded for `create-pull-request` and cleanup. Default: `origin`. |
+| `commit-progress` | `commitMessage` | string | Commit subject template using `${id}` (feature ID, or the branch), `${task}`, `${summary}`, and `${branch}`; `${task:-final}` sets a default. Default: `FEAT-020 TASK-003: <summary>`. |
+| `create-pull-request` | `provider` | `"github"`, `"azure-devops"`, `"command"` | **Required.** Where pull requests are opened; `command` runs your own adapter. |
+| `create-pull-request` | `targetBranch` | string | **Required.** Branch pull requests merge into. Never inferred. |
+| `create-pull-request` | `command` | string array | `command` provider: executable and arguments that create a PR. |
+| `create-pull-request` | `lookupCommand` | string array | `command` provider: executable and arguments that find existing PRs. |
+<!-- builtin-options-table:end -->
 
 `changeset-from-pr` ships but subscribes to nothing until you opt in. Name it
 through the `builtin` field and choose the events yourself:
@@ -481,7 +503,7 @@ Three opt-in builtins give each piece of work its own branch and pull request:
 They cover Implement (every mode) and Fix. A run goes like this:
 
 1. **Start.** A worktree is created at `.worktrees/<name>` on a new branch from
-   `fromBranch`. The work's specs, plan, and settings are copied in, including
+   the configured start branch. The work's specs, plan, and settings are copied in, including
    uncommitted ones, and the agent works there from then on.
 2. **Each task.** The worktree path is announced again before the task, and the
    task is committed after it.
@@ -503,77 +525,9 @@ They cover Implement (every mode) and Fix. A run goes like this:
 
 ### Set up
 
-1. **Settings.** Add a `gitWorkflow` block to `.spec-lite.json`:
-
-   ```json
-   {
-     "gitWorkflow": {
-       "fromBranch": "develop",
-       "pullRequest": { "provider": "github", "targetBranch": "develop" }
-     }
-   }
-   ```
-
-   To stop at a pushed branch with no pull request, leave out `pullRequest`.
-   [Settings](#settings) lists every option.
-
-2. **Hooks.** Enable the three hooks with the CLI:
-
-   ```bash
-   spec-lite hook enable prepare-worktree commit-progress create-pull-request
-   ```
-
-   Or add their entries to `.spec-lite/hooks.json` yourself; see
-   [Hook entries](#hook-entries). Leave out `create-pull-request` if you left out
-   `pullRequest`. `commit-progress` needs `prepare-worktree`, and
-   `create-pull-request` needs `commit-progress`.
-
-3. **Check.** Validate, then preview what the next feature will do:
-
-   ```bash
-   spec-lite hook validate
-   spec-lite hook run implement.pre --feature FEAT-001 --dry-run
-   ```
-
-#### Settings
-
-All Git workflow settings live in the `gitWorkflow` block of `.spec-lite.json`.
-Every key is shown here:
-
-```json
-{
-  "gitWorkflow": {
-    "fromBranch": "develop",
-    "fetch": true,
-    "remote": "origin",
-    "worktreeRoot": ".worktrees",
-    "commitMessage": "feat(${id}): ${summary}",
-    "pullRequest": {
-      "provider": "github",
-      "targetBranch": "develop"
-    }
-  }
-}
-```
-
-| Setting | Default | Meaning |
-|---|---|---|
-| `fromBranch` | the main checkout's current branch | Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Set it; otherwise the start point depends on what is checked out, and `validate` warns. |
-| `fetch` | `false` | Fetch `fromBranch` from `remote` first, and start from the remote's latest commit. Needs `fromBranch`. |
-| `remote` | `origin` | Remote to push to |
-| `worktreeRoot` | `.worktrees` | Folder for worktrees, relative to the main checkout |
-| `commitMessage` | `FEAT-020 TASK-003: <summary>` | Commit subject template using `${id}` (feature ID, or the branch), `${task}`, `${summary}`, and `${branch}`. Write `${task:-final}` for a default. |
-| `pullRequest.provider` | — | **Required for PRs.** `github`, `azure-devops`, or `command` |
-| `pullRequest.targetBranch` | — | **Required for PRs.** Branch PRs merge into. It is never inferred. |
-| `pullRequest.command`, `pullRequest.lookupCommand` | — | Custom provider only; see [Custom PR provider](#custom-pr-provider) |
-
-Unknown keys are rejected by `hook validate`.
-
-#### Hook entries
-
-`hook enable` writes these entries to `.spec-lite/hooks.json`. Writing them by
-hand has the same effect, and lets you adjust the properties marked as
-changeable:
+**1. Add the hooks.** Put these entries in `.spec-lite/hooks.json`, creating the
+file if it doesn't exist. Set `fromBranch` and the `create-pull-request` options
+for your repository:
 
 <!-- git-workflow-hooks-json:start -->
 ```json
@@ -593,7 +547,10 @@ changeable:
       "enabled": true,
       "order": 0,
       "onFailure": "abort",
-      "timeoutMs": 300000
+      "timeoutMs": 300000,
+      "options": {
+        "fromBranch": "develop"
+      }
     },
     {
       "name": "commit-progress",
@@ -622,26 +579,63 @@ changeable:
       "enabled": true,
       "order": 300,
       "onFailure": "abort",
-      "timeoutMs": 120000
+      "timeoutMs": 120000,
+      "options": {
+        "provider": "github",
+        "targetBranch": "develop"
+      }
     }
   ]
 }
 ```
 <!-- git-workflow-hooks-json:end -->
 
+- **No pull request:** to stop at a pushed branch, leave out the
+  `create-pull-request` entry.
+- **Dependencies:** `commit-progress` needs `prepare-worktree`, and
+  `create-pull-request` needs `commit-progress`.
+- **With the CLI:** `spec-lite hook enable prepare-worktree commit-progress` adds
+  the first two with default options, which you can then edit.
+  `create-pull-request` has required options, so add its entry by hand.
+
+**2. Check.** Validate, then preview what the next feature will do:
+
+```bash
+spec-lite hook validate
+spec-lite hook run implement.pre --feature FEAT-001 --dry-run
+```
+
+### Options
+
+Each hook's settings go in the `options` object of its own entry. Every option is
+listed in [Builtin options](#builtin-options).
+
+Each setting belongs to one hook only. Values that a later step needs are
+recorded in the workflow's saved state the first time they're used, so you never
+repeat a setting or keep two copies in sync:
+- `prepare-worktree` records the start branch and where the worktree is.
+- `commit-progress` records the remote it pushed to. `create-pull-request` and
+  `spec-lite worktree cleanup` use that same remote, which also lets you fetch
+  from one remote and push to another, such as a fork.
+- `spec-lite worktree cleanup` reads `targetBranch` and `provider` from the
+  `create-pull-request` entry, even when that hook is disabled.
+
+### Changing the entries
+
+Your entry replaces the shipped definition as a whole, so keep every property
+from the example above. Validation enforces these rules:
+
 | Property | Can you change it? |
 |---|---|
 | `name` | No. Keep it, so your entry replaces the shipped definition. |
 | `type`, `builtin` | No. They select the built-in handler. |
 | `events` | No. Validation rejects an entry missing any of the events shown. |
-| `enabled` | Yes. `false` turns the hook off. Leaving `prepare-worktree` off while `commit-progress` is on fails validation, and so does leaving `commit-progress` off while `create-pull-request` is on. |
+| `options` | Yes. See [Builtin options](#builtin-options). |
+| `enabled` | Yes. `false` turns the hook off, within the dependencies above. |
 | `order` | Within limits. `prepare-worktree` must run first on its events. `commit-progress` must run after `capture-changeset` (order `10`), and `create-pull-request` after `commit-progress`. Give your own checks, such as lint or tests, an order between `10` and `200` so they run before the commit. |
 | `onFailure` | No. Validation requires `"abort"`, so a failed step stops the run. |
-| `timeoutMs` | Yes. This is the budget for each Git or provider command the hook runs: creating the worktree, a commit or push, or a PR call. |
+| `timeoutMs` | Yes. It's the budget for each Git or provider command the hook runs: creating the worktree, a commit or push, or a PR call. |
 | `description` | Yes. It's shown by `hook list`. |
-
-Hook entries take no settings: there is no `options` property. Settings go in
-`.spec-lite.json`, as shown in [Settings](#settings).
 
 ### Branches and worktrees
 
@@ -673,7 +667,8 @@ git pull
 ```
 
 Run cleanup from the main checkout, before pulling. It first checks that the
-branch is merged into `targetBranch` (or `fromBranch`). For a squash merge, it
+branch is merged into the PR's `targetBranch`, or into the start branch when
+there is no PR hook. For a squash merge, it
 asks the PR provider whether that exact commit merged. If the branch isn't
 merged, cleanup removes nothing. Otherwise it:
 
@@ -684,7 +679,7 @@ merged, cleanup removes nothing. Otherwise it:
    your identical local copies don't block `git pull`. Files you've changed since
    are kept.
 4. Forgets the workflow. Starting the same work again creates a fresh branch from
-   the current `fromBranch`.
+   the start branch's current commit.
 
 ### What the hooks guarantee
 
@@ -710,8 +705,9 @@ merged, cleanup removes nothing. Otherwise it:
 - **Tools scan the worktree folder.** `.worktrees/` is inside your checkout, and
   test runners and compilers ignore `.gitignore`. Exclude it from them, for
   example vitest `exclude: ["**/.worktrees/**"]`, jest `testPathIgnorePatterns`,
-  tsconfig `exclude`, or ESLint `ignores`. Alternatively, point `worktreeRoot`
-  outside the checkout, if your agent is allowed to write there.
+  tsconfig `exclude`, or ESLint `ignores`. Alternatively, point
+  `prepare-worktree`'s `worktreeRoot` outside the checkout, if your agent is
+  allowed to write there.
 - **Dependencies aren't installed.** A new worktree has no `node_modules` and none
   of your git-ignored files, such as `.env`. A `command` hook on `implement.pre`
   and `fix.pre` with `order: 5` runs inside the new worktree and can install them.
@@ -719,8 +715,9 @@ merged, cleanup removes nothing. Otherwise it:
   edit whichever checkout they run in.
 - **Completions can be slow.** Pushing and opening a PR can take minutes. Give your
   agent's command timeout at least 5 minutes for `implement.post` and `fix.post`.
-- **One set of branches per repository.** All workflows use the same `remote`,
-  `fromBranch`, and `targetBranch`.
+- **One configuration per repository.** Every workflow in a repository uses the
+  same hook options. Entries in `~/.spec-lite/hooks.json` give all your
+  repositories a default, and a project entry replaces it.
 
 ### Skipping for one run
 
@@ -735,19 +732,24 @@ of the others. YOLO runs the hooks like any other role.
 
 ### Custom PR provider
 
-Set `pullRequest.provider` to `command`, and give both commands as literal
-executable/argument arrays. No shell is involved:
+Set the `create-pull-request` entry's `provider` option to `command`, and give
+both commands as literal executable/argument arrays. No shell is involved:
 
 ```json
 {
-  "gitWorkflow": {
-    "fromBranch": "develop",
-    "pullRequest": {
-      "provider": "command",
-      "targetBranch": "develop",
-      "command": ["node", "scripts/pr-adapter.cjs", "create"],
-      "lookupCommand": ["node", "scripts/pr-adapter.cjs", "lookup"]
-    }
+  "name": "create-pull-request",
+  "events": ["implement.post", "fix.post"],
+  "type": "builtin",
+  "builtin": "create-pull-request",
+  "enabled": true,
+  "order": 300,
+  "onFailure": "abort",
+  "timeoutMs": 120000,
+  "options": {
+    "provider": "command",
+    "targetBranch": "develop",
+    "command": ["node", "scripts/pr-adapter.cjs", "create"],
+    "lookupCommand": ["node", "scripts/pr-adapter.cjs", "lookup"]
   }
 }
 ```
@@ -823,6 +825,7 @@ the registry and out of command output.
 | `once` | all | `false` | Skip if this hook already succeeded for this event on this feature |
 | `payloadSchema` | all | — | JSON Schema checked against the payload *before* invocation |
 | `builtin` | `builtin` | the hook's `name` | Handler id in the builtin registry |
+| `options` | `builtin` | — | Settings of a builtin that declares them; see [Builtin options](#builtin-options) |
 | `run` | `command`, `script` | — | Command line or script path. Interpolated |
 | `shell` | `command`, `script` | `auto` | `auto` (sh on POSIX, PowerShell on Windows), `bash`, `pwsh` |
 | `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root. Interpolated |

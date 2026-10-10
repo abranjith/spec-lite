@@ -8,10 +8,10 @@ import { runEvent } from "../src/hooks/runner.js";
 import { BUILTIN_HOOKS } from "../src/hooks/builtins/index.js";
 import { git, workflowSlug, GIT_WORKFLOW_HOOKS, localBranchExists, programInvocation } from "../src/hooks/builtins/git-workflow.js";
 import * as workflow from "../src/hooks/builtins/git-workflow.js";
-import { validateGitWorkflowConfig } from "../src/hooks/builtins/git-config.js";
+import { validateBuiltinOptions } from "../src/hooks/builtins/options.js";
 import { cleanupMerged, cleanupWorkflow, listWorkflows } from "../src/hooks/builtins/worktree-lifecycle.js";
 import { loadRegistry, setHooksEnabled } from "../src/hooks/registry.js";
-import type { GitWorkflowConfig, HookDefinition, PullRequestConfig } from "../src/hooks/types.js";
+import type { HookDefinition, PullRequestOptions } from "../src/hooks/types.js";
 
 // Each scenario drives real Git repositories end to end.
 vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
@@ -23,17 +23,22 @@ const featureDir = ".spec-lite/features/FEAT-020-execute_operations";
 const otherDir = ".spec-lite/features/FEAT-021-report_results";
 const featureTree = "feat-020-execute-operations";
 
-async function configure(hooks: HookDefinition[], gitWorkflow: GitWorkflowConfig = { fromBranch: "main" }, at = root): Promise<void> {
+async function configure(hooks: HookDefinition[], at = root): Promise<void> {
   await fs.outputJson(path.join(at, ".spec-lite", "hooks.json"), { version: 1, hooks }, { spaces: 2 });
-  await fs.outputJson(path.join(at, ".spec-lite.json"), { gitWorkflow }, { spaces: 2 });
 }
 
 function enabled(name: string, overrides: Partial<HookDefinition> = {}): HookDefinition {
   return { ...BUILTIN_HOOKS.find((hook) => hook.name === name)!, enabled: true, ...overrides };
 }
 
-const commitChain = () => [enabled("prepare-worktree"), enabled("commit-progress")];
-const fullChain = () => [...commitChain(), enabled("create-pull-request")];
+type Options = Record<string, unknown>;
+const prepareHook = (options: Options = { fromBranch: "main" }) => enabled("prepare-worktree", { options });
+const commitHook = (options?: Options) => enabled("commit-progress", options ? { options } : {});
+const prHook = (options: PullRequestOptions, overrides: Partial<HookDefinition> = {}) =>
+  enabled("create-pull-request", { options: options as Options, ...overrides });
+const github: PullRequestOptions = { provider: "github", targetBranch: "main" };
+const commitChain = (commit?: Options) => [prepareHook(), commitHook(commit)];
+const fullChain = (pr: PullRequestOptions, commit?: Options) => [...commitChain(commit), prHook(pr)];
 
 async function prepare(extra?: Record<string, string>) {
   return runEvent({ root, event: "implement.pre", featureId: "FEAT-020", extra });
@@ -80,7 +85,7 @@ describe("prepare-worktree", () => {
   });
 
   it("creates the feature branch, carries its specs, captures the baseline there, and edits no tracked file", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     await fs.writeFile(path.join(root, "code.txt"), "parent dirt\n");
     const report = await prepare();
     expect(report.exitCode).toBe(0);
@@ -105,7 +110,7 @@ describe("prepare-worktree", () => {
   });
 
   it("resumes the same worktree from either checkout and from each task, without overwriting work", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const tree = (await prepare()).payload.worktree!;
     await fs.writeFile(path.join(tree.path, "code.txt"), "work in progress\n");
     await git(root, ["switch", "-c", "other"]);
@@ -122,9 +127,9 @@ describe("prepare-worktree", () => {
     expect(await fs.pathExists(path.join(tree.path, ".worktrees"))).toBe(false);
   });
 
-  it("starts from gitWorkflow.fromBranch, or from the remote's tip with fetch", async () => {
+  it("starts from options.fromBranch, or from the remote's tip with fetch", async () => {
     await git(root, ["branch", "develop"]);
-    await configure([enabled("prepare-worktree")], { fromBranch: "develop" });
+    await configure([prepareHook({ fromBranch: "develop" })]);
     const local = await prepare();
     expect(local.payload.worktree?.fromBranch).toBe("develop");
     expect(local.payload.worktree?.initialHead).toBe(await git(root, ["rev-parse", "develop"]));
@@ -133,14 +138,14 @@ describe("prepare-worktree", () => {
     await git(temp, ["clone", "-b", "main", remote, upstream]);
     await git(upstream, ["-c", "user.email=a@b.invalid", "-c", "user.name=A", "commit", "--allow-empty", "-m", "remote only"]);
     await git(upstream, ["push", "origin", "main"]);
-    await configure([enabled("prepare-worktree")], { fromBranch: "main", fetch: true });
+    await configure([prepareHook({ fromBranch: "main", fetch: true })]);
     const fetched = await runEvent({ root, event: "fix.pre", extra: { name: "fresh" } });
     expect(fetched.exitCode).toBe(0);
     expect(fetched.payload.worktree?.initialHead).toBe(await git(upstream, ["rev-parse", "HEAD"]));
   });
 
   it("names fixes and reviews from stable identifiers, and resumes a fix with or without --feature", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     expect((await runEvent({ root, event: "fix.pre" })).exitCode).toBe(1);
     const fix = await runEvent({ root, event: "fix.pre", featureId: "FEAT-020", extra: { name: "Auth ISSUE!" } });
     expect(fix.payload.worktree?.branch).toBe("fix/auth-issue");
@@ -153,7 +158,7 @@ describe("prepare-worktree", () => {
   });
 
   it("reuses a feature's active workflow for its fixes and reviews, and refuses another feature inside it", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const tree = (await prepare()).payload.worktree!;
     const fix = await runEvent({ root, event: "fix.pre", featureId: "FEAT-020", extra: { name: "regression" } });
     expect(fix.payload.worktree?.path).toBe(tree.path);
@@ -166,7 +171,7 @@ describe("prepare-worktree", () => {
   });
 
   it("fails for a feature ID that does not resolve instead of inventing a name", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const report = await runEvent({ root, event: "implement.pre", featureId: "FEAT-099" });
     expect(report.exitCode).toBe(1);
     expect(report.results[0].message).toContain("FEAT-099 was not found");
@@ -174,7 +179,7 @@ describe("prepare-worktree", () => {
   });
 
   it("copies only the work's own inputs", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     await fs.outputFile(path.join(root, ".spec-lite", "features", "FEAT-099-draft", "spec.md"), "# Unrelated draft\n");
     await fs.outputFile(path.join(root, ".spec-lite", "TODO.md"), "- [ ] unrelated\n");
     await fs.outputFile(path.join(root, ".spec-lite", "plan_orders.md"), "| FEAT-020 | Execute operations |\n");
@@ -187,15 +192,17 @@ describe("prepare-worktree", () => {
     expect(await fs.pathExists(path.join(tree.path, ".spec-lite", "TODO.md"))).toBe(false);
   });
 
-  it("honors gitWorkflow.worktreeRoot", async () => {
-    await configure([enabled("prepare-worktree")], { fromBranch: "main", worktreeRoot: "work/trees" });
+  it("honors options.worktreeRoot, and later hooks find the worktree without it", async () => {
+    await configure([prepareHook({ fromBranch: "main", worktreeRoot: "work/trees" }), commitHook()]);
     const tree = (await prepare()).payload.worktree!;
     expect(tree.path).toBe(path.join(root, "work", "trees", featureTree));
     expect(await ignored(root, "work/trees/x")).toBe(true);
+    await fs.writeFile(path.join(tree.path, "code.txt"), "task\n");
+    expect((await runEvent({ root: tree.path, event: "implement.task.post", featureId: "FEAT-020", taskId: "TASK-001" })).exitCode).toBe(0);
   });
 
   it("finishes an interrupted setup without resetting the branch, but never a damaged checkout", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const tree = (await prepare()).payload.worktree!;
     const common = await git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
     const file = path.join(common, "spec-lite", "worktrees", `${featureTree}.json`);
@@ -215,7 +222,7 @@ describe("prepare-worktree", () => {
   });
 
   it("refuses occupied paths and unrelated existing branches", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     await fs.outputFile(path.join(root, ".worktrees", featureTree, "keep.txt"), "keep");
     expect((await prepare()).exitCode).toBe(1);
     expect(await fs.readFile(path.join(root, ".worktrees", featureTree, "keep.txt"), "utf8")).toBe("keep");
@@ -246,7 +253,7 @@ describe("prepare-worktree", () => {
   });
 
   it("takes over a lock left by a process that exited, and waits for a live one", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const common = await git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
     const destination = path.join(root, ".worktrees", featureTree);
     const lock = path.join(path.resolve(common), "spec-lite", "locks", `${crypto.createHash("sha256").update(destination).digest("hex")}.lock`);
@@ -278,7 +285,7 @@ describe("plan and YOLO workflows", () => {
   it("runs a plan in one workflow: features join it from any checkout and its PR opens at plan completion", async () => {
     await writePlan();
     const { options, marker } = await customAdapter();
-    await configure(fullChain(), { fromBranch: "main", pullRequest: options });
+    await configure(fullChain(options));
     const plan = await runEvent({ root, event: "implement.pre", extra: { plan: ".spec-lite/plan_orders.md" } });
     expect(plan.exitCode).toBe(0);
     const tree = plan.payload.worktree!;
@@ -307,7 +314,7 @@ describe("plan and YOLO workflows", () => {
   });
 
   it("keeps a YOLO run in one workflow; features listed by plans written inside it join it", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const run = await runEvent({ root, event: "implement.pre", extra: { yolo: "yolo-20261006-store" } });
     const tree = run.payload.worktree!;
     expect(tree.branch).toBe("yolo/20261006-store");
@@ -321,7 +328,7 @@ describe("plan and YOLO workflows", () => {
 
   it("gives a feature implemented on its own its own workflow", async () => {
     await writePlan();
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     expect((await prepare()).payload.worktree?.identity).toBe("feature:FEAT-020");
   });
 });
@@ -366,8 +373,8 @@ describe("commit-progress", () => {
     expect(await git(tree.path, ["ls-remote", "--heads", "origin", tree.branch])).not.toBe("");
   });
 
-  it("applies gitWorkflow.commitMessage", async () => {
-    await configure(commitChain(), { fromBranch: "main", commitMessage: "feat(${id}): ${summary} [${task:-final}]" });
+  it("applies options.commitMessage", async () => {
+    await configure(commitChain({ commitMessage: "feat(${id}): ${summary} [${task:-final}]" }));
     const tree = (await prepare()).payload.worktree!;
     await fs.writeFile(path.join(tree.path, "code.txt"), "task\n");
     await runEvent({ root: tree.path, event: "implement.task.post", featureId: "FEAT-020", taskId: "TASK-001", extra: { summary: "Changed code" } });
@@ -401,7 +408,7 @@ describe("commit-progress", () => {
   });
 
   it("stops the chain after a failed push", async () => {
-    await configure([...commitChain(), { name: "after-push", events: ["implement.post"], type: "prompt", prompt: "Should not run", order: 300 }], { fromBranch: "main", remote: "missing" });
+    await configure([...commitChain({ remote: "missing" }), { name: "after-push", events: ["implement.post"], type: "prompt", prompt: "Should not run", order: 300 }]);
     const tree = (await prepare()).payload.worktree!;
     await fs.writeFile(path.join(tree.path, "code.txt"), "done\n");
     const report = await complete(tree.path);
@@ -417,36 +424,38 @@ describe("workflow validation", () => {
       const messages = (await loadRegistry(root)).issues.filter((issue) => issue.level === "error").map((issue) => issue.message).join("\n");
       expect(messages).toContain(expected);
     };
-    await check([{ ...enabled("prepare-worktree"), options: { fromBranch: "main" } } as HookDefinition], "must NOT have additional properties");
+    await check([prepareHook({ fromBranch: "main", branch: "develop" })], `must NOT have additional properties ("branch")`);
+    await check([{ name: "lint", events: ["implement.post"], type: "command", run: "npm run lint", options: {} }], "only builtin hooks take options");
+    await check([enabled("capture-baseline", { options: { fromBranch: "main" } })], "takes no options");
     await check([{ name: "prepare-worktree", type: "builtin", events: ["implement.pre", "implement.task.pre", "fix.pre"], onFailure: "abort" }], "must run first on implement.pre");
-    await check([enabled("prepare-worktree", { onFailure: "warn" })], '"onFailure": "abort"');
-    await check([enabled("prepare-worktree", { events: ["implement.pre"] })], "must subscribe to implement.task.pre, fix.pre");
-    await check([enabled("commit-progress")], "commit-progress needs prepare-worktree");
-    await check([...commitChain(), enabled("create-pull-request", { order: 150 })], "must run after commit-progress");
-    await check(fullChain(), "gitWorkflow.pullRequest.targetBranch");
+    await check([prepareHook(), commitHook()].map((hook, i) => (i ? hook : { ...hook, onFailure: "warn" as const })), '"onFailure": "abort"');
+    await check([{ ...prepareHook(), events: ["implement.pre"] }], "must subscribe to implement.task.pre, fix.pre");
+    await check([commitHook()], "commit-progress needs prepare-worktree");
+    await check([...commitChain(), prHook(github, { order: 150 })], "must run after commit-progress");
+    await check([...commitChain(), enabled("create-pull-request")], "options.targetBranch is required");
     const report = await prepare();
     expect(report.exitCode).toBe(2);
     expect(await fs.pathExists(path.join(root, ".worktrees"))).toBe(false);
   });
 
-  it("validates the gitWorkflow block", () => {
-    const { errors, warnings } = validateGitWorkflowConfig({ fetch: true, branch: "x", remote: "-x", worktreeRoot: ".", commitMessage: "${feature}: ${summary}" }, false);
-    expect(errors.join("\n")).toContain("gitWorkflow.branch is not a recognized setting");
-    expect(errors.join("\n")).toContain("gitWorkflow.remote must be a non-empty name");
-    expect(errors.join("\n")).toContain("gitWorkflow.fetch needs gitWorkflow.fromBranch");
-    expect(errors.join("\n")).toContain("gitWorkflow.worktreeRoot");
-    expect(errors.join("\n")).toContain("${feature}");
-    expect(warnings.join("\n")).toContain("fromBranch is not set");
-    const command = validateGitWorkflowConfig({ fromBranch: "main", pullRequest: { provider: "command", targetBranch: "main", command: ["node"] } }, true);
-    expect(command.errors.join("\n")).toContain("lookupCommand");
-    expect(validateGitWorkflowConfig({ fromBranch: "main", pullRequest: { provider: "github", targetBranch: "main" } }, true)).toEqual({ errors: [], warnings: [] });
+  it("validates each builtin's own options", () => {
+    const prepareReport = validateBuiltinOptions("prepare-worktree", { fetch: true, branch: "x", remote: "-x", worktreeRoot: "." });
+    const errors = prepareReport.errors.join("\n");
+    expect(errors).toContain("options.branch is not a prepare-worktree option");
+    expect(errors).toContain("options.remote cannot start with a hyphen");
+    expect(errors).toContain("options.fetch needs options.fromBranch");
+    expect(errors).toContain("options.worktreeRoot");
+    expect(prepareReport.warnings.join("\n")).toContain("fromBranch is not set");
+    expect(validateBuiltinOptions("commit-progress", { commitMessage: "${feature}: ${summary}" }).errors.join("\n")).toContain("${feature}");
+    expect(validateBuiltinOptions("create-pull-request", { provider: "command", targetBranch: "main", command: ["node"] }).errors.join("\n")).toContain("lookupCommand");
+    expect(validateBuiltinOptions("create-pull-request", github)).toEqual({ errors: [], warnings: [] });
+    expect(validateBuiltinOptions("capture-baseline", { x: 1 }).errors).toEqual(["This builtin takes no options."]);
   });
 
   it("enables the workflow in one command and refuses changes that would break it", async () => {
-    await fs.outputJson(path.join(root, ".spec-lite.json"), { gitWorkflow: { fromBranch: "main" } });
     const file = path.join(root, ".spec-lite", "hooks.json");
     await expect(setHooksEnabled(root, ["commit-progress"], true)).rejects.toThrow("needs prepare-worktree");
-    await expect(setHooksEnabled(root, [...GIT_WORKFLOW_HOOKS], true)).rejects.toThrow("pullRequest.targetBranch");
+    await expect(setHooksEnabled(root, [...GIT_WORKFLOW_HOOKS], true)).rejects.toThrow("options.targetBranch is required");
     expect(await fs.pathExists(file)).toBe(false);
     await setHooksEnabled(root, ["prepare-worktree", "commit-progress"], true);
     expect((await loadRegistry(root)).hooks.map((hook) => hook.name)).toContain("commit-progress");
@@ -459,7 +468,7 @@ describe("workflow validation", () => {
 describe("temporary hook suppression", () => {
   it.each(["skip", "env"])("suppresses Git workflows through %s without editing the registry", async (mode) => {
     const { options } = await customAdapter();
-    await configure(fullChain(), { fromBranch: "main", pullRequest: options });
+    await configure(fullChain(options));
     const file = path.join(root, ".spec-lite", "hooks.json");
     const before = await fs.readFile(file, "utf8");
     if (mode === "env") vi.stubEnv("SPEC_LITE_SKIP_HOOKS", GIT_WORKFLOW_HOOKS.join(","));
@@ -476,7 +485,7 @@ describe("temporary hook suppression", () => {
   });
 
   it("runs the Git workflow in YOLO like anywhere else", async () => {
-    await configure([enabled("prepare-worktree")]);
+    await configure([prepareHook()]);
     const report = await prepare({ mode: "yolo" });
     expect(report.results.find((result) => result.name === "prepare-worktree")?.status).toBe("ok");
     expect(report.payload.worktree).toBeDefined();
@@ -496,29 +505,29 @@ else {
   const result = {url: 'https://forge.example/pr/123', creates: (existing?.creates ?? 0) + 1,
     head: process.env.SPEC_LITE_PR_HEAD, base: process.env.SPEC_LITE_PR_BASE,
     title: process.env.SPEC_LITE_PR_TITLE, body: fs.readFileSync(process.env.SPEC_LITE_PR_BODY_FILE, 'utf8'),
-    depth: process.env.SPEC_LITE_HOOK_DEPTH, skip: process.env.SPEC_LITE_SKIP_HOOKS};
+    remote: process.env.SPEC_LITE_PR_REMOTE, depth: process.env.SPEC_LITE_HOOK_DEPTH, skip: process.env.SPEC_LITE_SKIP_HOOKS};
   fs.writeFileSync(marker, JSON.stringify(result));
   if (operation === 'lost-response') { process.exit(1); }
   process.stdout.write(JSON.stringify({url: result.url}));
 }
 `);
-  const options: PullRequestConfig = { provider: "command", targetBranch: "main", command: [process.execPath, script, createOperation, marker], lookupCommand: [process.execPath, script, "lookup", marker] };
+  const options: PullRequestOptions = { provider: "command", targetBranch: "main", command: [process.execPath, script, createOperation, marker], lookupCommand: [process.execPath, script, "lookup", marker] };
   return { options, marker };
 }
 
 describe("create-pull-request", () => {
-  async function finishedFeature(options: PullRequestConfig) {
-    await configure(fullChain(), { fromBranch: "main", pullRequest: options });
+  async function finishedFeature(options: PullRequestOptions) {
+    await configure(fullChain(options));
     const tree = (await prepare()).payload.worktree!;
     await fs.writeFile(path.join(tree.path, "code.txt"), "finished\n");
     return tree;
   }
 
   it("requires an explicit target and provider, and fails before creating a worktree", async () => {
-    await configure(fullChain());
+    await configure([...commitChain(), enabled("create-pull-request")]);
     const report = await prepare();
     expect(report.exitCode).toBe(2);
-    expect(report.registryIssues.join("\n")).toContain("pullRequest.targetBranch");
+    expect(report.registryIssues.join("\n")).toContain("options.targetBranch is required");
     expect(await fs.pathExists(path.join(root, ".worktrees"))).toBe(false);
   });
 
@@ -557,9 +566,26 @@ describe("create-pull-request", () => {
     expect(unpushed.exitCode).toBe(1);
     expect(unpushed.results.at(-1)?.message).toContain("Push the completed branch");
     const failing = [options.lookupCommand![0], options.lookupCommand![1], "lookup-failed", marker];
-    await configure(fullChain(), { fromBranch: "main", pullRequest: { ...options, lookupCommand: failing } }, tree.path);
+    await configure(fullChain({ ...options, lookupCommand: failing }), tree.path);
     expect((await complete(tree.path)).exitCode).toBe(1);
     expect(await fs.pathExists(marker)).toBe(false);
+  });
+
+  it("opens the PR on the remote commit-progress pushed to, and cleanup checks the same one", async () => {
+    const fork = path.join(temp, "fork.git");
+    await git(root, ["init", "--bare", "-b", "main", fork]);
+    await git(root, ["remote", "add", "fork", fork]);
+    await git(root, ["push", "fork", "main"]);
+    const { options, marker } = await customAdapter();
+    await configure(fullChain(options, { remote: "fork" }));
+    const tree = (await prepare()).payload.worktree!;
+    await fs.writeFile(path.join(tree.path, "code.txt"), "finished\n");
+    expect((await complete(tree.path)).exitCode).toBe(0);
+    expect((await fs.readJson(marker)).remote).toBe("fork");
+    expect(await git(root, ["ls-remote", "--heads", "fork", tree.branch])).not.toBe("");
+    expect(await git(root, ["ls-remote", "--heads", "origin", tree.branch])).toBe("");
+    await git(root, ["push", "fork", `${tree.branch}:main`]);
+    expect((await cleanupWorkflow(root, featureTree)).join("\n")).toContain("merged into main");
   });
 
   it("refuses to push new work onto a merged pull request, but treats an unchanged retry as done", async () => {
@@ -686,7 +712,7 @@ describe("worktree cleanup", () => {
 
   it("accepts a squash merge only when the provider reports that exact commit merged", async () => {
     const { options, marker } = await customAdapter();
-    await configure(fullChain(), { fromBranch: "main", pullRequest: options });
+    await configure(fullChain(options));
     const tree = (await prepare()).payload.worktree!;
     await fs.writeFile(path.join(tree.path, "code.txt"), "feature\n");
     expect((await complete(tree.path)).exitCode).toBe(0);
@@ -695,6 +721,8 @@ describe("worktree cleanup", () => {
     await expect(cleanupWorkflow(root, featureTree)).rejects.toThrow("did not merge");
     expect(await localBranchExists(root, tree.branch)).toBe(true);
     await fs.writeJson(marker, { rows: [{ url: "https://forge.example/pr/123", state: "merged", headSha: tip }] });
+    // Cleanup needs the PR hook's target and provider, not the hook itself.
+    await configure([...commitChain(), prHook(options, { enabled: false })]);
     expect((await cleanupWorkflow(root, featureTree)).join("\n")).toContain("pull request https://forge.example/pr/123 merged");
     expect(await localBranchExists(root, tree.branch)).toBe(false);
   });

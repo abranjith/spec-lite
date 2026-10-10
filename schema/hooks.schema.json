@@ -84,6 +84,10 @@
         "builtin": {
           "type": "string"
         },
+        "options": {
+          "type": "object",
+          "description": "Settings of a builtin that declares them; see the builtin options table in docs/features/hooks.md."
+        },
         "run": {
           "type": "string"
         },
@@ -235,6 +239,211 @@
             "required": [
               "prompt"
             ]
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "builtin"
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "builtin"
+                ],
+                "properties": {
+                  "builtin": {
+                    "const": "prepare-worktree"
+                  }
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "builtin"
+                  ]
+                },
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "prepare-worktree"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "options": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "fromBranch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Default: the main checkout's current branch; `validate` warns when unset."
+                  },
+                  "fetch": {
+                    "type": "boolean",
+                    "description": "Fetch `fromBranch` from `remote` first and start from the remote's latest commit. Default: `false`."
+                  },
+                  "remote": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Remote `fetch` reads from. Default: `origin`."
+                  },
+                  "worktreeRoot": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Folder for worktrees, relative to the main checkout. Default: `.worktrees`."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "builtin"
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "builtin"
+                ],
+                "properties": {
+                  "builtin": {
+                    "const": "commit-progress"
+                  }
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "builtin"
+                  ]
+                },
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "commit-progress"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "options": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "remote": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Remote to push to. Recorded for `create-pull-request` and cleanup. Default: `origin`."
+                  },
+                  "commitMessage": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Commit subject template using `${id}` (feature ID, or the branch), `${task}`, `${summary}`, and `${branch}`; `${task:-final}` sets a default. Default: `FEAT-020 TASK-003: <summary>`."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "builtin"
+              }
+            },
+            "anyOf": [
+              {
+                "required": [
+                  "builtin"
+                ],
+                "properties": {
+                  "builtin": {
+                    "const": "create-pull-request"
+                  }
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "builtin"
+                  ]
+                },
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "const": "create-pull-request"
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "options": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "enum": [
+                      "github",
+                      "azure-devops",
+                      "command"
+                    ],
+                    "description": "Where pull requests are opened; `command` runs your own adapter."
+                  },
+                  "targetBranch": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Branch pull requests merge into. Never inferred."
+                  },
+                  "command": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "`command` provider: executable and arguments that create a PR."
+                  },
+                  "lookupCommand": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "`command` provider: executable and arguments that find existing PRs."
+                  }
+                }
+              }
+            }
           }
         }
       ]

@@ -48,32 +48,35 @@ export type HookShell = "auto" | "bash" | "pwsh";
 /** Where a resolved hook came from, for provenance in `spec-lite hook list`. */
 export type HookSource = "builtin" | "global" | "project";
 
-/** PR settings for `create-pull-request`, under `gitWorkflow.pullRequest` in `.spec-lite.json`. */
-export interface PullRequestConfig {
+/**
+ * `options` of the Git workflow builtins. Each setting belongs to exactly one
+ * hook; values a later step needs (start branch, push remote) are recorded in
+ * the workflow's state when first used. Declared in builtins/options.ts.
+ */
+export interface PrepareWorktreeOptions {
+  /** Branch new worktrees start from. Default: the main checkout's current branch. */
+  fromBranch?: string;
+  /** Fetch `fromBranch` from `remote` and start from the remote's tip. */
+  fetch?: boolean;
+  /** Remote `fetch` reads from. Default "origin". */
+  remote?: string;
+  /** Directory for worktrees, relative to the main checkout. Default ".worktrees". */
+  worktreeRoot?: string;
+}
+
+export interface CommitProgressOptions {
+  /** Remote to push to. Default "origin". */
+  remote?: string;
+  /** Commit subject template: ${id}, ${task}, ${summary}, ${branch}, with ${name:-default}. */
+  commitMessage?: string;
+}
+
+export interface PullRequestOptions {
   provider?: "github" | "azure-devops" | "command";
   targetBranch?: string;
   /** Literal executable/argv; custom adapters receive SPEC_LITE_PR_* variables. */
   command?: string[];
   lookupCommand?: string[];
-}
-
-/**
- * Shared settings for the opt-in Git workflow builtins, read from the
- * `gitWorkflow` block of `.spec-lite.json`. One block, rather than per-hook
- * options, keeps the remote and branches consistent across all three hooks.
- */
-export interface GitWorkflowConfig {
-  /** Branch new worktrees start from. Default: the main checkout's current branch. */
-  fromBranch?: string;
-  /** Fetch `fromBranch` from `remote` and start from the remote's tip. */
-  fetch?: boolean;
-  /** Default "origin". */
-  remote?: string;
-  /** Directory for worktrees, relative to the main checkout. Default ".worktrees". */
-  worktreeRoot?: string;
-  /** Commit subject template: ${id}, ${task}, ${summary}, ${branch}, with ${name:-default}. */
-  commitMessage?: string;
-  pullRequest?: PullRequestConfig;
 }
 
 /** What a workflow is scoped to; decides its branch name and who completes it. */
@@ -123,6 +126,8 @@ export interface HookDefinition {
   // --- builtin ---
   /** Handler id in the builtin registry. Defaults to `name` when omitted. */
   builtin?: string;
+  /** Settings for a builtin that declares them (builtins/options.ts). */
+  options?: Record<string, unknown>;
 
   // --- command | script ---
   /** Command line (`command`) or script path (`script`). Supports ${...} interpolation. */

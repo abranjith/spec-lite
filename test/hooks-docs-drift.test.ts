@@ -16,6 +16,9 @@ import {
   BUILTIN_HOOKS_END,
   GIT_WORKFLOW_HOOKS_START,
   GIT_WORKFLOW_HOOKS_END,
+  renderBuiltinOptionsTable,
+  BUILTIN_OPTIONS_START,
+  BUILTIN_OPTIONS_END,
 } from "../src/hooks/docs.js";
 import { INTERPOLATION_VARS } from "../src/hooks/interpolation.js";
 import { EVENT_CATALOG } from "../src/hooks/events.js";
@@ -57,6 +60,7 @@ describe("docs/features/hooks.md tables do not drift from the code", () => {
   it.each([
     ["builtin hook definitions", BUILTIN_HOOKS_START, BUILTIN_HOOKS_END, renderBuiltinHooksJson],
     ["Git workflow hook entries", GIT_WORKFLOW_HOOKS_START, GIT_WORKFLOW_HOOKS_END, renderGitWorkflowHooksJson],
+    ["builtin options table", BUILTIN_OPTIONS_START, BUILTIN_OPTIONS_END, renderBuiltinOptionsTable],
   ] as const)("%s match the shipped builtins", async (_label, start, end, render) => {
     const embedded = extractBetweenMarkers(await hooksDoc(), start, end);
     expect(embedded, "hooks.md hook JSON is stale — run `npm run generate:hook-docs`").toBe(render());
@@ -65,11 +69,9 @@ describe("docs/features/hooks.md tables do not drift from the code", () => {
   it("documents a Git workflow setup that validates cleanly", async () => {
     const doc = await hooksDoc();
     const json = (block: string) => JSON.parse(block.replace(/^```json\n|\n```$/g, ""));
-    const settings = /#### Settings\n[\s\S]*?```json\n([\s\S]*?)\n```/.exec(doc)?.[1];
     const entries = extractBetweenMarkers(doc, GIT_WORKFLOW_HOOKS_START, GIT_WORKFLOW_HOOKS_END) ?? "";
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "spec-lite-docs-"));
     try {
-      await fs.outputJson(path.join(root, ".spec-lite.json"), JSON.parse(settings ?? "null"));
       await fs.outputJson(path.join(root, ".spec-lite", "hooks.json"), json(entries));
       const { hooks, issues } = await loadRegistry(root);
       expect(issues).toEqual([]);

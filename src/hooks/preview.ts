@@ -36,7 +36,7 @@ export function previewHook(hook: HookDefinition, ctx: ResolveContext): string {
         break;
       }
       case "builtin":
-        text = `builtin:${hook.builtin ?? hook.name}`;
+        text = `builtin:${hook.builtin ?? hook.name}${hook.options ? ` ${JSON.stringify(hook.options)}` : ""}`;
         break;
       case "skill":
         text = `invoke skill "${hook.skill}"${hook.args ? ` with args: ${resolve(hook.args, "none")}` : ""}`;

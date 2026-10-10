@@ -3,13 +3,13 @@ import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
 import type { BuiltinContext, BuiltinOutcome } from "./index.js";
-import type { HookPayload, PullRequestConfig } from "../types.js";
-import { git, gitWorkflowConfig, managedWorktree, runProgram, withWorkflowLock, workItem, type WorkflowState } from "./git-workflow.js";
-import { validatePullRequestConfig } from "./git-config.js";
+import type { HookPayload, PullRequestOptions } from "../types.js";
+import { git, hookOptions, managedWorktree, runProgram, withWorkflowLock, workItem, type WorkflowState } from "./git-workflow.js";
+import { validateBuiltinOptions } from "./options.js";
 
 export interface PrContext {
   root: string; head: string; base: string; title: string; bodyFile: string;
-  remote: string; remoteUrl: string; timeout: number; config: PullRequestConfig;
+  remote: string; remoteUrl: string; timeout: number; options: PullRequestOptions;
 }
 
 export interface PullRequestRef {
@@ -64,13 +64,13 @@ const adapterCommand = (ctx: PrContext, bin: string, args: string[], env?: NodeJ
 
 /** Every PR from the source branch into the target, in any state. */
 async function lookup(ctx: PrContext): Promise<PullRequestRef[]> {
-  if (ctx.config.provider === "github") {
+  if (ctx.options.provider === "github") {
     const repo = githubRepository(ctx.remoteUrl);
     const rows = JSON.parse(await adapterCommand(ctx, "gh", ["pr", "list", "--repo", repo, "--head", ctx.head, "--base", ctx.base,
       "--state", "all", "--json", "url,state,headRefOid", "--limit", "20"])) as Array<{ url: string; state: string; headRefOid?: string }>;
     return rows.map((row) => ({ url: validUrl(row.url), state: prState(row.state), headSha: row.headRefOid }));
   }
-  if (ctx.config.provider === "azure-devops") {
+  if (ctx.options.provider === "azure-devops") {
     const repo = azureRepository(ctx.remoteUrl);
     const rows = JSON.parse(await adapterCommand(ctx, "az", ["repos", "pr", "list", "--organization", repo.organization, "--project", repo.project,
       "--repository", repo.repository, "--source-branch", ctx.head, "--target-branch", ctx.base, "--status", "all", "--top", "20", "--output", "json"])) as
@@ -81,7 +81,7 @@ async function lookup(ctx: PrContext): Promise<PullRequestRef[]> {
       return { url: azureUrl(repo, row.pullRequestId), state, headSha: row.lastMergeSourceCommit?.commitId };
     });
   }
-  const response = await customCommand(ctx, ctx.config.lookupCommand!) as unknown;
+  const response = await customCommand(ctx, ctx.options.lookupCommand!) as unknown;
   const rows = response === null ? [] : Array.isArray(response) ? response : [response];
   return rows.map((row: { url?: unknown; state?: unknown; headSha?: unknown }) => ({
     url: validUrl(row.url),
@@ -106,11 +106,11 @@ async function customCommand(ctx: PrContext, command: string[]): Promise<unknown
 }
 
 async function create(ctx: PrContext): Promise<string> {
-  if (ctx.config.provider === "github") {
+  if (ctx.options.provider === "github") {
     const repo = githubRepository(ctx.remoteUrl);
     return validUrl(await adapterCommand(ctx, "gh", ["pr", "create", "--repo", repo, "--head", ctx.head, "--base", ctx.base, "--title", ctx.title, "--body-file", ctx.bodyFile]));
   }
-  if (ctx.config.provider === "azure-devops") {
+  if (ctx.options.provider === "azure-devops") {
     const repo = azureRepository(ctx.remoteUrl);
     const body = await fs.readFile(ctx.bodyFile, "utf8");
     const response = JSON.parse(await adapterCommand(ctx, "az", ["repos", "pr", "create", "--organization", repo.organization, "--project", repo.project,
@@ -119,7 +119,7 @@ async function create(ctx: PrContext): Promise<string> {
     if (!Number.isInteger(response.pullRequestId)) throw new Error("Azure DevOps did not return a pull request ID.");
     return azureUrl(repo, response.pullRequestId);
   }
-  const response = await customCommand(ctx, ctx.config.command!) as { url?: unknown } | null;
+  const response = await customCommand(ctx, ctx.options.command!) as { url?: unknown } | null;
   return validUrl(response?.url);
 }
 
@@ -137,14 +137,15 @@ function pullRequestTitle(state: WorkflowState, payload: HookPayload, summary: s
 }
 
 export async function createPullRequest(ctx: BuiltinContext): Promise<BuiltinOutcome> {
-  const config = await gitWorkflowConfig(ctx.root);
-  const errors = validatePullRequestConfig(config.pullRequest);
+  const options = hookOptions<PullRequestOptions>(ctx);
+  const errors = validateBuiltinOptions("create-pull-request", options).errors;
   if (errors.length) throw new Error(errors.join("\n"));
-  const settings = config.pullRequest!;
-  const { state, repo } = await managedWorktree(ctx.root, config);
+  const { state, repo } = await managedWorktree(ctx.root);
   return withWorkflowLock(repo.commonDir, state.path, async () => {
-    const remote = config.remote ?? "origin";
-    const base = settings.targetBranch!;
+    // The remote commit-progress pushed to, recorded in the workflow's state.
+    const remote = state.remote;
+    if (!remote) throw new Error("Push the completed branch before creating its pull request; commit-progress has not pushed it.");
+    const base = options.targetBranch!;
     const timeout = ctx.hook?.timeoutMs ?? 120000;
     await git(state.path, ["check-ref-format", "--branch", base]);
     const remoteUrl = await git(state.path, ["remote", "get-url", remote]);
@@ -157,7 +158,7 @@ export async function createPullRequest(ctx: BuiltinContext): Promise<BuiltinOut
       const commits = await git(state.path, ["log", "--format=- %s", `${state.initialHead}..HEAD`]);
       const bodyFile = path.join(temp, "body.md");
       await fs.writeFile(bodyFile, `${summary}\n\n${commits || "Changes completed on the source branch."}\n`);
-      const pr: PrContext = { root: state.path, head: state.branch, base, title: pullRequestTitle(state, ctx.payload, summary), bodyFile, remote, remoteUrl, timeout, config: settings };
+      const pr: PrContext = { root: state.path, head: state.branch, base, title: pullRequestTitle(state, ctx.payload, summary), bodyFile, remote, remoteUrl, timeout, options };
       let found = await findPullRequest(pr);
       // Commits pushed on top of a merged or closed PR reach no reviewer.
       // Reusing it is only right for a retry that changed nothing.

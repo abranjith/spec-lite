@@ -6,12 +6,13 @@
 import path from "node:path";
 import fs from "fs-extra";
 import {
-  git, gitWorkflowConfig, isActive, listStates, localBranchExists, readState, repository, stateFile,
+  git, isActive, listStates, localBranchExists, readState, repository, stateFile,
   type Repository, type WorkflowState,
 } from "./git-workflow.js";
 import { findPullRequest } from "./pull-request.js";
-import { validatePullRequestConfig } from "./git-config.js";
-import type { GitWorkflowConfig } from "../types.js";
+import { validateBuiltinOptions } from "./options.js";
+import { loadRegistry } from "../registry.js";
+import type { PullRequestOptions } from "../types.js";
 
 const succeeds = (action: Promise<unknown>) => action.then(() => true, () => false);
 
@@ -33,12 +34,26 @@ export async function listWorkflows(root: string): Promise<WorkflowSummary[]> {
 
 interface MergeStatus { merged: boolean; detail: string; targetTip?: string }
 
-async function mergeStatus(repo: Repository, config: GitWorkflowConfig, state: WorkflowState): Promise<MergeStatus> {
+/**
+ * The create-pull-request entry's options, even when that hook is disabled:
+ * cleanup needs its target branch and provider, not the hook itself.
+ */
+async function pullRequestOptions(root: string): Promise<PullRequestOptions | undefined> {
+  const { hooks } = await loadRegistry(root, { includeDisabled: true });
+  const hook = hooks.find((entry) => entry.type === "builtin" && (entry.builtin ?? entry.name) === "create-pull-request");
+  const options = hook?.options as PullRequestOptions | undefined;
+  return options && !validateBuiltinOptions("create-pull-request", options).errors.length ? options : undefined;
+}
+
+async function mergeStatus(repo: Repository, pr: PullRequestOptions | undefined, state: WorkflowState): Promise<MergeStatus> {
   const tip = await git(repo.mainRoot, ["rev-parse", `refs/heads/${state.branch}`]);
-  const remote = config.remote ?? "origin";
-  const target = config.pullRequest?.targetBranch ?? state.fromBranch;
+  // The remote commit-progress pushed to. A branch never pushed can only
+  // have been merged locally.
+  const remote = state.remote;
+  const target = pr?.targetBranch ?? state.fromBranch;
   let targetTip: string | undefined;
   try {
+    if (!remote) throw new Error("not pushed");
     await git(repo.mainRoot, ["fetch", "--no-tags", remote, `refs/heads/${target}`], 120000);
     targetTip = await git(repo.mainRoot, ["rev-parse", "FETCH_HEAD"]);
   } catch {
@@ -48,15 +63,15 @@ async function mergeStatus(repo: Repository, config: GitWorkflowConfig, state: W
     return { merged: true, detail: `merged into ${target}`, targetTip };
   }
   // A squash or rebase merge leaves no ancestry; only the provider knows.
-  if (config.pullRequest && !validatePullRequestConfig(config.pullRequest).length) {
+  if (pr && remote) {
     const remoteUrl = await git(repo.mainRoot, ["remote", "get-url", remote]);
-    const pr = await findPullRequest({
-      root: repo.mainRoot, head: state.branch, base: config.pullRequest.targetBranch!, title: "", bodyFile: "",
-      remote, remoteUrl, timeout: 120000, config: config.pullRequest,
+    const found = await findPullRequest({
+      root: repo.mainRoot, head: state.branch, base: pr.targetBranch!, title: "", bodyFile: "",
+      remote, remoteUrl, timeout: 120000, options: pr,
     });
-    if (pr?.state === "merged" && pr.headSha === tip) return { merged: true, detail: `pull request ${pr.url} merged`, targetTip };
-    if (pr?.state === "merged") {
-      return { merged: false, detail: `${state.branch} has commits that pull request ${pr.url} did not merge (or the provider did not report its head). Move them to a new branch; nothing was removed.` };
+    if (found?.state === "merged" && found.headSha === tip) return { merged: true, detail: `pull request ${found.url} merged`, targetTip };
+    if (found?.state === "merged") {
+      return { merged: false, detail: `${state.branch} has commits that pull request ${found.url} did not merge (or the provider did not report its head). Move them to a new branch; nothing was removed.` };
     }
   }
   return { merged: false, detail: `${state.branch} is not merged into ${target}. Merge its pull request first; nothing was removed.` };
@@ -92,7 +107,6 @@ async function restoreInputs(state: WorkflowState, targetTip: string | undefined
 
 /** Clean up one finished workflow. Returns what was done; throws, having removed nothing, when it is not merged. */
 export async function cleanupWorkflow(root: string, name: string): Promise<string[]> {
-  const config = await gitWorkflowConfig(root);
   const repo = await repository(root);
   const state = await readState(repo.commonDir, name);
   if (!state) throw new Error(`No workflow named ${name}. Run \`spec-lite worktree list\`.`);
@@ -101,7 +115,7 @@ export async function cleanupWorkflow(root: string, name: string): Promise<strin
   if (here === worktree || here.startsWith(worktree + path.sep)) throw new Error("Run cleanup from the main checkout, not from the worktree being removed.");
 
   const branchExists = await localBranchExists(repo.mainRoot, state.branch);
-  const merge = branchExists ? await mergeStatus(repo, config, state) : undefined;
+  const merge = branchExists ? await mergeStatus(repo, await pullRequestOptions(root), state) : undefined;
   if (merge && !merge.merged) throw new Error(merge.detail);
 
   const done: string[] = [];

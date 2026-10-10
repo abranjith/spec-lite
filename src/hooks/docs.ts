@@ -10,6 +10,7 @@ import { describeVars } from "./interpolation.js";
 import { EVENT_CATALOG } from "./events.js";
 import { BUILTIN_HOOKS } from "./builtins/index.js";
 import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
+import { BUILTIN_OPTIONS } from "./builtins/options.js";
 
 export const VARS_TABLE_START = "<!-- hook-vars-table:start -->";
 export const VARS_TABLE_END = "<!-- hook-vars-table:end -->";
@@ -19,6 +20,8 @@ export const BUILTIN_HOOKS_START = "<!-- builtin-hooks-json:start -->";
 export const BUILTIN_HOOKS_END = "<!-- builtin-hooks-json:end -->";
 export const GIT_WORKFLOW_HOOKS_START = "<!-- git-workflow-hooks-json:start -->";
 export const GIT_WORKFLOW_HOOKS_END = "<!-- git-workflow-hooks-json:end -->";
+export const BUILTIN_OPTIONS_START = "<!-- builtin-options-table:start -->";
+export const BUILTIN_OPTIONS_END = "<!-- builtin-options-table:end -->";
 
 const GROUP_LABELS: Record<string, string> = {
   base: "base — every event",
@@ -100,7 +103,33 @@ export function renderBuiltinHooksJson(): string {
   return registryJson(BUILTIN_HOOKS.filter((hook) => !isGitWorkflowHook(hook.name)));
 }
 
-/** The Git workflow builtins enabled: exactly what `hook enable` writes for them. */
+/** Options the docs' Git workflow example sets; everything else keeps its default. */
+const EXAMPLE_OPTIONS: Record<string, Record<string, unknown>> = {
+  "prepare-worktree": { fromBranch: "develop" },
+  "create-pull-request": { provider: "github", targetBranch: "develop" },
+};
+
+/** The Git workflow builtins enabled with example options: a complete, valid setup. */
 export function renderGitWorkflowHooksJson(): string {
-  return registryJson(GIT_WORKFLOW_HOOKS.map((name) => ({ ...BUILTIN_HOOKS.find((hook) => hook.name === name)!, enabled: true })));
+  return registryJson(GIT_WORKFLOW_HOOKS.map((name) => {
+    const options = EXAMPLE_OPTIONS[name];
+    return { ...BUILTIN_HOOKS.find((hook) => hook.name === name)!, enabled: true, ...(options ? { options } : {}) };
+  }));
+}
+
+function optionType(schema: Record<string, unknown>): string {
+  if (Array.isArray(schema.enum)) return schema.enum.map((value) => `\`"${value}"\``).join(", ");
+  if (schema.type === "array") return "string array";
+  return String(schema.type);
+}
+
+/** Every builtin's options, from their declarations in builtins/options.ts. */
+export function renderBuiltinOptionsTable(): string {
+  const rows = ["| Hook | Option | Type | Meaning |", "|---|---|---|---|"];
+  for (const [hook, spec] of Object.entries(BUILTIN_OPTIONS)) {
+    for (const [name, option] of Object.entries(spec.options)) {
+      rows.push(`| \`${hook}\` | \`${name}\` | ${optionType(option.schema)} | ${option.required ? "**Required.** " : ""}${option.description} |`);
+    }
+  }
+  return rows.join("\n");
 }

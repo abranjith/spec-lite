@@ -221,7 +221,7 @@ workflow hooks need because they depend on each other.
 
 Exits `2` without writing for an unknown name or malformed registry. Enabling
 also validates the hook's events and templates, and the Git workflow rules
-(dependencies, order, `gitWorkflow` settings). Disabling refuses to leave a
+(dependencies, order, builtin `options`). Disabling refuses to leave a
 hook without one it depends on. Use `hook list --all` to find
 disabled hooks. Remove an override from its registry file to inherit the earlier
 layer's definition again.

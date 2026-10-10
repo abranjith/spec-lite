@@ -11,9 +11,9 @@ import crypto from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "fs-extra";
 import type { BuiltinContext, BuiltinOutcome } from "./index.js";
-import type { GitWorkflowConfig, HookPayload, WorkflowKind, WorktreeInfo } from "../types.js";
-import { readProjectConfig, resolveFeature } from "../workspace.js";
-import { COMMIT_TEMPLATE_RE } from "./git-config.js";
+import type { CommitProgressOptions, HookPayload, PrepareWorktreeOptions, WorkflowKind, WorktreeInfo } from "../types.js";
+import { resolveFeature } from "../workspace.js";
+import { COMMIT_TEMPLATE_RE } from "./options.js";
 
 const execFileAsync = promisify(execFile);
 const programEnvironment = new AsyncLocalStorage<NodeJS.ProcessEnv>();
@@ -112,6 +112,8 @@ export interface WorkflowState extends WorktreeInfo {
   /** Checkout the inputs were copied from, and which of them were uncommitted there. */
   source?: string;
   copied?: Array<{ path: string; hash: string }>;
+  /** Remote commit-progress pushed to; create-pull-request and cleanup use the same one. */
+  remote?: string;
 }
 
 interface WorktreeEntry { path: string; branch?: string; bare: boolean }
@@ -141,12 +143,21 @@ export async function repository(root: string): Promise<Repository> {
   return { mainRoot: main.path, commonDir, mainBranch: main.branch?.replace(/^refs\/heads\//, ""), entries };
 }
 
-export async function gitWorkflowConfig(root: string): Promise<GitWorkflowConfig> {
-  return (await readProjectConfig(root)).gitWorkflow ?? {};
+/** A builtin's own settings, from the `options` of its registry entry. */
+export const hookOptions = <T>(ctx: BuiltinContext): T => (ctx.hook?.options ?? {}) as T;
+
+export const worktreesDirectory = (mainRoot: string, options: PrepareWorktreeOptions): string =>
+  path.resolve(mainRoot, options.worktreeRoot ?? ".worktrees");
+
+/** The workflow whose worktree is `top`, wherever its worktree root is. */
+async function stateFor(repo: Repository, top: string): Promise<WorkflowState | undefined> {
+  return (await listStates(repo.commonDir)).find((state) => path.resolve(state.path) === top);
 }
 
-export const worktreesDirectory = (mainRoot: string, config: GitWorkflowConfig): string =>
-  path.resolve(mainRoot, config.worktreeRoot ?? ".worktrees");
+/** Persist a change to an existing workflow's state. */
+export async function saveState(commonDir: string, state: WorkflowState): Promise<void> {
+  await fs.outputJson(stateFile(commonDir, state.name), state, { spaces: 2 });
+}
 
 export function workflowSlug(input: string): string {
   const slug = input.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -332,12 +343,12 @@ export async function localBranchExists(root: string, branch: string): Promise<b
   return succeeds(git(root, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]));
 }
 
-export async function managedWorktree(root: string, config: GitWorkflowConfig): Promise<{ state: WorkflowState; repo: Repository }> {
+/** The workflow the checkout at `root` belongs to, found through its saved state rather than settings. */
+export async function managedWorktree(root: string): Promise<{ state: WorkflowState; repo: Repository }> {
   const repo = await repository(root);
   const top = path.resolve(await git(root, ["rev-parse", "--show-toplevel"]));
-  const name = path.relative(worktreesDirectory(repo.mainRoot, config), top);
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) throw new Error("Run this hook inside a worktree created by prepare-worktree.");
-  const state = await readState(repo.commonDir, name).catch(() => undefined);
+  const state = await stateFor(repo, top);
+  if (!state) throw new Error("Run this hook inside a worktree created by prepare-worktree.");
   const branch = await git(top, ["symbolic-ref", "--short", "HEAD"]).catch(() => undefined);
   if (!state?.ready || path.resolve(state.path) !== top || path.resolve(state.mainRoot) !== repo.mainRoot || state.branch !== branch) {
     throw new Error("Worktree state does not match this checkout and branch; refusing to stage, push, or create a PR.");
@@ -393,13 +404,13 @@ async function verifyInterruptedCheckout(destination: string): Promise<void> {
   }
 }
 
-async function newState(ctx: BuiltinContext, config: GitWorkflowConfig, repo: Repository, work: WorkItem, destination: string): Promise<WorkflowState> {
-  const fromBranch = config.fromBranch ?? repo.mainBranch;
-  if (!fromBranch) throw new Error("The main checkout has no branch checked out; set gitWorkflow.fromBranch in .spec-lite.json.");
+async function newState(ctx: BuiltinContext, options: PrepareWorktreeOptions, repo: Repository, work: WorkItem, destination: string): Promise<WorkflowState> {
+  const fromBranch = options.fromBranch ?? repo.mainBranch;
+  if (!fromBranch) throw new Error("The main checkout has no branch checked out; set options.fromBranch on prepare-worktree.");
   await git(repo.mainRoot, ["check-ref-format", "--branch", fromBranch]);
   let initialHead: string;
-  if (config.fetch) {
-    await git(repo.mainRoot, ["fetch", "--no-tags", config.remote ?? "origin", `refs/heads/${fromBranch}`], ctx.hook?.timeoutMs ?? 300000);
+  if (options.fetch) {
+    await git(repo.mainRoot, ["fetch", "--no-tags", options.remote ?? "origin", `refs/heads/${fromBranch}`], ctx.hook?.timeoutMs ?? 300000);
     initialHead = await git(repo.mainRoot, ["rev-parse", "--verify", "FETCH_HEAD^{commit}"]);
   } else {
     try { initialHead = await git(repo.mainRoot, ["rev-parse", "--verify", `refs/heads/${fromBranch}^{commit}`]); }
@@ -411,7 +422,7 @@ async function newState(ctx: BuiltinContext, config: GitWorkflowConfig, repo: Re
   };
 }
 
-async function createOrResume(ctx: BuiltinContext, config: GitWorkflowConfig, repo: Repository, work: WorkItem, source: string, destination: string): Promise<BuiltinOutcome> {
+async function createOrResume(ctx: BuiltinContext, options: PrepareWorktreeOptions, repo: Repository, work: WorkItem, source: string, destination: string): Promise<BuiltinOutcome> {
   let previous = await readState(repo.commonDir, work.name);
   if (previous && previous.identity !== work.identity) throw new Error(`Worktree name ${work.name} is already used by ${previous.identity}; use a different name.`);
   if (previous && (path.resolve(previous.path) !== destination || path.resolve(previous.mainRoot) !== repo.mainRoot || previous.branch !== work.branch)) {
@@ -437,7 +448,7 @@ async function createOrResume(ctx: BuiltinContext, config: GitWorkflowConfig, re
   if (branchExists && !previous) throw new Error(`Branch ${work.branch} already exists outside this workflow; delete or rename it first.`);
   if (!previous && work.plan && !(await fs.pathExists(path.join(source, work.plan)))) throw new Error(`Plan file ${work.plan} was not found.`);
 
-  const state = previous ?? await newState(ctx, config, repo, work, destination);
+  const state = previous ?? await newState(ctx, options, repo, work, destination);
   // Record ownership before creation, so a retry can finish an interrupted add.
   await fs.outputJson(stateFile(repo.commonDir, work.name), state, { spaces: 2 });
   if (existing) await verifyInterruptedCheckout(destination);
@@ -455,14 +466,14 @@ async function createOrResume(ctx: BuiltinContext, config: GitWorkflowConfig, re
 }
 
 export async function prepareWorktree(ctx: BuiltinContext): Promise<BuiltinOutcome> {
-  const config = await gitWorkflowConfig(ctx.root);
+  const options = hookOptions<PrepareWorktreeOptions>(ctx);
   const repo = await repository(ctx.root);
-  const directory = worktreesDirectory(repo.mainRoot, config);
+  const directory = worktreesDirectory(repo.mainRoot, options);
   const top = path.resolve(await git(ctx.root, ["rev-parse", "--show-toplevel"]));
   const feature = ctx.payload.feature?.id;
 
-  if (path.dirname(top) === directory) {
-    const { state } = await managedWorktree(top, config);
+  if (await stateFor(repo, top)) {
+    const { state } = await managedWorktree(top);
     const conflict = incompatibility(state, identifiesWork(ctx.payload) ? workItem(ctx.payload) : undefined, feature);
     if (conflict) throw new Error(`Cannot continue here: ${conflict}.`);
     return { message: `Using ${state.branch} in ${state.path}`, worktree: handoff(state) };
@@ -481,23 +492,23 @@ export async function prepareWorktree(ctx: BuiltinContext): Promise<BuiltinOutco
   }
   if (await fs.pathExists(directory) && (await fs.lstat(directory)).isSymbolicLink()) throw new Error("The worktree directory must not be a symlink or junction.");
   const destination = path.join(directory, work.name);
-  return withWorkflowLock(repo.commonDir, destination, () => createOrResume(ctx, config, repo, work, top, destination));
+  return withWorkflowLock(repo.commonDir, destination, () => createOrResume(ctx, options, repo, work, top, destination));
 }
 
-/** Commit subject from `gitWorkflow.commitMessage`, or `<id> <task>: <summary>`. */
-export function commitSubject(config: GitWorkflowConfig, state: WorkflowState, payload: HookPayload): string {
+/** Commit subject from the `commitMessage` option, or `<id> <task>: <summary>`. */
+export function commitSubject(options: CommitProgressOptions, state: WorkflowState, payload: HookPayload): string {
   const summary = (payload.summary ?? "Code changes").replace(/[\r\n]+/g, " ").trim().slice(0, 160);
   const vars: Record<string, string> = { id: payload.feature?.id ?? state.branch, task: payload.task?.id ?? "", summary, branch: state.branch };
-  if (!config.commitMessage) return `${vars.id}${vars.task ? ` ${vars.task}` : ""}: ${summary}`;
-  return config.commitMessage.replace(COMMIT_TEMPLATE_RE, (_, name: string, fallback?: string) => vars[name] || fallback || "")
+  if (!options.commitMessage) return `${vars.id}${vars.task ? ` ${vars.task}` : ""}: ${summary}`;
+  return options.commitMessage.replace(COMMIT_TEMPLATE_RE, (_, name: string, fallback?: string) => vars[name] || fallback || "")
     .replace(/\s+/g, " ").trim();
 }
 
 const LOG_PATHSPEC = ".spec-lite/**/hooks.log.jsonl";
 
 export async function commitProgress(ctx: BuiltinContext): Promise<BuiltinOutcome> {
-  const config = await gitWorkflowConfig(ctx.root);
-  const { state, repo } = await managedWorktree(ctx.root, config);
+  const options = hookOptions<CommitProgressOptions>(ctx);
+  const { state, repo } = await managedWorktree(ctx.root);
   return withWorkflowLock(repo.commonDir, state.path, async () => {
     const stagedLogs = await git(state.path, ["diff", "--cached", "--name-only", "--", LOG_PATHSPEC]);
     if (stagedLogs) throw new Error(`Unstage hook logs before committing progress: ${stagedLogs.split("\n").join(", ")}`);
@@ -507,7 +518,7 @@ export async function commitProgress(ctx: BuiltinContext): Promise<BuiltinOutcom
     const staged = await git(state.path, ["diff", "--cached", "--name-only"]);
     let message = "No changes to commit";
     if (staged) {
-      await git(state.path, ["commit", "-m", commitSubject(config, state, ctx.payload)], ctx.hook?.timeoutMs);
+      await git(state.path, ["commit", "-m", commitSubject(options, state, ctx.payload)], ctx.hook?.timeoutMs);
       message = `Committed ${await git(state.path, ["rev-parse", "--short", "HEAD"])}`;
     }
     if (COMPLETION_EVENTS.includes(ctx.payload.event)) {
@@ -517,9 +528,11 @@ export async function commitProgress(ctx: BuiltinContext): Promise<BuiltinOutcom
       if (!work) {
         throw new Error(`${state.branch} has no changes outside .spec-lite since it started, so nothing was pushed. Were the edits made outside ${state.path}, for example in ${state.mainRoot}?`);
       }
-      const remote = config.remote ?? "origin";
+      const remote = options.remote ?? "origin";
       await git(state.path, ["remote", "get-url", remote]);
       await git(state.path, ["push", "--set-upstream", remote, `HEAD:refs/heads/${state.branch}`], ctx.hook?.timeoutMs ?? 120000);
+      // create-pull-request and cleanup read the remote from here, so it is chosen once.
+      if (state.remote !== remote) await saveState(repo.commonDir, { ...state, remote });
       message += `; pushed ${state.branch} to ${remote}`;
     }
     return { message };

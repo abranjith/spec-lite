@@ -101,8 +101,9 @@ async function validateAction(): Promise<void> {
   const errors = issues.filter((i) => i.level === "error");
   const warnings = issues.filter((i) => i.level === "warning");
 
-  for (const w of warnings) console.log(chalk.yellow(`[warning] ${w.hook ? `${w.hook}: ` : ""}${w.message}`));
-  for (const e of errors) console.log(chalk.red(`[error] ${e.hook ? `${e.hook}: ` : ""}${e.message}`));
+  // Every message already names its hook or file.
+  for (const w of warnings) console.log(chalk.yellow(`[warning] ${w.message}`));
+  for (const e of errors) console.log(chalk.red(`[error] ${e.message}`));
 
   if (errors.length > 0) {
     console.log(chalk.red(`\n${errors.length} error(s), ${warnings.length} warning(s).`));

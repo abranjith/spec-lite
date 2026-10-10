@@ -5,6 +5,25 @@
  * cannot drift.
  */
 import { allEventNames } from "./events.js";
+import { BUILTIN_OPTIONS, optionsSchema } from "./builtins/options.js";
+
+/**
+ * A builtin's `options` are typed by its handler: the `builtin` field, or the
+ * hook's `name` when that field is omitted.
+ */
+function builtinOptionsRules(): Record<string, unknown>[] {
+  return Object.entries(BUILTIN_OPTIONS).map(([id, spec]) => ({
+    if: {
+      required: ["type"],
+      properties: { type: { const: "builtin" } },
+      anyOf: [
+        { required: ["builtin"], properties: { builtin: { const: id } } },
+        { not: { required: ["builtin"] }, required: ["name"], properties: { name: { const: id } } },
+      ],
+    },
+    then: { properties: { options: optionsSchema(spec) } },
+  }));
+}
 
 export function buildHooksSchema(): Record<string, unknown> {
   return {
@@ -45,6 +64,7 @@ export function buildHooksSchema(): Record<string, unknown> {
           payloadSchema: { type: "object" },
 
           builtin: { type: "string" },
+          options: { type: "object", description: "Settings of a builtin that declares them; see the builtin options table in docs/features/hooks.md." },
 
           run: { type: "string" },
           shell: { enum: ["auto", "bash", "pwsh"], default: "auto" },
@@ -87,6 +107,7 @@ export function buildHooksSchema(): Record<string, unknown> {
             if: { properties: { type: { const: "prompt" } }, required: ["type"] },
             then: { required: ["prompt"] },
           },
+          ...builtinOptionsRules(),
         ],
       },
     },

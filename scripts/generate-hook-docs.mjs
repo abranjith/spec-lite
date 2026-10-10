@@ -19,6 +19,9 @@ import {
   BUILTIN_HOOKS_END,
   GIT_WORKFLOW_HOOKS_START,
   GIT_WORKFLOW_HOOKS_END,
+  renderBuiltinOptionsTable,
+  BUILTIN_OPTIONS_START,
+  BUILTIN_OPTIONS_END,
 } from "../src/hooks/docs.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +45,7 @@ let withJson = withEvents;
 for (const [start, end, render] of [
   [BUILTIN_HOOKS_START, BUILTIN_HOOKS_END, renderBuiltinHooksJson],
   [GIT_WORKFLOW_HOOKS_START, GIT_WORKFLOW_HOOKS_END, renderGitWorkflowHooksJson],
+  [BUILTIN_OPTIONS_START, BUILTIN_OPTIONS_END, renderBuiltinOptionsTable],
 ]) {
   withJson = replaceBetweenMarkers(withJson, start, end, render());
   if (withJson === null) {
