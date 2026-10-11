@@ -29,6 +29,10 @@ Inspect source, config, CI, and tests for literal credentials; committed `.env` 
 
 For a real secret: recommend immediate rotation, replacement with environment/secrets-manager access, appropriate `.gitignore`, git-history scrubbing, and a full-history Gitleaks/TruffleHog scan. Treat a committed usable secret as Critical; a local ignored `.env` is not itself a vulnerability.
 
+## Always-Run Dependency Vulnerability Review
+
+Run the dependency vulnerability procedure linked from the Review skill for every review, including explicit vulnerability requests to the skill or reviewer subagent. Use live [GitHub Advisories](https://github.com/advisories) by default. Inspect manifests and resolved lockfiles as supporting evidence even when they are excluded from the source scope. Cover direct/transitive and runtime/dev/build dependencies; report incomplete coverage instead of assuming a clean result. Merge confirmed package vulnerabilities into the report's Security findings and provide specific, verified remediation and validation steps. Honor an explicit source override or skip and document it.
+
 ## User-Directed Skips
 
 Honor skips but report each skipped check and its risk. Authentication/authorization skips on a public-facing system require Critical emphasis. Include this block when auth/authz is skipped:

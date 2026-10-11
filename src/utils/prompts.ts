@@ -145,7 +145,7 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   review: {
     title: "Review",
-    description: "Audits implemented code for correctness, security, performance, and testing gaps",
+    description: "Audits correctness, security, performance, testing gaps, and dependency vulnerabilities using GitHub Advisories, with remediation guidance",
     output: ".spec-lite/reviews/review_<scope>.md",
   },
   write_integration_tests: {

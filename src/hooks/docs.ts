@@ -86,13 +86,13 @@ export function replaceBetweenMarkers(
   );
 }
 
-/** Extract the content between a start/end marker pair, trimmed. */
+/** Extract a trimmed block, normalizing CRLF to LF for generated-content comparisons. */
 export function extractBetweenMarkers(content: string, start: string, end: string): string | null {
   const startIndex = content.indexOf(start);
   const endIndex = content.indexOf(end);
   if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) return null;
 
-  return content.slice(startIndex + start.length, endIndex).trim();
+  return content.slice(startIndex + start.length, endIndex).replace(/\r\n/g, "\n").trim();
 }
 
 const registryJson = (hooks: unknown[]) => ["```json", JSON.stringify({ version: 1, hooks }, null, 2), "```"].join("\n");

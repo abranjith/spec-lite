@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs-extra";
-import matter from "gray-matter";
+import { parseFrontmatter } from "./frontmatter.js";
 import { fileURLToPath } from "url";
 import type { SourceItem, SourceFrontmatter } from "../providers/base.js";
 
@@ -26,7 +26,7 @@ export async function loadAgent(agentDir: string): Promise<SourceItem | null> {
   if (!(await fs.pathExists(agentMdPath))) return null;
 
   const raw = await fs.readFile(agentMdPath, "utf-8");
-  const { data, content: body } = matter(raw);
+  const { data, content: body } = parseFrontmatter(raw);
   const frontmatter = data as SourceFrontmatter;
   const name = path.basename(agentDir);
 

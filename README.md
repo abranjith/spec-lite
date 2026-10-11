@@ -38,7 +38,7 @@ The harness is the interface; the repository is the durable source of truth. Com
 - **Global reusable roles, local durable state** — install agents and skills once, while each repository keeps its own memory, plans, features, reviews, and documentation.
 - **Native provider adapters** — generates each harness's expected agent, command, prompt, skill, and root-instruction formats.
 - **Modular delivery workflow** — use only the discovery, planning, implementation, testing, review, documentation, data, or DevOps role a task needs.
-- **Consolidated review** — one deterministic review covers correctness, testing, security, and performance.
+- **Consolidated review** — one deterministic review covers correctness, testing, security, performance, and dependency vulnerabilities using GitHub Advisories by default, with practical remediation guidance.
 - **Extensible lifecycle hooks** — subscribe your own commands, webhooks, or skill hand-offs to versioned events; changeset capture is just the pair that ships enabled.
 - **First-class documentation** — choose the documentation directory and depth, with optional updates during implementation and fixes.
 - **Shared memory** — durable project conventions live in `.spec-lite/memory.md` and can be captured as the work evolves.

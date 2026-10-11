@@ -34,7 +34,7 @@ Use this navigator to choose a role. For ownership, precedence, naming, IDs, and
 |---|---|---|
 | **Feature** | Break plan rows into executable vertical slices | `features/FEAT-###-<name>/spec.md` + plan Spec File |
 | **Implement** | Execute one feature, a plan, or review findings | Code, tests, state, changeset.json, feature summary |
-| **Review** | Audit completed files/features/plans across code, security, and performance | `reviews/review_<scope>.md` |
+| **Review** | Audit completed files/features/plans, including dependency vulnerabilities; also handle focused package vulnerability reviews | `reviews/review_<scope>.md` |
 | **Fix** | Diagnose and repair a bug/regression/review finding | Minimal fix + regression tests/report |
 | **Write Unit Tests** | Expand isolated behavior coverage | Unit-test spec and tests |
 | **Write Integration Tests** | Verify seams and system boundaries | Integration-test spec and tests |
@@ -104,8 +104,9 @@ yolo <goal> → explicitly confirm → pause/resume through .spec-lite/yolo_stat
 - `review files <paths/globs>` for an exact patch or module.
 - `review feature <name>` after the feature is fully implemented and has a captured `changeset.json`.
 - `review plan [<plan-file>]` for all completed features; incomplete rows are listed and skipped.
+- `review dependencies [<paths/globs>]` for package vulnerability findings; without paths, discover all project manifests/lockfiles under the workspace root.
 
-Every review covers correctness/testing, security, and performance. Use **Plan Critic** instead when code has not been implemented yet.
+Consolidated reviews cover correctness/testing, security, performance, and dependency vulnerabilities using live [GitHub Advisories](https://github.com/advisories) by default. Explicit requests to the skill or reviewer subagent for vulnerability findings run the same dependency procedure and produce prioritized fixes, upgrade/mitigation guidance, and validation steps. A user-requested vulnerability-only review records other dimensions as Not reviewed. Use **Plan Critic** instead for pre-implementation plan review.
 
 ## Documentation Levels
 

@@ -2,8 +2,9 @@
 name: review
 description: >
   Reviews implemented files, features, or plans for correctness, security,
-  performance, and testing quality. Produces one deterministic report with
-  prioritized, actionable findings.
+  performance, testing quality, and vulnerable dependencies using GitHub
+  Advisories by default. Also handles explicit package vulnerability reviews,
+  producing one report with prioritized findings and practical remediation.
 metadata:
   author: spec-lite
 ---
@@ -32,19 +33,24 @@ You are a senior software reviewer: constructive, specific, evidence-driven, and
 
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
 - Read the plan and feature specs selected by [Scope Resolution](#scope-resolution), plus `.spec-lite/data_model.md` and prior review reports when present and relevant.
-- User edits and explicit scope overrides take priority. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
+- User edits and explicit scope overrides take priority. If the selected scope requires a plan and multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 
 ## Invocation and Scope Resolution
 
-Accept exactly one scope form; otherwise reject with these valid forms:
+Accept exactly one scope form; otherwise reject with these valid forms. Explicit requests to the Review skill or reviewer subagent for vulnerability findings use the dependency checks below; do not treat them as code-only reviews.
 
 | Invocation | Files reviewed | Rejection rule |
 |---|---|---|
 | `review files <paths/globs>` | Exactly the existing named or matched files | Reject if no files exist or match |
 | `review feature <name>` | The feature's `changeset.json` file entries (`.spec-lite/features/FEAT-###-<name>/changeset.json`); fall back to the spec's `## Touched Files` list only when no `changeset.json` exists (a spec migrated from before hooks) | Reject unless every State Tracking task is complete; reject if both are absent/empty |
 | `review plan [<plan-file>]` | Union of each `[x] Complete` feature's `changeset.json` (or Touched Files fallback) | Reject if no feature is complete; list and skip incomplete features |
+| `review dependencies [<paths/globs>]` | Named/matched manifests or lockfiles and their associated dependency graphs; without paths, all project manifests/lockfiles under the workspace root, excluding generated/vendor/dependency directories | Reject if explicit paths do not exist/match; no manifests means Not applicable with an explanation |
 
-Normalize and deduplicate resolved paths, exclude generated output, dependencies, lockfiles, and migrations unless the user explicitly includes them, and list the final scope before analysis. **Never infer files from raw git history or naming** when a feature/plan scope is requested — `changeset.json` (or its Touched Files fallback) is authoritative. A `changeset.json` diff is not "git history": it is a diff anchored to the baseline `implement.pre`/`fix.pre` captured before this run's edits began, scoped to exactly this run's work — not a survey of the repository's past.
+Normalize and deduplicate resolved paths. For source review, exclude generated output, dependencies, lockfiles, and migrations unless the user explicitly includes them. List the final scope before analysis. **Never infer files from raw git history or naming** when a feature/plan scope is requested — `changeset.json` (or its Touched Files fallback) is authoritative. A `changeset.json` diff is not "git history": it is a diff anchored to the baseline `implement.pre`/`fix.pre` captured before this run's edits began, scoped to exactly this run's work — not a survey of the repository's past.
+
+Dependency review is a required security check by default, even when manifests and lockfiles are excluded from source review. Read the owning manifests and lockfiles as dependency evidence, list them separately, and keep the source scope unchanged. In a monorepo, resolve owning workspace/root manifests and shared lockfiles; audit the scoped workspaces' resolved graphs and report any inability to isolate them.
+
+Natural-language requests such as "review vulnerable packages" or "use the reviewer subagent to review vulnerability findings" map to `review dependencies` when no file/feature/plan scope is supplied. A vulnerability focus on an existing scope runs the same dependency procedure; omit unrelated review dimensions only when the user explicitly requests a focused review, and record that focus.
 
 ## Process
 
@@ -56,16 +62,23 @@ Normalize and deduplicate resolved paths, exclude generated output, dependencies
 4. Read scoped source and adjacent tests/config only where necessary to understand behavior.
 5. If `.spec-lite/tools/` exists, follow [Project Tools](#project-tools).
 6. Run available static checks and tests that are safe and relevant. Record commands, results, and tool limitations.
+7. Inventory dependency evidence and run the always-run dependency vulnerability review. Use live advisories, not recalled vulnerability/version information.
 
 ### 2. Review Every Dimension
+
+Consolidated reviews cover every dimension below. For an explicitly requested vulnerability-only review, run the dependency procedure and record other dimensions as Not reviewed (user-requested focus).
 
 | Dimension | Required analysis |
 |---|---|
 | **Code** | Spec correctness, edge cases, concurrency, error handling, architecture boundaries, readability, idioms, maintainability, and meaningful test coverage |
-| **Security** | Quick threat model, authentication/authorization, trust boundaries, input handling, data protection, dependency/infrastructure risk, plus the always-run SQLi/XSS/CSRF and secrets scans |
+| **Security** | Quick threat model, authentication/authorization, trust boundaries, input handling, data protection, infrastructure risk, plus the always-run SQLi/XSS/CSRF, secrets, and dependency vulnerability checks |
 | **Performance** | Critical path, expected scale, algorithmic cost, I/O, database access, memory, concurrency, caching, and frontend cost where applicable |
 
-Use [security checks](references/security-checks.md) and [performance checks](references/performance-checks.md). Apply only stack-relevant checks, but never skip their explicitly always-run scans. Label security review limits and distinguish measured performance from estimates.
+For consolidated reviews, use [security checks](references/security-checks.md) and [performance checks](references/performance-checks.md). Apply only stack-relevant checks, but never skip their explicitly always-run scans unless the user directs a skip or vulnerability-only focus. Label security review limits and distinguish measured performance from estimates.
+
+Follow the dependency vulnerability procedure below for every review. The default advisory source is [GitHub Advisory Database](https://github.com/advisories); explicit user or project instructions may override it. Dependency-only reviews use that procedure and the same findings, verdict, report, and hooks contracts; mark unrelated dimensions Not reviewed (user-requested focus).
+
+[Dependency vulnerability checks](references/dependency-checks.md)
 
 ### 3. Record Findings
 
@@ -79,6 +92,8 @@ Use one global sequence (`REV-001`, `REV-002`, ...), ordered Critical → High �
 
 Avoid speculative findings. Record uncertainty and missing evidence explicitly. A missing capability that is genuinely a new product feature is routed to **Feature**, not disguised as a defect.
 
+Package vulnerabilities are **Security** findings in this same sequence, not a second report. Within Description, include the package/ecosystem, resolved version(s), direct/transitive dependency path, runtime/dev/build usage, linked GHSA/CVE, affected range, advisory severity/CVSS when supplied, and applicability evidence. Within Recommendation, give a verified fixed target or mitigation, the exact manifest/parent/lockfile changes to make, compatibility risks, and validation steps. Keep advisory severity separate from the contextual review severity and explain any difference.
+
 | Severity | Criteria | Target SLA |
 |---|---|---|
 | **Critical** | Exploitable or failing now with catastrophic impact: data loss/breach, RCE, auth bypass, or unusable primary behavior | Fix immediately |
@@ -89,8 +104,8 @@ Avoid speculative findings. Record uncertainty and missing evidence explicitly. 
 ### 4. Set Verdict
 
 - **Request changes** when any Critical or High finding exists.
-- **Approve with suggestions** when findings are only Medium/Low.
-- **Approve** when no actionable findings exist.
+- **Approve with suggestions** when findings are only Medium/Low, or required checks are incomplete/unavailable; prominently qualify the latter verdict and identify what is still unverified.
+- **Approve** when no actionable findings exist and required checks are complete or demonstrably Not applicable. A user-directed skip must be disclosed and the verdict limited to the checks performed; never describe skipped dependency checks as clean.
 - After writing the report, run `spec-lite hook run review.post --payload summary="{{one-line verdict and finding counts}}"` (see [Hooks](#hooks)), then `spec-lite hook run review.verdict --payload verdict="{{verdict}}" --payload summary="{{one-line summary}}"` — `review.verdict` is the routing signal Critical/High findings use to reach **Fix**.
 
 ## Output
@@ -102,8 +117,10 @@ Write `.spec-lite/reviews/review_<scope>.md`, where `<scope>` is a stable snake_
 
 # Review: {{scope}}
 
-**Scope Type**: files | feature | plan
+**Scope Type**: files | feature | plan | dependencies
+**Review Focus**: consolidated | vulnerabilities only (user-requested)
 **Files Reviewed**: {{count}}
+**Dependency Evidence**: {{manifest/lockfile paths, listed separately from source scope}}
 **Completed Features**: {{IDs/names or N/A}}
 **Skipped Features**: {{incomplete IDs/names or None}}
 **Checks Run**: {{commands/tools and results}}
@@ -126,6 +143,23 @@ Write `.spec-lite/reviews/review_<scope>.md`, where `<scope>` is a stable snake_
 
 - **Trust boundaries / valuable data / attack vectors**: {{summary or N/A}}
 - **Critical path / scale / SLA evidence**: {{summary or N/A}}
+
+## Dependency Vulnerability Review
+
+- **Status**: Complete | Partial | Unavailable | Skipped (user-directed) | Not applicable
+- **Advisory source / checked at**: {{GitHub Advisories URL or explicit override; timestamp}}
+- **Coverage**: {{ecosystems/workspaces, resolved graph provenance, runtime/dev/build and direct/transitive coverage; packages checked/total when known}}
+- **Evidence**: {{audit/query commands, results/exit codes, advisory links, limitations and unknown versions}}
+
+| Package / ecosystem | Resolved version(s) / dependency path | Advisory / severity | Affected range / fixed target | Review finding |
+|---|---|---|---|---|
+| {{package/ecosystem}} | {{version(s), direct/transitive path, usage}} | {{GHSA/CVE link, advisory severity/CVSS}} | {{affected range; verified target or no patch available}} | {{REV-ID, or unresolved applicability}} |
+
+{{If no matches: "No known vulnerabilities found in the checked graph as of {{timestamp}}" only for Complete coverage; otherwise state what could not be checked.}}
+
+## Remediation and Best Practices
+
+{{Prioritized actions linked to REV findings: what to change, verified target versions/parent upgrades, manifest and lockfile steps, breaking-change or override risks, mitigations when no patch exists, and commands/tests to verify remediation. Include relevant ongoing practices (lockfile consistency, CI audits, automated security updates); distinguish optional improvements from vulnerability fixes. Do not apply fixes during review.}}
 
 ## Findings
 
@@ -192,6 +226,7 @@ using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIV
 
 - Review and recommend; never modify production code or mark feature tasks complete.
 - Review only the deterministic scope. Do not silently add or omit files.
+- Dependency manifests/lockfiles are declared supporting evidence by default; audit commands must not install, upgrade, rewrite lockfiles, or apply automatic fixes.
 - Do not claim security clearance or measured performance without appropriate tools/data.
 - Respect user-directed skipped checks, record them, and emit the required risk warning from the security reference.
 

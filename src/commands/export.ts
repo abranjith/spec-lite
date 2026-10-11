@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import matter from "gray-matter";
+import { parseFrontmatter } from "../utils/frontmatter.js";
 import inquirer from "inquirer";
 import chalk from "chalk";
 import type { ProjectProfile, SourceItem, SourceItemKind, SpecLiteConfig } from "../providers/base.js";
@@ -164,7 +164,7 @@ export async function buildCombinedExport(
   }
 
   for (const source of selectedSources) {
-    let body = matter(source.content).content;
+    let body = parseFrontmatter(source.content).content;
     if (projectProfile) {
       body = replaceProjectContext(body, buildProjectContextBlock(projectProfile));
     }

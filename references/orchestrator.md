@@ -90,8 +90,9 @@ Review accepts exactly one deterministic scope:
 - `review files <paths/globs>`: exact existing matches; reject none.
 - `review feature <name>`: the feature's `changeset.json` (Touched Files fallback if absent); reject incomplete/empty scope.
 - `review plan [file]`: union of completed features' `changeset.json` (Touched Files fallback per feature); list skipped incomplete rows and reject when none are complete.
+- `review dependencies [paths/globs]`: named/matched manifests/lockfiles and their graphs, or all project manifests/lockfiles under the workspace root when paths are omitted; reject unmatched explicit paths.
 
-Every run covers code correctness/testing, security, and performance; uses `REV-###`; and writes `.spec-lite/reviews/review_<scope>.md` with Critical/High/Medium/Low severity and one verdict.
+Consolidated reviews cover code correctness/testing, security, performance, and dependency vulnerabilities by default. Explicit vulnerability requests to Review or a reviewer subagent use the same dependency procedure; without another scope, resolve `review dependencies`. A user-requested vulnerability-only focus may omit unrelated dimensions, recorded in the report. Owning manifests/lockfiles are declared dependency evidence even when excluded from source review. Use live GitHub Advisories by default unless explicitly overridden; report coverage gaps and qualified verdicts rather than claiming clean results. Every run uses `REV-###` and writes `.spec-lite/reviews/review_<scope>.md` with Critical/High/Medium/Low severity, one verdict, and practical remediation/validation guidance.
 
 ## Documentation Protocol
 
