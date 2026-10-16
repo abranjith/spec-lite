@@ -1,8 +1,36 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import fs from "fs-extra";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { extractBetweenMarkers, renderGitWorkflowHooksJson } from "../src/hooks/docs.js";
+import { loadRegistry } from "../src/hooks/registry.js";
 
 const start = "<!-- generated:start -->";
 const end = "<!-- generated:end -->";
+
+describe("documented flow-control examples", () => {
+  it("validates the complete gate and local checkpoint examples", async () => {
+    const document = await fs.readFile(path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../docs/features/hooks.md"), "utf8");
+    const registries = [...document.matchAll(/```json\r?\n([\s\S]*?)\r?\n```/g)]
+      .map((match) => JSON.parse(match[1]))
+      .filter((value) => value.version === 1 && Array.isArray(value.hooks)
+        && value.hooks.some((hook: { name: string }) => ["verify", "plan-ready"].includes(hook.name)));
+    expect(registries).toHaveLength(2);
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "spec-lite-control-docs-"));
+    const home = vi.spyOn(os, "homedir").mockReturnValue(path.join(root, "home"));
+    try {
+      for (const registry of registries) {
+        await fs.outputJson(path.join(root, ".spec-lite/hooks.json"), registry);
+        const { issues } = await loadRegistry(root);
+        expect(issues.filter((issue) => issue.level === "error")).toEqual([]);
+      }
+    } finally {
+      home.mockRestore();
+      await fs.remove(root);
+    }
+  });
+});
 
 describe("generated documentation extraction", () => {
   it.each(["\n", "\r\n"])("compares tables consistently with %j line endings", (newline) => {

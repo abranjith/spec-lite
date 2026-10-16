@@ -67,6 +67,9 @@ export function buildHooksSchema(): Record<string, unknown> {
           timeoutMs: { type: "number", default: 30000 },
           onFailure: { enum: ["warn", "abort", "ignore"], default: "warn" },
           once: { type: "boolean", default: false },
+          gate: { type: "boolean", default: false },
+          maxRounds: { type: "integer", minimum: 1, maximum: 100, default: 3 },
+          completion: { const: "reported" },
           payloadSchema: { type: "object" },
 
           builtin: { type: "string" },
@@ -89,6 +92,7 @@ export function buildHooksSchema(): Record<string, unknown> {
         },
         additionalProperties: false,
         allOf: [
+          { if: { required: ["gate"], properties: { gate: { const: true } } }, then: { required: ["onFailure"], properties: { type: { enum: ["command", "script"] }, onFailure: { const: "abort" } } } },
           { if: { required: ["type"] }, then: { required: ["events"] } },
           { if: { not: { required: ["type"] } }, then: { propertyNames: { enum: [...SETTINGS_FIELDS] } } },
           {

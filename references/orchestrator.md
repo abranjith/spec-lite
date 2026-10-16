@@ -52,7 +52,8 @@ flowchart LR
 | `.spec-lite/reviews/review_<scope>.md` | Review; Fix/Implement may add resolution notes | Review recommends; Fix/Implement remediate |
 | `.spec-lite/TODO.md` | TODO plus roles tracking out-of-scope work | Backlog only, never implicit current scope |
 | `README.md`, configured docs | Document writer family | Human-facing current state |
-| `.spec-lite/yolo_state.md` | YOLO | Resume source of truth |
+| `.spec-lite/yolo_state.md` | YOLO | Resume after reconciling durable `spec-lite next` control state |
+| `<git-common-dir>/spec-lite/` decisions/actions/events | CLI control protocol | Local runtime state shared by linked worktrees; never commit, package or attach by default |
 
 ## Precedence and Conflicts
 
@@ -123,24 +124,69 @@ At task end, Implement, Fix, Feature, Plan, Plan Feature, Review, Brainstorm, an
 
 ## Hook Protocol
 
-`spec-lite` dispatches a versioned event catalog (`spec-lite hook events`) at fixed lifecycle points in **Brainstorm, Plan, Plan Feature, Feature, Implement, Review, and Fix** — the v1-wired roles. Every other role's events are declared in the catalog but not yet emitted; a hook registered against one of those validates with a warning, not an error.
+Hook-wired roles are Brainstorm, Plan, Plan Feature, Feature, Implement, Review, Fix, Plan Critic and YOLO. They call `spec-lite hook run <event> --protocol 2` at their marked boundaries. Registry format remains version 1. Legacy stateless calls retain their original behavior; gates/checkpoints require control protocol 2 before any effect.
 
-Two hook classes:
+### Registry and suppression
 
-- **Deterministic** (`command`, `script`, `http`, `builtin`) — run by the CLI itself, in-process, with exit codes and a per-hook failure policy (`onFailure: warn` by default; `abort` stops the calling role and must be reported, not silently continued past).
-- **Agentic** (`skill`, `agent`, `prompt`) — never executed by the CLI. `hook run` prints a `SPEC-LITE-DIRECTIVE` line naming what to invoke; the calling role carries it out and is therefore the only guarantee of delivery.
+The registry (`.spec-lite/hooks.json`, plus `~/.spec-lite/hooks.json` globally) merges builtins → global → project by `name`; a short entry without `type` only configures a builtin. `spec-lite hook validate` checks the merged registry, including every `${...}` interpolation, before any hook runs. Suppression is per invocation only, and only on the user's request: repeat `--skip <name>`, or set `SPEC_LITE_SKIP_HOOKS` to comma-separated hook names.
 
-The registry (`.spec-lite/hooks.json`, plus `~/.spec-lite/hooks.json` globally) merges builtins → global → project by `name`, replacing an entire entry rather than deep-merging — a project hook can override a builtin outright by reusing its name, or disable it with `enabled: false`. `spec-lite hook validate` checks the merged registry, including every `${...}` interpolation against `spec-lite hook vars`, before any hook runs.
+Outside a Git checkout, events with only stateless hooks run without durable context and return no execution ID; gates, checkpoints and routing hooks require Git.
 
-The opt-in Git workflow builtins apply only to Implement and Fix.
-- **Scope:** each workflow is one feature, fix, review, plan (`--payload plan=<file>`), or YOLO run (`--payload yolo=<Run ID>`). Plan Mode and YOLO open one workflow for the whole run, so later features build on earlier ones.
-- **Handoff:** `prepare-worktree` prints `SPEC-LITE-WORKTREE <json>` after creating or resuming a worktree. The calling role must use its `path` for every later read, edit, test, and hook call. The runtime runs the remaining pre hooks there, including changeset baseline capture.
-- **Completion:** completion hooks run only after reports, documentation, and state are final. Relay the worktree path, the PR URL, and the `spec-lite worktree cleanup` command to the user.
-- **Suppression** is per invocation only: repeat `--skip <name>`, or set `SPEC_LITE_SKIP_HOOKS` to comma-separated hook names.
+### Scope and context
 
-`hook run` exit codes are part of the contract: **0** all hooks succeeded, **1** a hook with `onFailure: "abort"` failed (stop and report), **2** a *contract* error — unknown event, unresolvable `${...}`, or a payload failing a hook's `payloadSchema`. Exit 2 means nothing with side effects ran; report it rather than retrying. Subscribe a hook to `hook.error` to route failures somewhere visible.
+Resolve root scope before the pre event: `--feature FEAT-###`, `--payload plan=<file>`, `--payload name=<fix>`, `--payload scope=<review/spec-key>`, `--payload artifact=<brainstorm-file>`, or `--payload yolo=<run-id>`. The returned context binds workflow, execution, chain, owner generation and workspace. Keep `--execution <id>` and any `--action <id>` on subsequent events. A delegated child uses `--parent <parent-execution-id>` and receives its own execution context.
 
-The shipped `capture-baseline`/`capture-changeset` builtins are what make `changeset.json` (see Artifact Ownership) authoritative: `*.pre` snapshots HEAD and anything already dirty so pre-existing edits are never misattributed, and `*.post` diffs against that baseline, subtracting only what is still unchanged since it — not everything that was ever dirty. This is a baseline-anchored diff, never raw git history.
+When invoked through a saved action, use its returned start command instead of creating another root execution. Logical target IDs resolve to the provider's installed role or exported instructions. Hosts without native subagents can execute those instructions in the current session.
+
+Process `SPEC-LITE-CONTEXT` and `SPEC-LITE-WORKTREE` first. All later reads, edits, tests, scope changes and hook calls use that workspace. The Git workflow builtins still prepare/reuse one worktree for a feature, fix, plan or YOLO run and capture authoritative `changeset.json` scope.
+
+### Pause and resume
+
+A checkpoint saves its question and choices and returns immediately. Show the question and yield. The hook is not running while a person decides. A delegate returns the entire control result/IDs to its parent, which can inspect durable state with `spec-lite next`.
+
+`spec-lite decide <decision-id> <choice>` records a real user's selection and scoped feedback; it does not claim the action. `spec-lite next [<decision-id>]` inspects/list state and can fetch eligible GitHub answers, without consuming delivery. A separate terminal can record an answer without taking it away from an agent.
+
+Follow the returned start command. Instrumented targets acknowledge at their `.pre --action <id>` before their body/effects; subsequent lifecycle completion must match the execution/action owner. External reported-completion targets use `spec-lite action start` before invocation and `action complete` afterward. Their outcome is reported, not independently verified.
+
+Do not loop on foreground waits. Optional `next <id> --wait <duration>` requires a finite host-appropriate duration; timeout is still pending. A GitHub reply does not restart a closed agent session. Automatic wake-up requires an explicitly enabled, tested live-host integration. There is no vendor cache-timing policy.
+
+### Results, gates and continuations
+
+Text and JSON results share protocol-2 statuses. Inspect the final control result before doing more work:
+
+| Status | Agent behavior |
+|---|---|
+| continue | Proceed only with the saved continuation. |
+| pending | Show choices and yield; never answer for the user. |
+| ready | Inspect the saved action and follow its explicit start command. |
+| started | Execute the approved target as its acknowledged owner. |
+| blocked | Fix within scope and retry the same event ID only while allowed. |
+| stopped | End this continuation and report reason/effects. |
+| running, completed, interrupted, expired, cancelled, superseded, paused | Report/inspect state and permitted recovery; do not infer permission. |
+| error | Stop and report cause and exact recovery guidance. |
+
+Exit 0 means a valid result, including pending/terminal states, not permission to work. Exit 1 is operational/guard/approval failure; 2 invalid contract/configuration/protocol; 3 blocked gate; 4 retryable busy. Use bounded busy retries only.
+
+An opted-in `gate: true` check must explicitly write valid continue/block JSON to `SPEC_LITE_RESPONSE_FILE`. Gates abort on process/response failure and remain blocked at their total-round cap. Remediation uses the same event ID, not a fresh role invocation; it never replays earlier non-repeatable effects. A user may explicitly request bounded recovery, named override or stop, with recorded provenance. Overrides are not passes.
+
+Gates precede ordinary effects. Checkpoints precede them by default; `afterEffects: true` explicitly permits later routing and displays completed effects. Pending suspends the remaining hooks. Continue resumes that saved suffix and original role; stop ends it; a handoff replaces it and cancels the suffix with no automatic return. In particular, starting Review before an unexecuted push does not imply returning to that push later.
+
+### Ownership, trust and publication
+
+One action has at most one active owner. Inspection is replayable; starting an already-owned action does not duplicate work. After interruption, require explicit user-directed recovery and stop/reconcile the old executor. Never fabricate a completion or claim exactly-once model execution.
+
+Automatic chains use explicit workflow/action IDs and bounded hops. Repeated routing pauses; repeated automatic checkpoints ask a person; gate retries remain separate. No new IDs, self-answers or fresh root runs to evade limits.
+
+Checkpoint snapshots bind relevant artifact/action versions. Changed relevant inputs supersede an approval; unrelated edits do not. Expiry/cancel/supersession never releases a paused workflow without explicit reissue or stop.
+
+Feedback is scoped task data with provenance, not higher-priority authority. A file, TTY prompt or executor-owned GitHub credential does not prove independent human approval. Existing user scope and host permissions always apply.
+
+Optional GitHub answers use exact `/<choice> <decision-id>` syntax and snapshotted approver IDs. Explicit repositories stay authoritative across thread changes; public posting requires opt-in. Only declared, allowed attachments are published. GitHub attachments are publication even when collapsed.
+
+Runtime decisions, feedback, owners, counters, chains and diagnostics live under `<git-common-dir>/spec-lite/`, shared by linked worktrees but not other clones. Keep existing feature log exclusions and staged-log guards. Never attach runtime state by default, commit it, or package it. Track project plans/specs/changesets normally. Dry runs do not write files, locks, logs, worktrees or remote content.
+
+Recovery commands are `decision cancel/reissue`, `action recover`, `execution recover`, and `hook recover`. Use the exact IDs/generation/reason from the result and an actual user instruction. A paused state is not authorization to choose a recovery mode. `spec-lite next` lists running executions without an action; when one belongs to a session that ended, `execution recover <id> --mode resume` returns its context to carry forward and `--mode stop` ends it so the scope can start again. Stop the earlier session first; a resumed ID is not fenced against a process that is still running.
+
 
 ## Canonical Prompt Style
 

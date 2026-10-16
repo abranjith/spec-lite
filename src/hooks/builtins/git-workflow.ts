@@ -14,6 +14,7 @@ import type { BuiltinContext, BuiltinOutcome } from "./index.js";
 import type { CommitProgressOptions, HookPayload, PrepareWorktreeOptions, WorkflowKind, WorktreeInfo } from "../types.js";
 import { resolveFeature } from "../workspace.js";
 import { COMMIT_TEMPLATE_RE } from "./options.js";
+import { runtimeArtifactPath } from "../publication.js";
 
 const execFileAsync = promisify(execFile);
 const programEnvironment = new AsyncLocalStorage<NodeJS.ProcessEnv>();
@@ -81,8 +82,8 @@ export async function runProgram(
     const { stdout } = await execFileAsync(bin, argv, { cwd: root, timeout, maxBuffer: 8 * 1024 * 1024, windowsHide: true, env: merged });
     return stdout.trim();
   } catch (err) {
-    const error = err as { stderr?: string; message: string };
-    throw new Error(`${executable} failed: ${error.stderr?.trim() || error.message}`);
+    const error = err as { stderr?: string; stdout?: string; message: string };
+    throw Object.assign(new Error(`${executable} failed: ${error.stderr?.trim() || error.message}`), { stdout: error.stdout, stderr: error.stderr });
   }
 }
 
@@ -191,6 +192,21 @@ function scoped(kind: WorkflowKind, raw: string): Pick<WorkItem, "kind" | "name"
   return { kind, name, identity: `${kind}:${label}`, branch: `${kind}/${label}` };
 }
 
+/**
+ * One spelling per plan, so absolute, `./` and worktree-relative forms map to the same branch.
+ * A plan directly in a `.spec-lite/` folder keys by that file; others by their checkout-relative path.
+ */
+export function canonicalPlanPath(plan: string, cwd?: string): string {
+  const posix = path.posix.normalize(plan.replace(/\\/g, "/").replace(/^\.\//, ""));
+  const artifact = /(?:^|\/)(\.spec-lite\/[^/]+)$/.exec(posix);
+  if (artifact) return artifact[1];
+  if (cwd && path.isAbsolute(plan)) {
+    const relative = path.relative(cwd, plan).split(path.sep).join("/");
+    if (relative && !relative.startsWith("../") && !path.isAbsolute(relative)) return path.posix.normalize(relative);
+  }
+  return posix;
+}
+
 /** True when the payload names a unit of work at all. */
 export const identifiesWork = (payload: HookPayload): boolean =>
   !!(text(payload.yolo) || text(payload.plan) || text(payload.name) || payload.feature?.id);
@@ -205,9 +221,11 @@ export function workItem(payload: HookPayload): WorkItem {
   if (yolo) return scoped("yolo", yolo);
   const plan = text(payload.plan);
   if (plan) {
-    const file = plan.replace(/\\/g, "/").replace(/^\.\//, "");
+    const file = canonicalPlanPath(plan, payload.cwd);
     const label = path.posix.basename(file).replace(/\.md$/i, "").replace(/^plan(?:[_-]|$)/i, "") || "default";
-    return { ...scoped("plan", label), plan: file };
+    // Preserve familiar canonical plan branch names; other paths need a full-path discriminator.
+    const unique = /^\.spec-lite\/[^/]+$/.test(file) ? label : `${label}-${crypto.createHash("sha256").update(file).digest("hex").slice(0, 8)}`;
+    return { ...scoped("plan", unique), plan: file };
   }
   const feature = payload.feature;
   if (feature?.id && !feature.dir) throw new Error(`Feature ${feature.id} was not found under .spec-lite/features; check the ID before starting a workflow.`);
@@ -335,8 +353,10 @@ const excludedRoots = new Set<string>();
 /** Called before each hook log write; a no-op outside Git or once done for a root. */
 export async function excludeHookLogs(root: string): Promise<void> {
   if (excludedRoots.has(root)) return;
+  // Outside Git there is no publication boundary to configure. Never cache a failed exclusion.
+  if (!(await succeeds(git(root, ["rev-parse", "--is-inside-work-tree"])))) return;
+  await ensureExcluded(root, HOOK_LOG_PATTERN);
   excludedRoots.add(root);
-  await ensureExcluded(root, HOOK_LOG_PATTERN).catch(() => undefined);
 }
 
 async function excludeWorktrees(mainRoot: string, directory: string): Promise<void> {
@@ -540,6 +560,10 @@ export async function commitProgress(ctx: BuiltinContext): Promise<BuiltinOutcom
   return withWorkflowLock(repo.commonDir, state.path, async () => {
     const stagedLogs = await git(state.path, ["diff", "--cached", "--name-only", "--", LOG_PATHSPEC]);
     if (stagedLogs) throw new Error(`Unstage hook logs before committing progress: ${stagedLogs.split("\n").join(", ")}`);
+    const indexed = (await git(state.path, ["ls-files", "-z"])).split("\0").filter(Boolean).filter(runtimeArtifactPath);
+    if (indexed.length) throw new Error(`Tracked/staged runtime artifacts cannot enter an automatic commit: ${indexed.join(", ")}. Reconcile them explicitly; spec-lite will not untrack or discard files.`);
+    const dirtyRuntime = (await statusEntries(state.path)).filter((entry) => runtimeArtifactPath(entry.path));
+    if (dirtyRuntime.length) throw new Error(`Runtime artifacts would be staged by commit-progress: ${dirtyRuntime.map((entry) => entry.path).join(", ")}. Keep them in Git internals or exclude them locally.`);
     // changeset.json is committed: its content changes only when the changed
     // files do, so a retry stages nothing and creates no commit.
     await git(state.path, ["add", "--all", "--", ".", `:(exclude)${LOG_PATHSPEC}`]);

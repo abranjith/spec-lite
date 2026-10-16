@@ -20,7 +20,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "prepublishOnly": "npm run build",
+    "prepublishOnly": "npm run build && npm run check:package",
+    "check:package": "node scripts/check-package.mjs",
     "typecheck": "tsc --noEmit",
     "generate:hooks-schema": "tsx scripts/generate-hooks-schema.mjs",
     "generate:hook-docs": "tsx scripts/generate-hook-docs.mjs"

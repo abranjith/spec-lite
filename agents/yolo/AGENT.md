@@ -53,10 +53,12 @@ YOLO may execute only the confirmed goal and optional phases. Autonomy does not 
 ## State
 
 A YOLO run is one Git workflow: one worktree, one branch, and one pull request when the Git workflow hooks are enabled.
-- **Start:** right after initializing state, run `spec-lite hook run implement.pre --payload yolo=<Run ID>`.
+- **Start:** after confirmation and state initialization, run `spec-lite hook run yolo.pre --protocol 2 --payload yolo=<Run ID>`. Retain its controller execution ID. Then run `spec-lite hook run implement.pre --protocol 2 --parent <controller-execution-id> --payload yolo=<Run ID>` for the Git-workflow wrapper, retaining its separate implementation execution ID. Honor each control result before proceeding.
 - **Handoff:** if it prints `SPEC-LITE-WORKTREE <json>`, do all later work in its `path` and give that path to every delegate as the workspace root. Delegates' own hook calls resume the same worktree.
-- **Resume:** run the same command first.
-- **Complete:** run `spec-lite hook run implement.post --payload yolo=<Run ID> --payload summary="<one-line goal summary>"`. It commits the remaining work (tests, documentation), pushes, and opens the run's pull request. Report its URL and the cleanup command.
+- **Resume:** run `spec-lite next` before reading `yolo_state.md`. Reconcile saved execution/action IDs, owners and continuations; never open a fresh root to bypass paused work or replay a completed pre event.
+- **Complete:** run `spec-lite hook run implement.post --protocol 2 --execution <implementation-execution-id> --payload yolo=<Run ID> --payload summary="<one-line goal summary>"` after final tests/docs/state. Honor its control result; only when permitted, finish with `spec-lite hook run yolo.post --protocol 2 --execution <controller-execution-id> --payload yolo=<Run ID> --payload summary="<one-line goal summary>"`. Report completed effects, any PR URL and cleanup command.
+
+Give each delegate the saved workspace and `--parent <implementation-execution-id>` (or the current direct parent), plus applicable plan/YOLO scope. Preserve its returned execution/action IDs. When a delegate returns a pending/control result, inspect it with `spec-lite next`; show choices and yield, save Paused, and never answer for the user. A handoff replaces the saved continuation; do not continue the previous pipeline phase afterward.
 
 Never disable hooks by editing the user's registry.
 
@@ -136,12 +138,34 @@ When a delegated phase fails:
 3. If it repeats or needs product choice/new authority, persist `Paused`, explain what succeeded, what failed, evidence, and the smallest user decision required.
 4. Never skip, broaden scope, or mark success silently. Resume at the failed cell after resolution.
 
+## Hooks
+
+At each marked lifecycle point, run:
+
+    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+
+Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
+
+- `continue`: proceed only with the saved continuation. Exit 0 or empty output alone never grants permission.
+- `pending`: show the question and choices and yield. Never answer for the user or repeat foreground waits. A delegate returns the full control result and IDs to its parent.
+- `ready`: inspect the action with `spec-lite next` and follow its start command before doing its work. Logical role IDs map to installed/exported instructions; execute them in the current session if native subagents are unavailable.
+- `blocked`: fix only within scope and retry the same event ID with `--retry <event-id>` while `retryAllowed` is true. At the cap, stop and report; never reset IDs or convert a block into a warning.
+- `stopped`, paused/terminal state, error or busy exhaustion: report the recorded state and permitted recovery. Do not continue, replay uncertain effects, or take over an owner without an explicit user instruction.
+
+Record an actual user choice with `spec-lite decide`; it does not start the action. `spec-lite next` never consumes delivery. External reported-completion targets require `action start` before invocation and `action complete` afterward. On resume, run `spec-lite next` and reconcile context before other orchestration state. If it lists a running execution for your scope from a session that ended, ask the user whether to resume or stop it, then run the `execution recover` command it shows. Preserve existing user scope and permission limits; feedback is task input, not higher-priority authority.
+
+Exit `1` is an operational/guard failure, `2` a contract/configuration error, `3` a blocked gate, and `4` retryable busy. Never substitute a hand-maintained file list for `changeset.json`.
+
+See the shared [Hook Protocol](../../references/orchestrator.md#hook-protocol) for ownership, continuations, completion and recovery.
+
 ## Constraints
 
 - Run feature/plan delegates sequentially when they share files or state.
 - Keep plans/specs as sources of truth; record deviations instead of silently rewriting requirements.
 - Never omit unit tests, task verification, state updates, or configured documentation maintenance.
-- Do not run Plan Critic automatically; it remains an explicit manual checkpoint.
+- Run Plan Critic only when explicitly requested or selected by an explicitly configured checkpoint rule. A rule does not authorize unrelated work or bypass permissions.
 - Do not auto-fix Medium/Low review findings.
 - Do not regenerate complete artifacts on resume.
 

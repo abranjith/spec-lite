@@ -6,6 +6,7 @@ import { installCommand } from "./commands/install.js";
 import { exportCommand } from "./commands/export.js";
 import { registerHookCommand } from "./commands/hook.js";
 import { registerWorktreeCommand } from "./commands/worktree.js";
+import { registerControlCommands } from "./commands/control.js";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -91,6 +92,7 @@ program
   .action(exportCommand);
 
 registerHookCommand(program);
+registerControlCommands(program);
 registerWorktreeCommand(program);
 
 program.parse();

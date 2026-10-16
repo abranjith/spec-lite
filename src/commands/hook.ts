@@ -7,6 +7,9 @@ import { loadRegistry, hooksForEvent, setHooksEnabled } from "../hooks/registry.
 import { EVENT_CATALOG, getEvent, resolvePattern } from "../hooks/events.js";
 import { describeVars } from "../hooks/interpolation.js";
 import { OPT_IN_HOOKS, inquirerPrompter, runHookSetup } from "../hooks/setup.js";
+import { recoverEvent } from "../hooks/control/engine.js";
+import { renderControl } from "./control.js";
+import type { ControlResult } from "../hooks/control/types.js";
 
 function parsePayloadFlags(values: string[] | undefined): Record<string, string> {
   const out: Record<string, string> = {};
@@ -23,7 +26,7 @@ function collect(value: string, previous: string[]): string[] {
 }
 
 async function runAction(event: string, options: {
-  feature?: string; task?: string; payload?: string[]; dryRun?: boolean; json?: boolean; runId?: string; only?: string; skip?: string[];
+  feature?: string; task?: string; payload?: string[]; dryRun?: boolean; json?: boolean; verbose?: boolean; runId?: string; only?: string; skip?: string[]; protocol?: string; execution?: string; action?: string; retry?: string; parent?: string;
 }): Promise<void> {
   const root = process.cwd();
   const report = await runEvent({
@@ -36,8 +39,13 @@ async function runAction(event: string, options: {
     dryRun: options.dryRun,
     only: options.only,
     skip: options.skip,
+    protocol: options.protocol, execution: options.execution, action: options.action, retry: options.retry, parent: options.parent,
   });
 
+  if (report.protocol === 2) {
+    renderControl(report as unknown as ControlResult, options.json, options.verbose);
+    return;
+  }
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
@@ -137,7 +145,7 @@ async function validateAction(): Promise<void> {
  * real executor, so a `command` hook really executes — this is a test harness
  * for the hook author, not a dry run.
  */
-async function testAction(name: string, options: { event?: string; payload?: string; feature?: string; task?: string }): Promise<void> {
+async function testAction(name: string, options: { event?: string; payload?: string; feature?: string; task?: string; protocol?: string; execution?: string; action?: string; parent?: string; publish?: boolean }): Promise<void> {
   const root = process.cwd();
   const { hooks } = await loadRegistry(root);
   const hook = hooks.find((h) => h.name === name);
@@ -146,6 +154,16 @@ async function testAction(name: string, options: { event?: string; payload?: str
     console.log(chalk.red(`No enabled hook named "${name}". Run \`spec-lite hook list\` to see resolved hooks.`));
     process.exitCode = 2;
     return;
+  }
+  if (hook.type === "builtin" && (hook.builtin ?? hook.name) === "checkpoint") {
+    if (hook.options?.github && !options.publish) {
+      console.error("Checkpoint tests perform REAL GitHub publication. Supply explicit test payload/execution and --publish to test the configured destination.");
+      process.exitCode = 2; return;
+    }
+    if (!options.payload && !options.feature && !options.execution) {
+      console.error("Checkpoint tests require explicit scope: --payload <test.json>, --feature, or --execution <test-execution-id>.");
+      process.exitCode = 2; return;
+    }
   }
 
   // Default to the first concrete event the hook subscribes to, so the common
@@ -178,12 +196,13 @@ async function testAction(name: string, options: { event?: string; payload?: str
     }
   }
 
-  console.log(chalk.dim(`Testing "${name}" against event ${event}\n`));
+  console.log(chalk.dim(`REAL hook test: "${name}" against event ${event}${hook.options?.github ? " — REAL configured GitHub publication" : ""}\n`));
   await runAction(event, {
     feature: options.feature,
     task: options.task,
     payload: Object.entries(extra).map(([k, v]) => `${k}=${v}`),
     only: name,
+    protocol: options.protocol, execution: options.execution, action: options.action, parent: options.parent,
   });
 }
 
@@ -211,10 +230,24 @@ export function registerHookCommand(program: Command): void {
     .option("--task <id>", "Task ID, e.g. TASK-003")
     .option("--payload <kv>", "Additional payload key=value (repeatable)", collect, [])
     .option("--run-id <id>", "Reuse a runId across multiple hook run calls")
+    .option("--protocol <version>", "Durable control protocol (2)")
+    .option("--execution <id>", "Lifetime execution context")
+    .option("--action <id>", "Selected action to start/advance")
+    .option("--retry <event-id>", "Retry the saved blocked event boundary")
+    .option("--parent <execution-id>", "Explicit parent execution for child scope")
     .option("--dry-run", "Resolve and print without executing", false)
     .option("--json", "Machine-readable output", false)
+    .option("--verbose", "Protocol 2: include stored approval snapshots and options", false)
     .option("--skip <name>", "Skip a hook for this invocation only (repeatable; * skips all)", collect, [])
     .action(runAction);
+
+  hook.command("recover <event-id>").description("Reconcile a blocked, paused or uncertain event on the user's instruction")
+    .requiredOption("--generation <n>", "Observed generation", Number)
+    .requiredOption("--mode <mode>", "retry, stop or override")
+    .requiredOption("--reason <text>", "User's recovery instruction")
+    .option("--checks <names>", "Comma-separated named checks to override")
+    .option("--json", "Machine-readable output")
+    .action(async (eventId, options) => renderControl(await recoverEvent(process.cwd(), eventId, options.generation, options.mode, options.reason, options.checks?.split(",").filter(Boolean)), options.json));
 
   hook
     .command("list")
@@ -253,6 +286,11 @@ export function registerHookCommand(program: Command): void {
     .option("--payload <file>", "JSON file whose top-level keys become payload values")
     .option("--feature <id>", "Feature ID, e.g. FEAT-012")
     .option("--task <id>", "Task ID, e.g. TASK-003")
+    .option("--protocol <version>", "Durable control protocol (2)")
+    .option("--execution <id>", "Existing explicit test execution")
+    .option("--action <id>", "Owning action")
+    .option("--parent <execution-id>", "Parent test execution")
+    .option("--publish", "Confirm REAL publication to the checkpoint's configured GitHub destination")
     .action(testAction);
 
   hook

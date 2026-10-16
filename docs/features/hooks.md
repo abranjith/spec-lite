@@ -22,6 +22,7 @@ can disable, replace, or ignore them without affecting any other hook.
 - [Hook definition reference](#hook-definition-reference)
 - [Interpolation](#interpolation)
 - [Event catalog](#event-catalog)
+- [Gates and checkpoints](#gates-and-checkpoints)
 - [Failure handling and exit codes](#failure-handling-and-exit-codes)
 - [Audit log](#audit-log)
 - [Turning hooks off](#turning-hooks-off)
@@ -53,6 +54,8 @@ declaration order. A hook subscribed to a wildcard such as `implement.*` fires o
 every matching event; `*` matches one or more whole dotted segments.
 
 ## The two kinds of hook
+
+These classes describe who performs the work. Legacy stateless calls emit best-effort directives; protocol 2 adds saved actions, start acknowledgment and explicit completion, described under [Gates and checkpoints](#gates-and-checkpoints).
 
 | Kind | `type` | Who runs it | Guarantee |
 |---|---|---|---|
@@ -470,6 +473,14 @@ autocomplete for each builtin's options.
 <!-- builtin-options-table:start -->
 | Hook | Option | Type | Meaning |
 |---|---|---|---|
+| `checkpoint` | `question` | string | **Required.** Durable checkpoint question; see the Hook Protocol. |
+| `checkpoint` | `choices` | object | **Required.** Durable checkpoint choices; see the Hook Protocol. |
+| `checkpoint` | `attach` | string array | Durable checkpoint attach; see the Hook Protocol. |
+| `checkpoint` | `inputs` | string array | Durable checkpoint inputs; see the Hook Protocol. |
+| `checkpoint` | `rules` | object array | Durable checkpoint rules; see the Hook Protocol. |
+| `checkpoint` | `github` | object | Durable checkpoint github; see the Hook Protocol. |
+| `checkpoint` | `expiresIn` | string | Durable checkpoint expiresIn; see the Hook Protocol. |
+| `checkpoint` | `afterEffects` | boolean | Durable checkpoint afterEffects; see the Hook Protocol. |
 | `prepare-worktree` | `fromBranch` | string | Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Default: the main checkout's current branch; `validate` warns when unset. |
 | `prepare-worktree` | `fetch` | boolean | Fetch `fromBranch` from `remote` first and start from the remote's latest commit. Default: `false`. |
 | `prepare-worktree` | `remote` | string | Remote `fetch` reads from. Default: `origin`. |
@@ -851,7 +862,10 @@ the registry and out of command output.
 | `type` | all | — | **Required.** `command`, `script`, `http`, `builtin`, `skill`, `agent`, `prompt` |
 | `description` | all | — | Human-readable note, shown by `hook list` |
 | `enabled` | all | `true` | `false` excludes the hook from dispatch and the default listing; `hook list --all` includes it |
-| `order` | all | `100` | Lower runs first; ties broken by declaration order |
+| `order` | all | `100` normally | Lower first, ties by declaration; durable flow enforces gate/checkpoint/effect boundaries (gate default 15, checkpoint 20) |
+| `gate` | command/script | `false` | Explicit rerunnable check; requires an abort policy and validated response file |
+| `maxRounds` | gates | `3` | Total rounds across the event's remediation episode |
+| `completion` | external skill/agent | — | Set `reported` for targets without spec-lite lifecycle acknowledgments |
 | `timeoutMs` | deterministic | `30000` | Wall-clock budget before the hook is killed and reported as failed |
 | `onFailure` | all | `warn` | `warn` (log and continue), `abort` (stop the chain, exit 1), `ignore` (silent) |
 | `once` | all | `false` | Skip if this hook already succeeded for this event on this feature |
@@ -924,6 +938,20 @@ token itself.
 <!-- hook-vars-table:start -->
 | Variable | Group | Meaning | Example |
 |---|---|---|---|
+| `${plan.file}` | plan | Canonical source plan path (source-plan modes only). | `.spec-lite/plan_orders.md` |
+| `${plan.name}` | plan | Source plan name. | `orders` |
+| `${report.file}` | report | Report-producing event's output path. | `.spec-lite/reviews/review_orders.md` |
+| `${verdict.code}` | verdict | Stable structured verdict code. | `ready` |
+| `${workflow.id}` | workflow | Durable workflow identity (protocol 2). | `w-1234` |
+| `${execution.id}` | execution | Lifetime role owner identity (protocol 2). | `x-1234` |
+| `${action.id}` | action | Owning action, when present; otherwise use a fallback. | `a-1234` |
+| `${decision.id}` | decision | Checkpoint id; URL is optional. | `d-1234` |
+| `${decision.question}` | decision | Checkpoint question; URL is optional. | `question` |
+| `${decision.status}` | decision | Checkpoint status; URL is optional. | `status` |
+| `${decision.url}` | decision | Checkpoint url; URL is optional. | `url` |
+| `${decision.choice}` | decision-resolved | Checkpoint choice; URL is optional. | `choice` |
+| `${decision.actor}` | decision-resolved | Checkpoint actor; URL is optional. | `actor` |
+| `${decision.feedbackFile}` | decision-resolved | Checkpoint feedbackFile; URL is optional. | `feedbackFile` |
 | `${event}` | base — every event | Full dotted event name. | `implement.post` |
 | `${role}` | base — every event | Agent or skill that emitted the event. | `implement` |
 | `${phase}` | base — every event | Lifecycle position: pre, post, or signal. | `post` |
@@ -963,14 +991,14 @@ error; they begin firing in a later release.
 |---|---|---|---|
 | `brainstorm.pre` | brainstorm | emitted | — |
 | `brainstorm.post` | brainstorm | emitted | `summary` |
-| `plan.pre` | plan | emitted | — |
-| `plan.post` | plan | emitted | `summary` |
+| `plan.pre` | plan | emitted | `plan` |
+| `plan.post` | plan | emitted | `plan`, `summary` |
 | `plan-feature.pre` | plan-feature | emitted | — |
 | `plan-feature.post` | plan-feature | emitted | `feature`, `summary` |
 | `architect.pre` | architect | planned | — |
 | `architect.post` | architect | planned | `summary` |
-| `plan-critic.pre` | plan-critic | planned | — |
-| `plan-critic.post` | plan-critic | planned | `summary` |
+| `plan-critic.pre` | plan-critic | emitted | `plan` |
+| `plan-critic.post` | plan-critic | emitted | `plan`, `report`, `verdict`, `summary` |
 | `build-data-model.pre` | build-data-model | planned | — |
 | `build-data-model.post` | build-data-model | planned | `summary` |
 | `feature.pre` | feature | emitted | — |
@@ -982,8 +1010,8 @@ error; they begin firing in a later release.
 | `implement.task.post` | implement | emitted | `feature`, `task`, `changes` |
 | `implement.feature.post` | implement | emitted | `feature`, `changes`, `summary` |
 | `review.pre` | review | emitted | — |
-| `review.post` | review | emitted | `summary` |
-| `review.verdict` | review | emitted | `verdict`, `summary` |
+| `review.post` | review | emitted | `report`, `verdict`, `summary` |
+| `review.verdict` | review | emitted | `report`, `verdict`, `summary` |
 | `fix.pre` | fix | emitted | — |
 | `fix.post` | fix | emitted | `changes`, `summary` |
 | `write-unit-tests.pre` | write-unit-tests | planned | — |
@@ -1001,17 +1029,200 @@ error; they begin firing in a later release.
 | `memorize.post` | memorize | planned | `summary` |
 | `todo.post` | todo | planned | `summary` |
 | `tool-help.post` | tool-help | planned | `summary` |
-| `yolo.pre` | yolo | planned | — |
-| `yolo.post` | yolo | planned | `summary` |
+| `yolo.pre` | yolo | emitted | — |
+| `yolo.post` | yolo | emitted | `summary` |
 | `yolo.phase.post` | yolo | planned | `summary` |
 | `hook.error` | * | emitted | `summary` |
+| `checkpoint.pending` | * | emitted | `decision`, `workflow`, `summary` |
+| `checkpoint.resolved` | * | emitted | `decision`, `decision-resolved`, `workflow`, `summary` |
 <!-- hook-events-table:end -->
 
 Guarantee groups are what `validate` checks templates against. A group absent
 from an event may still be present at runtime — a Fix often does map to a feature
 — but a template relying on it must supply a `${name:-default}`.
 
+## Gates and checkpoints
+
+Control protocol 2 adds durable pause/resume to any coding agent that can run CLI commands and follow the role instructions. Update installed/exported prompts before using it. Registry format remains `version: 1`; gate/checkpoint invocations require `--protocol 2`.
+
+Durable state needs a Git checkout. Outside one, protocol-2 events that only have stateless hooks (`command`, `script`, `http`, builtins) run exactly as before and return no execution ID, so roles keep working in a folder that is not yet a repository. Gates, checkpoints and routing hooks fail visibly there instead.
+
+```mermaid
+flowchart LR
+  H["hook run"] --> P["Save question; command exits"]
+  P --> U["User chooses in chat or GitHub"]
+  U --> D["decide / next records answer"]
+  D --> A["next shows saved action"]
+  A --> S["Explicit start acknowledgment"]
+  S --> R["Agent executes target"]
+```
+
+`decide` records your choice; `next` shows what can happen. Reading an action never consumes it. The agent follows its returned start command before executing it.
+
+### Gates
+
+Declare a check as a gate; it must be safe to rerun and must not publish or notify:
+
+```json
+{
+  "version": 1,
+  "hooks": [
+    {
+      "name": "verify",
+      "events": ["implement.post"],
+      "type": "script",
+      "gate": true,
+      "maxRounds": 3,
+      "onFailure": "abort",
+      "run": "node scripts/check-gate.mjs"
+    }
+  ]
+}
+```
+
+The script reads the usual payload and writes one explicit response to the environment-provided file:
+
+```js
+import fs from "node:fs";
+fs.writeFileSync(
+  process.env.SPEC_LITE_RESPONSE_FILE,
+  JSON.stringify({ decision: "block", reason: "Fix the failing verification." })
+);
+// Write { decision: "continue" } when the condition passes.
+```
+
+A failed process, missing/invalid response or oversized response stops the event. The response limit is 64 KiB. A block exits 3 and prevents later effects. Three rounds means the initial check plus at most two automatic fix/retry cycles across the event's gates. The cap remains blocking even if an ordinary hook would warn.
+
+Retry only the returned event ID while `retryAllowed` is true. Completed notifications, commands and publication are not replayed. At the cap, the agent reports the block and returns control to you. Explicit recovery can start a new bounded episode, stop, or override named checks; an override is recorded as such.
+
+### Local checkpoint
+
+```json
+{
+  "version": 1,
+  "hooks": [
+    {
+      "name": "plan-ready",
+      "events": ["plan.post"],
+      "type": "builtin",
+      "builtin": "checkpoint",
+      "options": {
+        "question": "Plan ${plan.name} is ready. What next?",
+        "inputs": ["${plan.file}"],
+        "choices": {
+          "critique": {
+            "description": "Run Plan Critic",
+            "skill": "plan-critic",
+            "args": "${plan.file}"
+          },
+          "continue": {
+            "description": "Finish the current role",
+            "continue": true
+          },
+          "stop": {
+            "description": "Stop here",
+            "stop": true
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+Run the normal role lifecycle with the resolved scope and retain its context:
+
+```bash
+spec-lite hook run plan.pre --protocol 2 --payload plan=.spec-lite/plan_orders.md --json
+# After writing the plan, reuse the returned execution ID:
+spec-lite hook run plan.post --protocol 2 --execution <execution-id> --json
+spec-lite next
+spec-lite decide <decision-id> critique
+spec-lite next <decision-id>
+# Follow the exact start command returned for the selected action.
+```
+
+`inputs` hashes artifacts without publishing them. `attach` additionally selects content to publish when a remote channel is configured. Snapshots include effective choices/targets and relevant artifacts; material changes require reissue. Unrelated edits do not invalidate the approval.
+
+Continue resumes the saved event suffix and original role. Stop ends it without undoing effects. A skill/agent/prompt action replaces it: remaining hooks are cancelled, and there is no automatic return. Checkpoints run before ordinary effects by default; opt-in `afterEffects: true` requires appropriate explicit ordering and displays what already happened.
+
+Logical role names work across providers. External targets must declare `completion: "reported"`; prompt actions use the same explicit start/complete wrapper. A lifecycle acknowledgment or reported result is not proof of semantic correctness.
+
+### Rules and loop limits
+
+Rules are optional explicit authorization for automatic routing:
+
+```json
+{
+  "if": { "verdict.code": "ready" },
+  "choose": "continue"
+}
+```
+
+Place rules only on an event that guarantees their inputs, for example a `plan-critic.post` checkpoint with a declared `continue` choice. The `plan.post` checkpoint above does not provide a verdict. Each `choose` must name a declared choice. First exact match wins after trimming/case folding. No match asks you. Plan Critic reports `ready`, `revisions` or `replan`; Review reports `pass`, `changes-required` or `blocked`, separately from display text.
+
+Automatic chains default to eight role hops. Repeated routing visibly pauses; repeated automatic checkpoints ask a person. Only an actual user answer/instruction starts a new chain. Resolver scripts and terminal human-verification prompts are deferred.
+
+### Answering from GitHub
+
+Add `github` to checkpoint options, for example:
+
+```json
+{
+  "github": {
+    "repo": "example/private-decisions",
+    "target": "issue",
+    "approvers": ["example-user"]
+  },
+  "attach": ["${plan.file}"]
+}
+```
+
+The CLI needs authenticated `gh` only for this channel. An explicit repo is authoritative; it never silently migrates to a public source PR. Public posting requires `allowPublic: true` at every destination. Attachments are explicit, workspace-confined files; a collapsed attachment still publishes its content. Runtime/credential paths are excluded. An attachment whose path comes from a payload variable (such as `${plan.file}`) is published only when it resolves inside `.spec-lite/`; otherwise its hash still binds the approval and the comment lists it as withheld. List a file literally in `attach` to publish it from elsewhere.
+
+Reply with both choice and decision ID:
+
+```text
+/critique d-0123456789
+/revise d-0123456789 merge features 4 and 5
+/stop d-0123456789
+```
+
+Only configured approver IDs count. Without `approvers`, the authenticated `gh` account is the only approver; the coding agent can post with that same account, so `hook validate` warns. Name a different account when approval must come from someone other than the agent. Edited comments require a new reply. Old IDs, prefix collisions, expired or already-answered questions cannot redirect newer work. The first locally accepted valid chat/remote answer wins. An accepted reply gets a 👍 reaction; an approver's command that names the decision but cannot answer it (unknown choice, edited, expired) gets 😕 once. Publication/reaction failures never silently approve work or erase a local answer.
+
+The whole rendered comment has a 48 KiB UTF-8 budget, including metadata. Attachment display may be truncated with a note; the full content hash remains bound to the approval. Notifications can be ordinary hooks on `checkpoint.pending`; no background poller is installed automatically.
+
+### Waiting and resuming
+
+The hook itself never waits for a person: it saves a checkpoint and exits. The default agent behavior is to show choices and yield. A chat answer runs `decide`; a phone answer is collected by the next inspection.
+
+An optional `spec-lite next <id> --wait <duration>` watches for a valid saved answer for a finite, host-appropriate duration, capped at 60 seconds per call. A local answer is noticed within about a second; GitHub polling defaults to 30 seconds and respects errors/rate limits. A timeout stays pending. Do not repeat waits automatically or depend on vendor cache lifetimes.
+
+Automatic continuation needs a live host integration that can deliver completion to an agent. No such capability is required for the portable flow, and a remote comment cannot reopen a closed session. Start a live session and ask it to resume.
+
+Runtime state is shared by the same clone's linked worktrees, not across machines/clones. Delegates return checkpoint/control results to the parent instead of waiting independently.
+
+### Recovery and security
+
+Use `next` to inspect pending/ready/running/interrupted state; `next --all` adds terminal history. Expired questions need explicit reissue; cancellation keeps work paused until replacement or stop. The deadline defaults to 72 hours and applies to both local and remote acceptance.
+
+An acknowledged owner is not silently reassigned after a crash. Stop/reconcile the old agent, then use the returned generation and recovery command. A role's own execution has no action record: when its session ends, `next` lists it as running with an `execution recover` command. `--mode resume` returns its context so a new session can carry the same execution ID; `--mode stop` ends it so the scope can start again. A resumed ID is not fenced against a process that is still running, so stop the earlier session first. Uncertain external effects need reconciliation rather than blind replay.
+
+If an interrupted lock prevents inspection, follow the CLI's exact diagnostic: stop all spec-lite processes, inspect the named lock, and remove only a confirmed orphan. Unknown or live lock owners are never automatically displaced.
+
+Feedback remains scoped task input. TTY prompts and executor-owned credentials do not independently verify a human. Permission controls and the user's authorized scope stay in effect. The [CLI recovery reference](../usage.md#action-and-decision-management) lists commands.
+
+### Control results and publication
+
+JSON exposes protocol, status, IDs, context/continuation, outcomes/effects and saved action. Text has context/worktree lines and one final control marker. Results omit stored approval snapshots and options; add `--verbose` to `hook run` or `next` to include them. Exit 0 includes pending and terminal state; proceed only when the status explicitly permits the continuation. Exits 1/2/3/4 mean operational failure, contract error, blocked gate and retryable busy.
+
+Decisions, feedback, counters, chains, owners, snapshots and diagnostics live in `<git-common-dir>/spec-lite/` (directories `0700`, files `0600` where the platform supports modes). A workflow whose records are all terminal and untouched for 30 days is pruned, at most once a day, when a role starts or `next` lists state; paused, blocked, interrupted or running work and parents of other workflows are kept. Temporary files expire after a day. Existing feature audit logs retain their specific local exclusion and commit guard. Track plans/specs/changesets normally; do not ignore an entire project's artifact directory to hide logs.
+
+Automatic commits refuse forced-staged feature hook logs and copied runtime records (identified by their generated IDs); ordinary project paths such as `docs/decisions/`, `tmp/` or `events/` are never treated as runtime state. Git ignores do not untrack files. Package release checks inspect actual npm contents, including included subdirectories. GitHub posting is an independent publication boundary. Dry runs write no state, locks, temp/payload files, logs, worktrees or remote content.
+
 ## Failure handling and exit codes
+
+The following 0–2 table describes legacy stateless calls. Protocol 2 also returns blocked/busy exits 3/4 and requires inspecting the final status even on exit 0; see [Control results](#control-results-and-publication).
 
 `spec-lite hook run` exits:
 
@@ -1057,7 +1268,7 @@ Every dispatch for a feature is appended to
 
 This is also what `once: true` reads to decide whether a hook has already run.
 The log is local: the first time a clone writes one, spec-lite adds
-`.spec-lite/**/hooks.log.jsonl` to `.git/info/exclude`, so it is never committed.
+`.spec-lite/**/hooks.log.jsonl` to `.git/info/exclude`, so ordinary staging excludes it. Already-tracked or force-staged logs still require a staged-log guard; automatic commits refuse those changes.
 To make that rule visible to your team, add the same line to `.gitignore`.
 
 ## Turning hooks off

@@ -36,7 +36,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Concrete event names or wildcard patterns (e.g. \"implement.*\"). Known concrete events: brainstorm.pre, brainstorm.post, plan.pre, plan.post, plan-feature.pre, plan-feature.post, architect.pre, architect.post, plan-critic.pre, plan-critic.post, build-data-model.pre, build-data-model.post, feature.pre, feature.post, feature.spec.post, implement.pre, implement.post, implement.task.pre, implement.task.post, implement.feature.post, review.pre, review.post, review.verdict, fix.pre, fix.post, write-unit-tests.pre, write-unit-tests.post, write-integration-tests.pre, write-integration-tests.post, document.pre, document.post, document-design.post, document-feature.post, document-usage.post, document-readme.post, devops.pre, devops.post, memorize.post, todo.post, tool-help.post, yolo.pre, yolo.post, yolo.phase.post, hook.error."
+          "description": "Concrete event names or wildcard patterns (e.g. \"implement.*\"). Known concrete events: brainstorm.pre, brainstorm.post, plan.pre, plan.post, plan-feature.pre, plan-feature.post, architect.pre, architect.post, plan-critic.pre, plan-critic.post, build-data-model.pre, build-data-model.post, feature.pre, feature.post, feature.spec.post, implement.pre, implement.post, implement.task.pre, implement.task.post, implement.feature.post, review.pre, review.post, review.verdict, fix.pre, fix.post, write-unit-tests.pre, write-unit-tests.post, write-integration-tests.pre, write-integration-tests.post, document.pre, document.post, document-design.post, document-feature.post, document-usage.post, document-readme.post, devops.pre, devops.post, memorize.post, todo.post, tool-help.post, yolo.pre, yolo.post, yolo.phase.post, hook.error, checkpoint.pending, checkpoint.resolved."
         },
         "type": {
           "enum": [
@@ -75,6 +75,19 @@
         "once": {
           "type": "boolean",
           "default": false
+        },
+        "gate": {
+          "type": "boolean",
+          "default": false
+        },
+        "maxRounds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 3
+        },
+        "completion": {
+          "const": "reported"
         },
         "payloadSchema": {
           "type": "object"
@@ -137,6 +150,34 @@
       },
       "additionalProperties": false,
       "allOf": [
+        {
+          "if": {
+            "required": [
+              "gate"
+            ],
+            "properties": {
+              "gate": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "onFailure"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "command",
+                  "script"
+                ]
+              },
+              "onFailure": {
+                "const": "abort"
+              }
+            }
+          }
+        },
         {
           "if": {
             "required": [
@@ -304,6 +345,419 @@
                     ],
                     "properties": {
                       "builtin": {
+                        "const": "checkpoint"
+                      }
+                    }
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "builtin"
+                      ]
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "properties": {
+                      "name": {
+                        "const": "checkpoint"
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "options": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "question",
+                  "choices"
+                ],
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "description": "Durable checkpoint question; see the Hook Protocol."
+                  },
+                  "choices": {
+                    "type": "object",
+                    "minProperties": 2,
+                    "propertyNames": {
+                      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                      "not": {
+                        "const": "ask"
+                      }
+                    },
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "description"
+                      ],
+                      "properties": {
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "\\S"
+                        },
+                        "skill": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "\\S"
+                        },
+                        "agent": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "\\S"
+                        },
+                        "prompt": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "\\S"
+                        },
+                        "args": {
+                          "type": "string"
+                        },
+                        "continue": {
+                          "const": true
+                        },
+                        "stop": {
+                          "const": true
+                        },
+                        "completion": {
+                          "const": "reported"
+                        }
+                      },
+                      "oneOf": [
+                        {
+                          "required": [
+                            "skill"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "agent"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "prompt"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "continue"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stop"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "agent"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "skill"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "prompt"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "continue"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stop"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "prompt"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "skill"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "agent"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "continue"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stop"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "continue"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "skill"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "agent"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "prompt"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stop"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "stop"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "skill"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "agent"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "prompt"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "continue"
+                                ]
+                              }
+                            ]
+                          }
+                        }
+                      ],
+                      "allOf": [
+                        {
+                          "if": {
+                            "required": [
+                              "prompt"
+                            ]
+                          },
+                          "then": {
+                            "required": [
+                              "completion"
+                            ]
+                          }
+                        },
+                        {
+                          "if": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "continue"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "stop"
+                                ]
+                              }
+                            ]
+                          },
+                          "then": {
+                            "not": {
+                              "anyOf": [
+                                {
+                                  "required": [
+                                    "args"
+                                  ]
+                                },
+                                {
+                                  "required": [
+                                    "completion"
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "description": "Durable checkpoint choices; see the Hook Protocol."
+                  },
+                  "attach": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "uniqueItems": true,
+                    "description": "Durable checkpoint attach; see the Hook Protocol."
+                  },
+                  "inputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    },
+                    "uniqueItems": true,
+                    "description": "Durable checkpoint inputs; see the Hook Protocol."
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "if",
+                        "choose"
+                      ],
+                      "properties": {
+                        "if": {
+                          "type": "object",
+                          "minProperties": 1,
+                          "additionalProperties": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "\\S"
+                          }
+                        },
+                        "choose": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "\\S"
+                        }
+                      }
+                    },
+                    "description": "Durable checkpoint rules; see the Hook Protocol."
+                  },
+                  "github": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "target": {
+                        "enum": [
+                          "auto",
+                          "issue",
+                          "pr"
+                        ]
+                      },
+                      "repo": {
+                        "type": "string",
+                        "pattern": "^(?:[a-zA-Z0-9.-]+/)?[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$"
+                      },
+                      "approvers": {
+                        "type": "array",
+                        "minItems": 1,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]*$"
+                        }
+                      },
+                      "allowPublic": {
+                        "type": "boolean"
+                      },
+                      "pollSeconds": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 3600
+                      }
+                    },
+                    "description": "Durable checkpoint github; see the Hook Protocol."
+                  },
+                  "expiresIn": {
+                    "type": "string",
+                    "pattern": "^[1-9][0-9]{0,6}(ms|s|m|h|d)$",
+                    "description": "Durable checkpoint expiresIn; see the Hook Protocol."
+                  },
+                  "afterEffects": {
+                    "type": "boolean",
+                    "description": "Durable checkpoint afterEffects; see the Hook Protocol."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "anyOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "type"
+                      ]
+                    }
+                  },
+                  {
+                    "required": [
+                      "type"
+                    ],
+                    "properties": {
+                      "type": {
+                        "const": "builtin"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "required": [
+                      "builtin"
+                    ],
+                    "properties": {
+                      "builtin": {
                         "const": "prepare-worktree"
                       }
                     }
@@ -332,10 +786,12 @@
               "options": {
                 "type": "object",
                 "additionalProperties": false,
+                "required": [],
                 "properties": {
                   "fromBranch": {
                     "type": "string",
                     "minLength": 1,
+                    "pattern": "\\S",
                     "description": "Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Default: the main checkout's current branch; `validate` warns when unset."
                   },
                   "fetch": {
@@ -345,11 +801,13 @@
                   "remote": {
                     "type": "string",
                     "minLength": 1,
+                    "pattern": "\\S",
                     "description": "Remote `fetch` reads from. Default: `origin`."
                   },
                   "worktreeRoot": {
                     "type": "string",
                     "minLength": 1,
+                    "pattern": "\\S",
                     "description": "Folder for worktrees, relative to the main checkout. Default: `.worktrees`."
                   }
                 }
@@ -417,15 +875,18 @@
               "options": {
                 "type": "object",
                 "additionalProperties": false,
+                "required": [],
                 "properties": {
                   "remote": {
                     "type": "string",
                     "minLength": 1,
+                    "pattern": "\\S",
                     "description": "Remote to push to. Recorded for `create-pull-request` and cleanup. Default: `origin`."
                   },
                   "commitMessage": {
                     "type": "string",
                     "minLength": 1,
+                    "pattern": "\\S",
                     "description": "Commit subject template using `${id}` (feature ID, or the branch), `${task}`, `${summary}`, and `${branch}`; `${task:-final}` sets a default. Default: `FEAT-020 TASK-003: <summary>`."
                   }
                 }
@@ -493,6 +954,10 @@
               "options": {
                 "type": "object",
                 "additionalProperties": false,
+                "required": [
+                  "provider",
+                  "targetBranch"
+                ],
                 "properties": {
                   "provider": {
                     "enum": [
@@ -505,6 +970,7 @@
                   "targetBranch": {
                     "type": "string",
                     "minLength": 1,
+                    "pattern": "\\S",
                     "description": "Branch pull requests merge into. Never inferred."
                   },
                   "command": {
@@ -513,6 +979,12 @@
                     "items": {
                       "type": "string"
                     },
+                    "prefixItems": [
+                      {
+                        "type": "string",
+                        "pattern": "\\S"
+                      }
+                    ],
                     "description": "`command` provider: executable and arguments that create a PR."
                   },
                   "lookupCommand": {
@@ -521,6 +993,12 @@
                     "items": {
                       "type": "string"
                     },
+                    "prefixItems": [
+                      {
+                        "type": "string",
+                        "pattern": "\\S"
+                      }
+                    ],
                     "description": "`command` provider: executable and arguments that find existing PRs."
                   }
                 }

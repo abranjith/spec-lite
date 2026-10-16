@@ -27,7 +27,7 @@ export type EventStatus = "emitted" | "planned";
  * The base group (event, role, phase, runId, timestamp, cwd, provider,
  * payload, env) is implicit and always available.
  */
-export type VarGroup = "feature" | "task" | "changes" | "verdict" | "summary";
+export type VarGroup = "feature" | "task" | "changes" | "verdict" | "summary" | "plan" | "report" | "workflow" | "execution" | "action" | "decision" | "decision-resolved";
 
 export interface EventDefinition {
   name: string;
@@ -62,9 +62,9 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
     "Before a brainstorm session begins."),
   E("brainstorm.post", "brainstorm", "post", "emitted", ["summary"],
     "After .spec-lite/brainstorm.md is written."),
-  E("plan.pre", "plan", "pre", "emitted", [],
+  E("plan.pre", "plan", "pre", "emitted", ["plan"],
     "Before plan authoring begins."),
-  E("plan.post", "plan", "post", "emitted", ["summary"],
+  E("plan.post", "plan", "post", "emitted", ["plan", "summary"],
     "After the plan file and its FEAT-### rows are written."),
   E("plan-feature.pre", "plan-feature", "pre", "emitted", [],
     "Before a standalone feature spec is authored."),
@@ -74,9 +74,9 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
     "Before an architecture consultation begins."),
   E("architect.post", "architect", "post", "planned", ["summary"],
     "After the architecture document is written."),
-  E("plan-critic.pre", "plan-critic", "pre", "planned", [],
+  E("plan-critic.pre", "plan-critic", "pre", "emitted", ["plan"],
     "Before a plan is pressure-tested."),
-  E("plan-critic.post", "plan-critic", "post", "planned", ["summary"],
+  E("plan-critic.post", "plan-critic", "post", "emitted", ["plan", "report", "verdict", "summary"],
     "After the plan critique is written."),
   E("build-data-model.pre", "build-data-model", "pre", "planned", [],
     "Before schema design begins."),
@@ -106,9 +106,9 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
   // --- Validation ----------------------------------------------------------
   E("review.pre", "review", "pre", "emitted", [],
     "After scope resolution, before analysis."),
-  E("review.post", "review", "post", "emitted", ["summary"],
+  E("review.post", "review", "post", "emitted", ["report", "verdict", "summary"],
     "After the review report is written."),
-  E("review.verdict", "review", "signal", "emitted", ["verdict", "summary"],
+  E("review.verdict", "review", "signal", "emitted", ["report", "verdict", "summary"],
     "Carries the verdict and finding counts — the routing signal for remediation."),
   E("fix.pre", "fix", "pre", "emitted", [],
     "Before diagnosis begins. Built-in changeset baseline is captured here."),
@@ -148,14 +148,16 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
     "After a backlog item is appended."),
   E("tool-help.post", "tool-help", "post", "planned", ["summary"],
     "After a project tool is created or edited."),
-  E("yolo.pre", "yolo", "pre", "planned", [],
+  E("yolo.pre", "yolo", "pre", "emitted", [],
     "Before an autonomous run starts."),
-  E("yolo.post", "yolo", "post", "planned", ["summary"],
+  E("yolo.post", "yolo", "post", "emitted", ["summary"],
     "After an autonomous run completes."),
   E("yolo.phase.post", "yolo", "post", "planned", ["summary"],
     "After each YOLO phase."),
   E("hook.error", "*", "signal", "emitted", ["summary"],
     "A hook failed. Lets you route hook failures somewhere visible."),
+  E("checkpoint.pending", "*", "signal", "emitted", ["decision", "workflow", "summary"], "A durable checkpoint is waiting; URL is optional."),
+  E("checkpoint.resolved", "*", "signal", "emitted", ["decision", "decision-resolved", "workflow", "summary"], "A durable answer was recorded; URL is optional."),
 ];
 
 const BY_NAME = new Map(EVENT_CATALOG.map((e) => [e.name, e]));

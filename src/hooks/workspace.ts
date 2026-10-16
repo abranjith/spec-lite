@@ -24,7 +24,7 @@ export interface HookRelevantConfig {
   provider?: string;
   /** Every configured harness alias. */
   providers?: string[];
-  hooks?: { enabled?: boolean };
+  hooks?: { enabled?: boolean; maxChain?: number };
 }
 
 /**

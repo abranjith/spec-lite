@@ -118,7 +118,7 @@ export function renderGitWorkflowHooksJson(): string {
 
 function optionType(schema: Record<string, unknown>): string {
   if (Array.isArray(schema.enum)) return schema.enum.map((value) => `\`"${value}"\``).join(", ");
-  if (schema.type === "array") return "string array";
+  if (schema.type === "array") return `${(schema.items as Record<string, unknown> | undefined)?.type ?? "value"} array`;
   return String(schema.type);
 }
 

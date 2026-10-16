@@ -6,7 +6,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import { loadRegistry, hooksForEvent, hookIsSkipped } from "./registry.js";
-import { excludeHookLogs } from "./builtins/git-workflow.js";
+import { excludeHookLogs, git } from "./builtins/git-workflow.js";
 import { buildPayload, writePayloadFile, refreshChanges, type BuildPayloadOptions } from "./payload.js";
 import { runShellHook } from "./executors/shell.js";
 import { runHttpHook } from "./executors/http.js";
@@ -19,10 +19,19 @@ import { previewHook } from "./preview.js";
 import { validatePayloadForHook } from "./payload-validation.js";
 import type { HookPayload, HookResult, ResolvedHook } from "./types.js";
 import type { ResolveContext } from "./interpolation.js";
+import { runControlledEvent, controlFailure, legacyBarrier } from "./control/engine.js";
+import { checkpoint } from "./control/validation.js";
+import { ControlError, type ControlResult } from "./control/types.js";
+import { Store } from "./control/store.js";
 
 const MAX_HOOK_DEPTH = 3;
 
 export interface RunEventOptions extends BuildPayloadOptions {
+  protocol?: string | number;
+  execution?: string;
+  action?: string;
+  retry?: string;
+  parent?: string;
   dryRun?: boolean;
   /** Restrict dispatch to a single hook by name — used by `spec-lite hook test`. */
   only?: string;
@@ -33,7 +42,9 @@ export interface RunEventOptions extends BuildPayloadOptions {
 export interface RunEventReport {
   payload: HookPayload;
   results: HookResult[];
-  exitCode: 0 | 1 | 2;
+  exitCode: 0 | 1 | 2 | 3 | 4;
+  protocol?: 2;
+  status?: ControlResult["status"];
   registryIssues: string[];
   /** True when `.spec-lite.json` has `hooks.enabled: false` — nothing dispatched. */
   disabled?: boolean;
@@ -78,12 +89,15 @@ async function alreadyRanOnce(root: string, featureDir: string | undefined, hook
 }
 
 export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
+  if (opts.protocol !== undefined) opts = { ...opts, root: await git(opts.root, ["rev-parse", "--show-toplevel"]).catch(() => opts.root) };
   const skip = [...(opts.skip ?? []), ...(process.env.SPEC_LITE_SKIP_HOOKS ?? "").split(",").map((name) => name.trim()).filter(Boolean)];
   opts = { ...opts, skip };
   const { depth, chain } = currentChain();
   const payload = await buildPayload(opts);
+  if (opts.protocol !== undefined && String(opts.protocol) !== "2") return { ...controlFailure(new ControlError("protocol-version", "Supported control protocol: 2. Update the caller before running hooks.", 2)), payload };
 
   if (depth >= MAX_HOOK_DEPTH) {
+    if (opts.protocol !== undefined) return { ...controlFailure(new ControlError("recursion-limit", `Hook recursion depth ${depth} reached the in-process cap of ${MAX_HOOK_DEPTH}.`, 2)), payload };
     return {
       payload,
       results: [{
@@ -96,6 +110,12 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   }
 
   if (await hooksDisabled(opts.root)) {
+    if (opts.protocol !== undefined) {
+      // Outside Git there is no durable store and nothing to route: a disabled kill switch stays a no-op.
+      if (!(await durableStoreAvailable(opts.root))) return { ...statelessControl({ payload, results: [], exitCode: 0, registryIssues: [] }), disabled: true };
+      const controlled = await runControlledEvent(opts, payload, []); return { ...controlled, payload: controlled.payload ?? payload, disabled: true };
+    }
+    const barrier = await legacyBarrier(opts, payload); if (barrier) return { ...barrier, payload };
     return { payload, results: [], exitCode: 0, registryIssues: [], disabled: true };
   }
 
@@ -104,6 +124,7 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   // subscribed to the event that was meant. The kill switch above still wins,
   // so a clone with hooks disabled never fails on one.
   if (!getEvent(opts.event)) {
+    if (opts.protocol !== undefined) return { ...controlFailure(new ControlError("unknown-event", `Unknown event ${opts.event}.`, 2)), payload };
     return {
       payload,
       results: [{
@@ -126,9 +147,53 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   // firing a partially-valid registry is how side effects happen against a
   // config the user has not actually got right yet.
   if (issues.some((i) => i.level === "error")) {
+    if (opts.protocol !== undefined) return { ...controlFailure(new ControlError("registry-invalid", registryIssues.join("\n"), 2)), payload, registryIssues };
     return { payload, results: [], exitCode: 2, registryIssues };
   }
 
+  if (opts.protocol !== undefined || subscribed.some((hook) => hook.gate || checkpoint(hook))) {
+    const active = subscribed.filter((h) => !hookIsSkipped(h, skip));
+    // Durable context needs a Git store. Without one, stateless hooks keep their original behavior;
+    // gates, checkpoints and routing still fail visibly in the engine.
+    if (opts.protocol !== undefined && !active.some(durableHook) && !(await durableStoreAvailable(opts.root))) {
+      return statelessControl(await runStateless(opts, payload, subscribed, skip, depth, chain, registryIssues));
+    }
+    const controlled = await runControlledEvent(opts, payload, active);
+    return { ...controlled, payload: controlled.payload ?? payload };
+  }
+  const barrier = await legacyBarrier(opts, payload);
+  if (barrier) return { ...barrier, payload };
+
+  return runStateless(opts, payload, subscribed, skip, depth, chain, registryIssues);
+}
+
+/** True when the hook needs durable control state (a Git checkout). */
+const durableHook = (hook: ResolvedHook): boolean => !!hook.gate || checkpoint(hook) || isAgenticKind(hook.type);
+
+async function durableStoreAvailable(root: string): Promise<boolean> {
+  try { await Store.open(root); return true; } catch { return false; }
+}
+
+/** Protocol-2 envelope for a stateless dispatch: no IDs, because no durable context exists. */
+function statelessControl(report: RunEventReport): RunEventReport & ControlResult {
+  const failed = report.exitCode !== 0;
+  return {
+    ...report, protocol: 2, status: failed ? "error" : "continue", exitCode: report.exitCode,
+    message: "Stateless run: not a Git checkout, so no durable context was created. Later events need no --execution.",
+    ...(failed ? { error: { code: report.exitCode === 2 ? "contract-error" : "hook-failed", message: report.results.filter((r) => r.status === "failed").map((r) => `${r.name}: ${r.message ?? "failed"}`).join("; ") || "Hook dispatch failed." } } : {}),
+  };
+}
+
+/** Original stateless dispatch: every subscribed hook in order, with the per-hook failure policy. */
+async function runStateless(
+  opts: RunEventOptions,
+  payload: HookPayload,
+  subscribed: ResolvedHook[],
+  skip: string[],
+  depth: number,
+  chain: string[],
+  registryIssues: string[] = []
+): Promise<RunEventReport> {
   const payloadFile = opts.dryRun ? undefined : await writePayloadFile(payload);
   const results: HookResult[] = [];
   let aborted = false;
@@ -214,6 +279,7 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   }
 
   const exitCode: 0 | 1 | 2 = contractFailed ? 2 : aborted ? 1 : 0;
+  if (payloadFile) await fs.remove(payloadFile);
   return { payload, results, exitCode, registryIssues };
 }
 
@@ -256,6 +322,7 @@ async function emitHookError(
     const result = await dispatch(handler, { payload: errorPayload, payloadFile }, opts.root, depth, [...chain, chainKey], opts.skip);
     await appendLog(opts.root, payload.feature?.dir, result);
   }
+  await fs.remove(payloadFile);
 }
 
 async function dispatch(

@@ -66,17 +66,17 @@ describe("catalog integrity", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("emits exactly the 7 v1-wired roles plus the cross-cutting hook.error", () => {
+  it("emits the nine instrumented roles and cross-cutting control signals", () => {
     const roles = new Set(EVENT_CATALOG.filter((e) => e.status === "emitted").map((e) => e.role));
     expect([...roles].sort()).toEqual(
-      ["*", "brainstorm", "feature", "fix", "implement", "plan", "plan-feature", "review"].sort()
+      ["*", "brainstorm", "feature", "fix", "implement", "plan", "plan-critic", "plan-feature", "review", "yolo"].sort()
     );
   });
 
-  it("declares 20 emitted events across the wired roles", () => {
+  it("declares 26 emitted events across the wired roles and checkpoint signals", () => {
     // brainstorm 2 + plan 2 + plan-feature 2 + feature 3 + implement 5
     // + review 3 + fix 2 + hook.error 1 = 20
-    expect(emittedEventNames()).toHaveLength(20);
+    expect(emittedEventNames()).toHaveLength(26);
   });
 
   it("resolves every catalog name through getEvent", () => {

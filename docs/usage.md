@@ -18,6 +18,8 @@ Every command supports `-h, --help`; the root command also supports
 | [`list`](#list) | Print every available agent, skill, reference, output, and stack baseline |
 | [`export`](#export) | Build one self-contained Markdown bundle from selected roles and references |
 | [`hook`](#hook) | Run and inspect lifecycle hooks |
+| [`next` / `decide`](#next-and-decide) | Inspect durable checkpoints and record user choices |
+| [`action` / `decision`](#action-and-decision-management) | Acknowledge and recover saved workflow actions |
 | [`worktree`](#worktree) | List and clean up worktrees made by the Git workflow hooks |
 
 ## init
@@ -146,6 +148,8 @@ spec-lite hook test <name> [options]
 | [`test <name>`](#hook-test-name) | Run one hook in isolation against a synthetic or supplied payload |
 
 ### hook run \<event\>
+
+Updated role prompts use `--protocol 2`, keep `--execution <id>` and optional `--action <id>` after pre, and use `--parent <id>` for fresh delegates. Gate retries use the returned `--retry <event-id>`. Resolve root work with feature, plan, fix name, review scope, artifact or YOLO ID. Legacy examples below remain stateless; a gate/checkpoint requires protocol 2. See [next and decide](#next-and-decide).
 
 ```bash
 spec-lite hook run implement.post --feature FEAT-012 --payload summary="Added expiry"
@@ -296,6 +300,49 @@ spec-lite hook test notify-slack --event review.verdict --payload ./payload.json
 `hook test` runs the real executor — a `command` hook really executes and an
 `http` hook really posts. Use `hook run --dry-run` when you want resolution
 without side effects.
+
+Durable tests also accept `--protocol 2`, `--execution`, `--action` and `--parent`.
+Checkpoint tests require explicit test scope/context; a post-event test first
+needs a scoped pre event and its returned execution ID. Testing a configured
+GitHub checkpoint also requires `--publish` because it creates real remote
+content. Prefer a disposable test repository or a dry-run preview.
+
+## next and decide
+
+Durable control works through short CLI calls across providers. A checkpoint saves state and exits; the agent displays its choices and yields. See [Gates and checkpoints](features/hooks.md#gates-and-checkpoints).
+
+```text
+spec-lite next [<decision-id>] [--wait <duration>] [--all] [--json] [--verbose]
+spec-lite decide <decision-id> <choice> [--feedback <text> | --feedback-file <path>]
+```
+
+`next` lists/inspects state, including running executions whose session may have ended, and can ingest authorized GitHub replies. `--all` adds terminal history; `--verbose` includes stored snapshots. It never chooses, consumes, starts or completes an action. `decide` records a user's actual selection, leaving delivery intact. Follow the returned start command before invoking the target.
+
+Wait requires an ID and finite duration of at most 60 seconds, within the host's call budget. Timeout stays pending; repeated foreground waiting is not the default. Remote answers do not restart closed agent sessions.
+
+Root `hook run --protocol 2` resolves scope before effects; later events retain its execution/action IDs. Delegates use `--parent <execution-id>`. An instrumented target acknowledges at its returned `.pre --action` command; external reported targets use `action start/complete`.
+
+## action and decision management
+
+```text
+spec-lite action start <id> [--execution <origin-id>]
+spec-lite action complete <id> --execution <id> --outcome <success|failed|stopped>
+spec-lite action recover <id> --generation <n> --mode <retry|stop> --reason <text>
+spec-lite execution recover <id> --generation <n> --mode <resume|stop> --reason <text>
+spec-lite decision cancel <id> --reason <text>
+spec-lite decision reissue <id> --reason <text>
+spec-lite hook recover <event-id> --generation <n> --mode <retry|stop|override> --reason <text> [--checks <names>]
+```
+
+`action start` applies continue/stop controls or claims an external reported target; instrumented roles normally use their returned pre command. Continue resumes the event suffix, stop ends it, and a handoff replaces it without automatic return.
+
+`action complete` records external completion without claiming independent verification. Instrumented completion must match the owning lifecycle context.
+
+Cancel keeps the workflow paused. Reissue creates a new ID/snapshot and rejects running actions. Recovery needs an actual user instruction, current generation and reason; stop/reconcile an old executor before takeover. `execution recover` handles a role's own execution after its session ended: `resume` returns the context to carry, `stop` releases the scope. A named check override is distinct from a pass.
+
+State is local to the clone and linked worktrees under the Git common directory, never committed or packaged; terminal workflows are pruned after 30 days. Outside a Git checkout, events with only stateless hooks run without durable context. Use `next` for exact IDs and recovery guidance rather than editing runtime files.
+
+Protocol-2 exit codes: 0 valid result requiring status inspection, 1 operational/guard failure, 2 contract error, 3 blocked gate, 4 retryable busy. Timeout is a valid pending result. Existing authorization and permission settings still apply.
 
 ## worktree
 

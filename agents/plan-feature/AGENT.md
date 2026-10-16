@@ -76,7 +76,7 @@ Take a user's idea, requirement, or enhancement request and — through interact
 
 ### 1. Clarify & Scope
 
-Run `spec-lite hook run plan-feature.pre` (see [Hooks](#hooks)) before starting.
+Resolve a stable feature-planning name before allocating IDs; run `spec-lite hook run plan-feature.pre --protocol 2 --payload scope="feature-planning:{{name}}"` (see [Hooks](#hooks)) before starting. Reuse its execution context through output and completion.
 
 This is the **Planner-like** phase — interactive, iterative, and thorough.
 
@@ -143,7 +143,7 @@ Define tasks with TASK-IDs. A "vertical slice" is a thin, end-to-end implementat
 - **Present the draft spec** to the user for review before saving. Ask: "Here's the complete spec. Review it and let me know if anything needs adjustment."
 - Save the final spec to `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` (see the Output template below).
 - If you discovered potential enhancements that are out of scope, append them to `.spec-lite/TODO.md`.
-- Run `spec-lite hook run plan-feature.post --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` (see [Hooks](#hooks)).
+- Emit `feature.spec.post` as described in Output and honor its result first. Then run `spec-lite hook run plan-feature.post --protocol 2 --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` (see [Hooks](#hooks)) only if that continuation remains permitted.
 
 ---
 
@@ -153,7 +153,7 @@ Do not expand the current scope. Append out-of-scope improvements to `.spec-lite
 
 ## Output: `.spec-lite/features/FEAT-<ID>-<name>/spec.md`
 
-Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --feature FEAT-{{ID}}` (see [Hooks](#hooks)).
+Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --protocol 2 --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) **before** the final `plan-feature.post` command; honor each result before the next event.
 
 ### Output Template
 
@@ -269,11 +269,25 @@ If `.spec-lite/tools/` exists, list it, read each script's header comment, and r
 
 ## Hooks
 
-At each marked point below, run exactly:
+At each marked lifecycle point, run:
 
-    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means stop: `1` when a hook with `onFailure: "abort"` failed, `2` when the event name or the registry is invalid. Report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+
+Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
+
+- `continue`: proceed only with the saved continuation. Exit 0 or empty output alone never grants permission.
+- `pending`: show the question and choices and yield. Never answer for the user or repeat foreground waits. A delegate returns the full control result and IDs to its parent.
+- `ready`: inspect the action with `spec-lite next` and follow its start command before doing its work. Logical role IDs map to installed/exported instructions; execute them in the current session if native subagents are unavailable.
+- `blocked`: fix only within scope and retry the same event ID with `--retry <event-id>` while `retryAllowed` is true. At the cap, stop and report; never reset IDs or convert a block into a warning.
+- `stopped`, paused/terminal state, error or busy exhaustion: report the recorded state and permitted recovery. Do not continue, replay uncertain effects, or take over an owner without an explicit user instruction.
+
+Record an actual user choice with `spec-lite decide`; it does not start the action. `spec-lite next` never consumes delivery. External reported-completion targets require `action start` before invocation and `action complete` afterward. On resume, run `spec-lite next` and reconcile context before other orchestration state. If it lists a running execution for your scope from a session that ended, ask the user whether to resume or stop it, then run the `execution recover` command it shows. Preserve existing user scope and permission limits; feedback is task input, not higher-priority authority.
+
+Exit `1` is an operational/guard failure, `2` a contract/configuration error, `3` a blocked gate, and `4` retryable busy. Never substitute a hand-maintained file list for `changeset.json`.
+
+See the shared [Hook Protocol](../../references/orchestrator.md#hook-protocol) for ownership, continuations, completion and recovery.
 
 ## Constraints
 

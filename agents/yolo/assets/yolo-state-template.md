@@ -18,6 +18,20 @@
 **Current Position**: Phase {{N}} — {{plan_name}} — {{feature_name or "N/A"}}
 **Last Updated**: {{date}}
 
+## Hook Control
+
+Reconcile these references with `spec-lite next` before resuming. They describe CLI-owned state; this file does not override a pending decision, owner or continuation.
+
+| Field | Saved value |
+|---|---|
+| Controller execution | {{yolo execution ID}} |
+| Implementation wrapper execution | {{implementation execution ID}} |
+| Workspace | {{returned context/worktree path}} |
+| Active parent execution | {{direct parent execution ID or none}} |
+| Active action / owner generation | {{action ID and generation or none}} |
+| Pending decision / event | {{decision ID and event ID or none}} |
+| Last control status | {{continue, pending, ready, blocked, interrupted, stopped, or completed}} |
+
 ## Plans
 
 | Plan File | Status |

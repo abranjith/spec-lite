@@ -17,6 +17,7 @@ import { resolvePattern, getEvent, type EventDefinition } from "./events.js";
 import { validateTemplate } from "./interpolation.js";
 import { isHookDefinition, SETTINGS_FIELDS } from "./types.js";
 import type { HookDefinition, HookEntry, HookRegistryFile, HookSource, ResolvedHook } from "./types.js";
+import { flowHookErrors, flowOrderErrors, effectiveOrder } from "./control/validation.js";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 const validateSchema = ajv.compile(buildHooksSchema());
@@ -106,6 +107,7 @@ function eventsForHook(hook: HookDefinition): { events: EventDefinition[]; issue
 
 function validateHook(hook: HookDefinition): RegistryIssue[] {
   const issues: RegistryIssue[] = [];
+  issues.push(...flowHookErrors(hook).map((message) => ({ level: "error" as const, hook: hook.name, message })));
   const { events, issues: eventIssues } = eventsForHook(hook);
   issues.push(...eventIssues);
 
@@ -267,6 +269,7 @@ export async function loadRegistry(root: string, options: LoadRegistryOptions = 
 
   for (const hook of enabled) if (!hookIsSkipped(hook, options.skip ?? [])) issues.push(...validateHook(hook));
   issues.push(...validateGitWorkflow(enabled));
+  issues.push(...flowOrderErrors(enabled.filter((h) => !hookIsSkipped(h, options.skip ?? [])), false).map((message) => ({ level: "error" as const, message })));
 
   return { hooks: options.includeDisabled ? merged : enabled, issues };
 }
@@ -349,6 +352,6 @@ export function hooksForEvent(hooks: ResolvedHook[], eventName: string): Resolve
   return hooks
     .map((hook, index) => ({ hook, index }))
     .filter(({ hook }) => hook.events.some((pattern) => resolvePattern(pattern).matched.some((e) => e.name === eventName)))
-    .sort((a, b) => (a.hook.order ?? 100) - (b.hook.order ?? 100) || a.index - b.index)
+    .sort((a, b) => effectiveOrder(a.hook) - effectiveOrder(b.hook) || a.index - b.index)
     .map(({ hook }) => hook);
 }

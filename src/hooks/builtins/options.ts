@@ -10,6 +10,8 @@
  * Pure: no Git or filesystem access.
  */
 import path from "node:path";
+import Ajv2020 from "ajv/dist/2020.js";
+import { CHECKPOINT_PROPERTIES, checkpointErrors } from "../control/validation.js";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -47,10 +49,20 @@ export interface OptionsReport { errors: string[]; warnings: string[] }
 export const COMMIT_VARS = ["id", "task", "summary", "branch"] as const;
 export const COMMIT_TEMPLATE_RE = /\$\{(\w+)(?::-([^}]*))?\}/g;
 
-const text: JsonSchema = { type: "string", minLength: 1 };
-const argv: JsonSchema = { type: "array", minItems: 1, items: { type: "string" } };
+const text: JsonSchema = { type: "string", minLength: 1, pattern: "\\S" };
+// The program name must be non-blank; later arguments may legitimately be empty strings.
+const argv: JsonSchema = { type: "array", minItems: 1, items: { type: "string" }, prefixItems: [{ type: "string", pattern: "\\S" }] };
 
 export const BUILTIN_OPTIONS: Record<string, BuiltinOptionsSpec> = {
+  checkpoint: {
+    options: Object.fromEntries(Object.entries(CHECKPOINT_PROPERTIES).map(([name, schema]) => [name, { schema, required: ["question", "choices"].includes(name), description: `Durable checkpoint ${name}; see the Hook Protocol.` }])),
+    validate: (options) => ({
+      errors: checkpointErrors(options),
+      warnings: options.github && !(options.github as { approvers?: string[] }).approvers?.length
+        ? ["options.github.approvers is unset, so the authenticated gh account is the only approver. The coding agent can post with that same account; name a different account for independent approval."]
+        : [],
+    }),
+  },
   "prepare-worktree": {
     options: {
       fromBranch: {
@@ -147,17 +159,13 @@ export function optionsSchema(spec: BuiltinOptionsSpec): JsonSchema {
   return {
     type: "object",
     additionalProperties: false,
+    required: Object.entries(spec.options).filter(([, option]) => option.required).map(([name]) => name),
     properties: Object.fromEntries(Object.entries(spec.options).map(([name, option]) => [name, { ...option.schema, description: option.description }])),
   };
 }
 
-const matchesSchema = (value: unknown, schema: JsonSchema): boolean => {
-  if (Array.isArray(schema.enum)) return schema.enum.includes(value);
-  if (schema.type === "boolean") return typeof value === "boolean";
-  if (schema.type === "string") return typeof value === "string" && value.trim().length > 0;
-  if (schema.type === "array") return Array.isArray(value) && value.length > 0 && value.every((v) => typeof v === "string") && !!value[0].trim();
-  return true;
-};
+const optionAjv = new Ajv2020({ strict: false });
+const matchesSchema = (value: unknown, schema: JsonSchema): boolean => optionAjv.validate(schema, value) as boolean;
 
 /**
  * Check a builtin's options. The registry schema already rejects wrong types

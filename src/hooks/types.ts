@@ -120,6 +120,12 @@ export interface HookDefinition {
   onFailure?: HookFailurePolicy;
   /** When true, skip if this hook already ran for the current runId. */
   once?: boolean;
+  /** Explicitly rerunnable check; requires protocol 2 and abort-on-failure. */
+  gate?: boolean;
+  /** Total check rounds in one saved remediation episode (initial round included). */
+  maxRounds?: number;
+  /** External targets acknowledge completion through the reported wrapper. */
+  completion?: "reported";
   /** Optional JSON Schema validated against the payload BEFORE invocation. */
   payloadSchema?: Record<string, unknown>;
 

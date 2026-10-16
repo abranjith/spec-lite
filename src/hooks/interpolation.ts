@@ -40,6 +40,7 @@
 
 import type { HookPayload } from "./types.js";
 import type { EventDefinition, VarGroup } from "./events.js";
+import path from "node:path";
 
 /** Where a substituted value will land, which determines how it is escaped. */
 export type EscapeContext =
@@ -87,6 +88,14 @@ const V = (
 ): VarDefinition => ({ name, group, description, example, resolve });
 
 export const INTERPOLATION_VARS: readonly VarDefinition[] = [
+  V("plan.file", "plan", "Canonical source plan path (source-plan modes only).", ".spec-lite/plan_orders.md", (c) => typeof c.payload.plan === "string" ? c.payload.plan : undefined),
+  V("plan.name", "plan", "Source plan name.", "orders", (c) => typeof c.payload.plan === "string" ? path.basename(c.payload.plan, ".md").replace(/^plan[_-]?/, "") || "plan" : undefined),
+  V("report.file", "report", "Report-producing event's output path.", ".spec-lite/reviews/review_orders.md", (c) => typeof c.payload.report === "string" ? c.payload.report : undefined),
+  V("verdict.code", "verdict", "Stable structured verdict code.", "ready", (c) => typeof c.payload.verdictCode === "string" ? c.payload.verdictCode : undefined),
+  V("workflow.id", "workflow", "Durable workflow identity (protocol 2).", "w-1234", (c) => (c.payload.workflow as { id?: string })?.id),
+  V("execution.id", "execution", "Lifetime role owner identity (protocol 2).", "x-1234", (c) => (c.payload.execution as { id?: string })?.id),
+  V("action.id", "action", "Owning action, when present; otherwise use a fallback.", "a-1234", (c) => (c.payload.action as { id?: string })?.id),
+  ...(["id", "question", "status", "url", "choice", "actor", "feedbackFile"] as const).map((field) => V(`decision.${field}`, ["choice", "actor", "feedbackFile"].includes(field) ? "decision-resolved" : "decision", `Checkpoint ${field}; URL is optional.`, field === "id" ? "d-1234" : field, (c) => (c.payload.decision as Record<string,string>)?.[field])),
   // --- base: present on every event ---------------------------------------
   V("event", "base", "Full dotted event name.", "implement.post",
     (c) => c.payload.event),
@@ -276,6 +285,8 @@ export function validateTemplate(
     }
 
     if (ref.fallback !== undefined || def.group === "base") continue;
+    if (["workflow.id", "execution.id"].includes(ref.name)) continue; // guaranteed to protocol 2 callers
+    if (ref.name === "decision.url") { errors.push(`${label}: decision.url is optional; use a fallback.`); continue; }
 
     const missing = subscribedEvents.filter((e) => !e.provides.includes(def.group as VarGroup));
     if (missing.length > 0) {

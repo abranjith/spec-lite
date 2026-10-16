@@ -57,7 +57,7 @@ Natural-language requests such as "review vulnerable packages" or "use the revie
 ### 1. Establish Context
 
 1. Resolve exactly one scope and confirm every path exists.
-2. Run `spec-lite hook run review.pre` (see [Hooks](#hooks)) — after scope is resolved, before analysis begins.
+2. Run `spec-lite hook run review.pre --protocol 2 --payload scope="{{stable-scope-key}}"` (see [Hooks](#hooks)) after scope resolution, before analysis. For a feature or plan also pass `--feature FEAT-{{ID}}` or `--payload plan="{{plan-file}}"`. Retain those scope flags and execution/action context.
 3. Read memory, the governing plan, relevant feature specs, data model, and prior report when re-reviewing.
 4. Read scoped source and adjacent tests/config only where necessary to understand behavior.
 5. If `.spec-lite/tools/` exists, follow [Project Tools](#project-tools).
@@ -106,7 +106,8 @@ Package vulnerabilities are **Security** findings in this same sequence, not a s
 - **Request changes** when any Critical or High finding exists.
 - **Approve with suggestions** when findings are only Medium/Low, or required checks are incomplete/unavailable; prominently qualify the latter verdict and identify what is still unverified.
 - **Approve** when no actionable findings exist and required checks are complete or demonstrably Not applicable. A user-directed skip must be disclosed and the verdict limited to the checks performed; never describe skipped dependency checks as clean.
-- After writing the report, run `spec-lite hook run review.post --payload summary="{{one-line verdict and finding counts}}"` (see [Hooks](#hooks)), then `spec-lite hook run review.verdict --payload verdict="{{verdict}}" --payload summary="{{one-line summary}}"` — `review.verdict` is the routing signal Critical/High findings use to reach **Fix**.
+- Derive `verdictCode` explicitly: `changes-required` when actionable findings require work, `blocked` when required checks/scope are incomplete and prevent a complete assessment, otherwise `pass`. Keep the display verdict separate.
+- After writing the report, run `spec-lite hook run review.post --protocol 2 --execution {{execution-id}} --payload report="{{report-file}}" --payload verdict="{{verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line verdict and finding counts}}"` (see [Hooks](#hooks)). Process its result before `spec-lite hook run review.verdict --protocol 2 --execution {{execution-id}} --payload report="{{report-file}}" --payload verdict="{{verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line summary}}"`. Retain scope/action flags. If the first event pauses, stops or replaces this continuation, do not fire the second until permitted; do not rerun analysis. `review.verdict` is the remediation routing signal.
 
 ## Output
 
@@ -216,11 +217,25 @@ If `.spec-lite/tools/` exists, list it, read each script's header comment, and r
 
 ## Hooks
 
-At each marked point below, run exactly:
+At each marked lifecycle point, run:
 
-    spec-lite hook run <event> [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-using the event name given at that point, then carry out any `SPEC-LITE-DIRECTIVE` line it prints, in order, before continuing — each one names a skill, agent, or prompt to invoke. A non-zero exit means stop: `1` when a hook with `onFailure: "abort"` failed, `2` when the event name or the registry is invalid. Report it rather than continuing. Never substitute a hand-maintained file list for what a hook reports — `changeset.json` is authoritative.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+
+Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
+
+- `continue`: proceed only with the saved continuation. Exit 0 or empty output alone never grants permission.
+- `pending`: show the question and choices and yield. Never answer for the user or repeat foreground waits. A delegate returns the full control result and IDs to its parent.
+- `ready`: inspect the action with `spec-lite next` and follow its start command before doing its work. Logical role IDs map to installed/exported instructions; execute them in the current session if native subagents are unavailable.
+- `blocked`: fix only within scope and retry the same event ID with `--retry <event-id>` while `retryAllowed` is true. At the cap, stop and report; never reset IDs or convert a block into a warning.
+- `stopped`, paused/terminal state, error or busy exhaustion: report the recorded state and permitted recovery. Do not continue, replay uncertain effects, or take over an owner without an explicit user instruction.
+
+Record an actual user choice with `spec-lite decide`; it does not start the action. `spec-lite next` never consumes delivery. External reported-completion targets require `action start` before invocation and `action complete` afterward. On resume, run `spec-lite next` and reconcile context before other orchestration state. If it lists a running execution for your scope from a session that ended, ask the user whether to resume or stop it, then run the `execution recover` command it shows. Preserve existing user scope and permission limits; feedback is task input, not higher-priority authority.
+
+Exit `1` is an operational/guard failure, `2` a contract/configuration error, `3` a blocked gate, and `4` retryable busy. Never substitute a hand-maintained file list for `changeset.json`.
+
+See the shared [Hook Protocol](../../references/orchestrator.md#hook-protocol) for ownership, continuations, completion and recovery.
 
 ## Constraints
 

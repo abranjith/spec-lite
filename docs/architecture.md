@@ -90,7 +90,7 @@ user content in those files is retained.
 never renumbered, so plans, feature specs, implementation, tests, reviews, and
 hook payloads all refer to the same feature by the same name.
 
-Commit these files with the related code. That makes decisions reviewable in pull
+Commit plans, specs, memory, changesets and review documents with the related code. Feature hook logs are local diagnostics and retain specific Git exclusions and automatic-commit guards. That makes decisions reviewable in pull
 requests and lets another developer — or a different harness — continue with the
 same state. See [Memory and project state](features/memory.md).
 
@@ -104,6 +104,26 @@ whether it is shipped with the CLI or written by you.
 Two builtins subscribe by default and capture each feature's `changeset.json`,
 which Review then uses as its authoritative file scope. Everything about that is
 replaceable. See [Hooks](features/hooks.md).
+
+## Durable hook control
+
+Control protocol 2 separates a saved decision from action delivery and ownership. The same CLI/state machine serves generic exports and every provider through short synchronous calls, with no TTY or vendor-cache requirement. A live agent session inspects saved work and acknowledges its start; automatic host wake-up adapters are deferred.
+
+```mermaid
+flowchart LR
+  R["Role lifecycle event"] --> E["Saved event / gates"]
+  E --> D["Checkpoint snapshot"]
+  D --> A["Chat or GitHub answer"]
+  A --> N["Non-consuming next"]
+  N --> O["Owner start acknowledgment"]
+  O --> C["Matching completion or explicit recovery"]
+```
+
+Runtime records live under `<git-common-dir>/spec-lite/`: workflows, executions, events, decisions/feedback, actions, chains, threads, short locks and bounded local diagnostics. Linked worktrees share them; other clones/machines do not. Atomic journaled transitions protect answer/owner changes; network/effects run outside state locks.
+
+Relevant input/action snapshots prevent stale approvals. Gates stay blocking at their cap. Pending suspends an event suffix; continue resumes it, stop ends it, and handoff replaces it. One active owner is acknowledged explicitly; stdout and model execution are not claimed exactly once.
+
+The GitHub channel validates decision-correlated approvers and explicit destinations/content. A remote reply cannot launch a closed agent session. Runtime state stays out of Git/npm publication, while selected attachments are deliberately published. See [Gates and checkpoints](features/hooks.md#gates-and-checkpoints) and [CLI recovery](usage.md#action-and-decision-management).
 
 ## Configuration
 

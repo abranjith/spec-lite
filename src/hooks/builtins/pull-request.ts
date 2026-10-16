@@ -30,7 +30,7 @@ function prState(value: unknown): PullRequestRef["state"] {
   throw new Error(`PR adapter returned an unknown pull request state "${String(value)}".`);
 }
 
-function githubRepository(remote: string): string {
+export function githubRepository(remote: string): string {
   const scp = /^(?:[^@/:]+@)?([^/:]+):([^/]+)\/([^/]+)$/.exec(remote);
   if (scp) return `${scp[1]}/${scp[2]}/${scp[3].replace(/\.git$/, "")}`;
   const url = new URL(remote);

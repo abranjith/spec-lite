@@ -39,6 +39,7 @@ The harness is the interface; the repository is the durable source of truth. Com
 - **Native provider adapters** — generates each harness's expected agent, command, prompt, skill, and root-instruction formats.
 - **Modular delivery workflow** — use only the discovery, planning, implementation, testing, review, documentation, data, or DevOps role a task needs.
 - **Consolidated review** — one deterministic review covers correctness, testing, security, performance, and dependency vulnerabilities using GitHub Advisories by default, with practical remediation guidance.
+- **Durable gates and checkpoints** — pause on declared choices, answer locally or through GitHub, and resume in a live coding-agent session with explicit action ownership. Runtime feedback/logs remain local.
 - **Extensible lifecycle hooks** — subscribe your own commands, webhooks, or skill hand-offs to versioned events; changeset capture is just the pair that ships enabled.
 - **First-class documentation** — choose the documentation directory and depth, with optional updates during implementation and fixes.
 - **Shared memory** — durable project conventions live in `.spec-lite/memory.md` and can be captured as the work evolves.

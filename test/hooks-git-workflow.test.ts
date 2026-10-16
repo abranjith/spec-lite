@@ -79,6 +79,24 @@ afterEach(async () => {
 });
 
 describe("prepare-worktree", () => {
+  it("keeps equal plan basenames in distinct directories on distinct Git workflows", async () => {
+    await configure([prepareHook()]);
+    await fs.outputFile(path.join(root,"a/plan_orders.md"),"# A\n");
+    await fs.outputFile(path.join(root,"b/plan_orders.md"),"# B\n");
+    const first = await prepare({plan:"a/plan_orders.md"});
+    const second = await prepare({plan:"b/plan_orders.md"});
+    expect(first.exitCode).toBe(0); expect(second.exitCode).toBe(0);
+    expect(first.payload.worktree?.identity).not.toBe(second.payload.worktree?.identity);
+    expect(first.payload.worktree?.path).not.toBe(second.payload.worktree?.path);
+  });
+  it("maps absolute, ./ and relative spellings of one plan to the same workflow (REV-008)", () => {
+    const cwd = path.join(os.tmpdir(), "consumer");
+    const forms = [".spec-lite/plan_orders.md", "./.spec-lite/plan_orders.md", path.join(cwd, ".spec-lite", "plan_orders.md")];
+    expect(new Set(forms.map((plan) => workflow.workItem({ plan, cwd } as never).name)).size).toBe(1);
+    expect(workflow.workItem({ plan: ".spec-lite/plan_orders.md", cwd } as never).name).toBe("plan-orders");
+    const nested = [path.join(cwd, "docs", "plan_orders.md"), "docs/plan_orders.md"];
+    expect(new Set(nested.map((plan) => workflow.workItem({ plan, cwd } as never).name)).size).toBe(1);
+  });
   it("ships all three new hooks disabled", async () => {
     const registry = await loadRegistry(root, { includeDisabled: true });
     for (const name of GIT_WORKFLOW_HOOKS) expect(registry.hooks.find((hook) => hook.name === name)?.enabled).toBe(false);
@@ -364,6 +382,21 @@ describe("plan and YOLO workflows", () => {
 });
 
 describe("commit-progress", () => {
+  it("rejects forced staging of hook logs and tracked runtime artifacts without discarding them", async () => {
+    await configure(commitChain());
+    const tree = (await prepare()).payload.worktree!;
+    const log = `${featureDir}/hooks.log.jsonl`;
+    await git(tree.path, ["add", "--force", "--", log]);
+    const rejected = await runEvent({ root: tree.path, event: "implement.task.post", featureId: "FEAT-020", taskId: "TASK-001" });
+    expect(rejected.exitCode).toBe(1); expect(rejected.results.find((item) => item.name === "commit-progress")?.message).toContain("Unstage hook logs");
+    expect(await fs.pathExists(path.join(tree.path,log))).toBe(true);
+    await git(tree.path,["reset","--",log]);
+    await fs.outputFile(path.join(tree.path,"dist/decisions/d-0123456789abcdef0123/decision.json"),"{}");
+    await git(tree.path,["add","--force","--","dist/decisions/d-0123456789abcdef0123/decision.json"]);
+    const runtime = await runEvent({ root: tree.path, event: "implement.task.post", featureId: "FEAT-020", taskId: "TASK-002" });
+    expect(runtime.exitCode).toBe(1); expect(runtime.results.find((item)=>item.name==="commit-progress")?.message).toContain("runtime artifacts");
+    expect(await fs.pathExists(path.join(tree.path,"dist/decisions/d-0123456789abcdef0123/decision.json"))).toBe(true);
+  });
   it("commits each task once with its changeset, never commits logs, and pushes on completion", async () => {
     await configure(commitChain());
     const tree = (await prepare()).payload.worktree!;
