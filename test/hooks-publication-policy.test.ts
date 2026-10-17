@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runtimeArtifactPath } from "../src/hooks/publication.js";
 // The release guard is intentionally standalone so it runs before any package is published.
-import { assertPackageContents } from "../scripts/check-package.mjs";
+import { assertPackageContents, assertPackOutput } from "../scripts/check-package.mjs";
 
 const id = (prefix: string) => `${prefix}-${"0123456789abcdef0123"}`;
 
@@ -10,6 +10,37 @@ describe("npm runtime artifact publication policy", () => {
   it.each(runtime)("rejects %s inside included directories", (file) => {
     expect(() => assertPackageContents([{ path: file }])).toThrow("Runtime artifacts");
   });
+});
+
+describe("npm pack JSON compatibility", () => {
+  const first = { name: "@abranjith/spec-lite", files: [{ path: "dist/index.js" }, { path: "README.md" }] };
+  const second = { name: "other", files: [{ path: "LICENSE" }] };
+  const formats = [
+    { label: "legacy array", wrap: (items: typeof first[]) => items },
+    { label: "package-name map", wrap: (items: typeof first[]) => Object.fromEntries(items.map((item) => [item.name, item])) },
+  ];
+
+  for (const { label, wrap } of formats) {
+    it(`counts every file in a ${label}`, () => {
+      expect(assertPackOutput(wrap([first]))).toBe(2);
+      expect(assertPackOutput(wrap([first, second]))).toBe(3);
+    });
+
+    it(`checks later packages in a ${label} for runtime artifacts`, () => {
+      const invalid = { name: "other", files: [{ path: "dist/debug.log" }] };
+      expect(() => assertPackOutput(wrap([first, invalid]))).toThrow("Runtime artifacts");
+    });
+
+    it(`rejects missing file lists in a ${label}`, () => {
+      expect(() => assertPackOutput(wrap([{ name: "broken" } as typeof first]))).toThrow("Invalid npm pack output");
+    });
+  }
+
+  it.each([null, true, 42, "unexpected", [], {}, { error: { code: "EPACK" } }, [null], [{ files: "invalid" }]].map((output) => ({ output })))(
+    "rejects invalid or empty output: $output", ({ output }) => {
+      expect(() => assertPackOutput(output)).toThrow("Invalid npm pack output");
+    },
+  );
 });
 
 describe("Git runtime artifact policy for automatic commits", () => {
