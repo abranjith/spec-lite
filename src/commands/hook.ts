@@ -3,15 +3,25 @@ import fs from "fs-extra";
 import chalk from "chalk";
 import { Command } from "commander";
 import { runEvent } from "../hooks/runner.js";
-import { loadRegistry, hooksForEvent, setHooksEnabled } from "../hooks/registry.js";
+import {
+  loadRegistry,
+  hooksForEvent,
+  setHooksEnabled,
+} from "../hooks/registry.js";
 import { EVENT_CATALOG, getEvent, resolvePattern } from "../hooks/events.js";
 import { describeVars } from "../hooks/interpolation.js";
-import { OPT_IN_HOOKS, inquirerPrompter, runHookSetup } from "../hooks/setup.js";
+import {
+  OPT_IN_HOOKS,
+  inquirerPrompter,
+  runHookSetup,
+} from "../hooks/setup.js";
 import { recoverEvent } from "../hooks/control/engine.js";
 import { renderControl } from "./control.js";
 import type { ControlResult } from "../hooks/control/types.js";
 
-function parsePayloadFlags(values: string[] | undefined): Record<string, string> {
+function parsePayloadFlags(
+  values: string[] | undefined
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const kv of values ?? []) {
     const i = kv.indexOf("=");
@@ -25,9 +35,25 @@ function collect(value: string, previous: string[]): string[] {
   return [...previous, value];
 }
 
-async function runAction(event: string, options: {
-  feature?: string; task?: string; payload?: string[]; dryRun?: boolean; json?: boolean; verbose?: boolean; runId?: string; only?: string; skip?: string[]; protocol?: string; execution?: string; action?: string; retry?: string; parent?: string;
-}): Promise<void> {
+async function runAction(
+  event: string,
+  options: {
+    feature?: string;
+    task?: string;
+    payload?: string[];
+    dryRun?: boolean;
+    json?: boolean;
+    verbose?: boolean;
+    runId?: string;
+    only?: string;
+    skip?: string[];
+    protocol?: string;
+    execution?: string;
+    action?: string;
+    retry?: string;
+    parent?: string;
+  }
+): Promise<void> {
   const root = process.cwd();
   const report = await runEvent({
     root,
@@ -39,57 +65,106 @@ async function runAction(event: string, options: {
     dryRun: options.dryRun,
     only: options.only,
     skip: options.skip,
-    protocol: options.protocol, execution: options.execution, action: options.action, retry: options.retry, parent: options.parent,
+    protocol: options.protocol,
+    execution: options.execution,
+    action: options.action,
+    retry: options.retry,
+    parent: options.parent,
   });
 
   if (report.protocol === 2) {
-    renderControl(report as unknown as ControlResult, options.json, options.verbose);
+    renderControl(
+      report as unknown as ControlResult,
+      options.json,
+      options.verbose
+    );
     return;
   }
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
   } else {
     if (report.disabled) {
-      console.log(chalk.dim("  hooks disabled via .spec-lite.json (hooks.enabled: false) — nothing dispatched"));
+      console.log(
+        chalk.dim(
+          "  hooks disabled via .spec-lite.json (hooks.enabled: false) — nothing dispatched"
+        )
+      );
     }
     for (const issue of report.registryIssues) {
-      console.log(issue.startsWith("[error]") ? chalk.red(issue) : chalk.yellow(issue));
+      console.log(
+        issue.startsWith("[error]") ? chalk.red(issue) : chalk.yellow(issue)
+      );
     }
     for (const r of report.results) {
-      const icon = r.status === "ok" || r.status === "emitted" ? chalk.green("✓")
-        : r.status === "skipped" ? chalk.dim("−")
-        : chalk.red("✗");
-      console.log(`  ${icon} ${r.name} (${r.kind}) ${chalk.dim(`[${r.status}]`)}${r.message ? ` — ${r.message}` : ""}`);
+      const icon =
+        r.status === "ok" || r.status === "emitted"
+          ? chalk.green("✓")
+          : r.status === "skipped"
+            ? chalk.dim("−")
+            : chalk.red("✗");
+      console.log(
+        `  ${icon} ${r.name} (${r.kind}) ${chalk.dim(`[${r.status}]`)}${r.message ? ` — ${r.message}` : ""}`
+      );
       if (r.directive) console.log(`    ${r.directive}`);
-      if (r.worktree) console.log(`SPEC-LITE-WORKTREE ${JSON.stringify(r.worktree)}`);
-      if (r.preview) console.log(chalk.dim(`    ${r.preview.split("\n").join("\n    ")}`));
+      if (r.worktree)
+        console.log(`SPEC-LITE-WORKTREE ${JSON.stringify(r.worktree)}`);
+      if (r.preview)
+        console.log(chalk.dim(`    ${r.preview.split("\n").join("\n    ")}`));
     }
   }
 
   process.exitCode = report.exitCode;
 }
 
-async function listAction(options: { event?: string; all?: boolean }): Promise<void> {
+async function listAction(options: {
+  event?: string;
+  all?: boolean;
+}): Promise<void> {
   const root = process.cwd();
-  const { hooks, issues } = await loadRegistry(root, { includeDisabled: options.all });
+  const { hooks, issues } = await loadRegistry(root, {
+    includeDisabled: options.all,
+  });
   const filtered = options.event ? hooksForEvent(hooks, options.event) : hooks;
 
   for (const issue of issues) {
-    console.log(issue.level === "error" ? chalk.red(`[error] ${issue.message}`) : chalk.yellow(`[warning] ${issue.message}`));
+    console.log(
+      issue.level === "error"
+        ? chalk.red(`[error] ${issue.message}`)
+        : chalk.yellow(`[warning] ${issue.message}`)
+    );
   }
   for (const hook of filtered) {
-    const status = hook.enabled === false ? chalk.dim("disabled") : chalk.green("enabled");
-    console.log(`${chalk.bold(hook.name)} ${chalk.dim(`(${hook.source})`)} — ${hook.type} — ${status}`);
+    const status =
+      hook.enabled === false ? chalk.dim("disabled") : chalk.green("enabled");
+    console.log(
+      `${chalk.bold(hook.name)} ${chalk.dim(`(${hook.source})`)} — ${hook.type} — ${status}`
+    );
     console.log(`  events: ${hook.events.join(", ")}`);
     if (hook.description) console.log(`  ${chalk.dim(hook.description)}`);
   }
 }
 
-async function toggleAction(names: string[], enabled: boolean, options: { global?: boolean }): Promise<void> {
+async function toggleAction(
+  names: string[],
+  enabled: boolean,
+  options: { global?: boolean }
+): Promise<void> {
   try {
-    const file = await setHooksEnabled(process.cwd(), names, enabled, options.global ? "global" : "project");
-    console.log(chalk.green(`${enabled ? "Enabled" : "Disabled"} ${names.map((name) => `"${name}"`).join(", ")} in ${file}`));
-    if (options.global) console.log(chalk.dim("Project overrides take precedence over this global setting."));
+    const file = await setHooksEnabled(
+      process.cwd(),
+      names,
+      enabled,
+      options.global ? "global" : "project"
+    );
+    console.log(
+      chalk.green(
+        `${enabled ? "Enabled" : "Disabled"} ${names.map((name) => `"${name}"`).join(", ")} in ${file}`
+      )
+    );
+    if (options.global)
+      console.log(
+        chalk.dim("Project overrides take precedence over this global setting.")
+      );
   } catch (err) {
     console.log(chalk.red((err as Error).message));
     process.exitCode = 2;
@@ -99,14 +174,29 @@ async function toggleAction(names: string[], enabled: boolean, options: { global
 async function setupAction(names: string[]): Promise<void> {
   const unknown = names.filter((name) => !OPT_IN_HOOKS.includes(name));
   if (unknown.length) {
-    console.log(chalk.red(`Not an optional hook: ${unknown.join(", ")}. Available: ${OPT_IN_HOOKS.join(", ")}.`));
+    console.log(
+      chalk.red(
+        `Not an optional hook: ${unknown.join(", ")}. Available: ${OPT_IN_HOOKS.join(", ")}.`
+      )
+    );
     process.exitCode = 2;
     return;
   }
   try {
-    const { file, lines } = await runHookSetup(process.cwd(), names.length ? names : OPT_IN_HOOKS, inquirerPrompter);
-    for (const line of lines) console.log(line.startsWith("Enabled") ? chalk.green(`  ✓ ${line}`) : chalk.dim(`  - ${line}`));
-    console.log(chalk.dim(`Saved to ${file}. Check with \`spec-lite hook validate\`.`));
+    const { file, lines } = await runHookSetup(
+      process.cwd(),
+      names.length ? names : OPT_IN_HOOKS,
+      inquirerPrompter
+    );
+    for (const line of lines)
+      console.log(
+        line.startsWith("Enabled")
+          ? chalk.green(`  ✓ ${line}`)
+          : chalk.dim(`  - ${line}`)
+      );
+    console.log(
+      chalk.dim(`Saved to ${file}. Check with \`spec-lite hook validate\`.`)
+    );
   } catch (err) {
     console.log(chalk.red((err as Error).message));
     process.exitCode = 2;
@@ -115,8 +205,11 @@ async function setupAction(names: string[]): Promise<void> {
 
 function eventsAction(): void {
   for (const e of EVENT_CATALOG) {
-    const tag = e.status === "emitted" ? chalk.green("emitted") : chalk.yellow("planned");
-    console.log(`${chalk.bold(e.name)} ${chalk.dim(`(${e.role}, ${e.phase})`)} — ${tag}`);
+    const tag =
+      e.status === "emitted" ? chalk.green("emitted") : chalk.yellow("planned");
+    console.log(
+      `${chalk.bold(e.name)} ${chalk.dim(`(${e.role}, ${e.phase})`)} — ${tag}`
+    );
     console.log(`  ${chalk.dim(e.description)}`);
   }
 }
@@ -132,7 +225,9 @@ async function validateAction(): Promise<void> {
   for (const e of errors) console.log(chalk.red(`[error] ${e.message}`));
 
   if (errors.length > 0) {
-    console.log(chalk.red(`\n${errors.length} error(s), ${warnings.length} warning(s).`));
+    console.log(
+      chalk.red(`\n${errors.length} error(s), ${warnings.length} warning(s).`)
+    );
     process.exitCode = 2;
   } else {
     console.log(chalk.green(`Registry valid. ${warnings.length} warning(s).`));
@@ -145,24 +240,47 @@ async function validateAction(): Promise<void> {
  * real executor, so a `command` hook really executes — this is a test harness
  * for the hook author, not a dry run.
  */
-async function testAction(name: string, options: { event?: string; payload?: string; feature?: string; task?: string; protocol?: string; execution?: string; action?: string; parent?: string; publish?: boolean }): Promise<void> {
+async function testAction(
+  name: string,
+  options: {
+    event?: string;
+    payload?: string;
+    feature?: string;
+    task?: string;
+    protocol?: string;
+    execution?: string;
+    action?: string;
+    parent?: string;
+    publish?: boolean;
+  }
+): Promise<void> {
   const root = process.cwd();
   const { hooks } = await loadRegistry(root);
   const hook = hooks.find((h) => h.name === name);
 
   if (!hook) {
-    console.log(chalk.red(`No enabled hook named "${name}". Run \`spec-lite hook list\` to see resolved hooks.`));
+    console.log(
+      chalk.red(
+        `No enabled hook named "${name}". Run \`spec-lite hook list\` to see resolved hooks.`
+      )
+    );
     process.exitCode = 2;
     return;
   }
   if (hook.type === "builtin" && (hook.builtin ?? hook.name) === "checkpoint") {
     if (hook.options?.github && !options.publish) {
-      console.error("Checkpoint tests perform REAL GitHub publication. Supply explicit test payload/execution and --publish to test the configured destination.");
-      process.exitCode = 2; return;
+      console.error(
+        "Checkpoint tests perform REAL GitHub publication. Supply explicit test payload/execution and --publish to test the configured destination."
+      );
+      process.exitCode = 2;
+      return;
     }
     if (!options.payload && !options.feature && !options.execution) {
-      console.error("Checkpoint tests require explicit scope: --payload <test.json>, --feature, or --execution <test-execution-id>.");
-      process.exitCode = 2; return;
+      console.error(
+        "Checkpoint tests require explicit scope: --payload <test.json>, --feature, or --execution <test-execution-id>."
+      );
+      process.exitCode = 2;
+      return;
     }
   }
 
@@ -174,7 +292,11 @@ async function testAction(name: string, options: { event?: string; payload?: str
     event = resolvePattern(firstPattern).matched[0]?.name;
   }
   if (!event || !getEvent(event)) {
-    console.log(chalk.red(`Could not resolve an event for "${name}". Pass --event explicitly.`));
+    console.log(
+      chalk.red(
+        `Could not resolve an event for "${name}". Pass --event explicitly.`
+      )
+    );
     process.exitCode = 2;
     return;
   }
@@ -182,27 +304,37 @@ async function testAction(name: string, options: { event?: string; payload?: str
   let extra: Record<string, string> = {};
   if (options.payload) {
     try {
-      const fileContents = await fs.readJson(path.resolve(root, options.payload));
+      const fileContents = await fs.readJson(
+        path.resolve(root, options.payload)
+      );
       extra = Object.fromEntries(
-        Object.entries(fileContents as Record<string, unknown>).map(([k, v]) => [
-          k,
-          typeof v === "string" ? v : JSON.stringify(v),
-        ])
+        Object.entries(fileContents as Record<string, unknown>).map(
+          ([k, v]) => [k, typeof v === "string" ? v : JSON.stringify(v)]
+        )
       );
     } catch (err) {
-      console.log(chalk.red(`Could not read payload file: ${(err as Error).message}`));
+      console.log(
+        chalk.red(`Could not read payload file: ${(err as Error).message}`)
+      );
       process.exitCode = 2;
       return;
     }
   }
 
-  console.log(chalk.dim(`REAL hook test: "${name}" against event ${event}${hook.options?.github ? " — REAL configured GitHub publication" : ""}\n`));
+  console.log(
+    chalk.dim(
+      `REAL hook test: "${name}" against event ${event}${hook.options?.github ? " — REAL configured GitHub publication" : ""}\n`
+    )
+  );
   await runAction(event, {
     feature: options.feature,
     task: options.task,
     payload: Object.entries(extra).map(([k, v]) => `${k}=${v}`),
     only: name,
-    protocol: options.protocol, execution: options.execution, action: options.action, parent: options.parent,
+    protocol: options.protocol,
+    execution: options.execution,
+    action: options.action,
+    parent: options.parent,
   });
 }
 
@@ -210,44 +342,85 @@ function varsAction(): void {
   const groups = new Map<string, string[]>();
   for (const v of describeVars()) {
     const lines = groups.get(v.group) ?? [];
-    lines.push(`  \${${v.name}}  ${chalk.dim(v.description)}  ${chalk.dim(`e.g. ${v.example}`)}`);
+    lines.push(
+      `  \${${v.name}}  ${chalk.dim(v.description)}  ${chalk.dim(`e.g. ${v.example}`)}`
+    );
     groups.set(v.group, lines);
   }
   for (const [group, lines] of groups) {
     console.log(chalk.bold(group === "base" ? "base (every event)" : group));
     for (const line of lines) console.log(line);
   }
-  console.log(chalk.dim("\n${name:-default} supplies a fallback. ${env:NAME} reads the environment."));
+  console.log(
+    chalk.dim(
+      "\n${name:-default} supplies a fallback. ${env:NAME} reads the environment."
+    )
+  );
 }
 
 export function registerHookCommand(program: Command): void {
-  const hook = program.command("hook").description("Run and inspect spec-lite lifecycle hooks");
+  const hook = program
+    .command("hook")
+    .description("Run and inspect spec-lite lifecycle hooks");
 
   hook
     .command("run <event>")
     .description("Fire one event, dispatching every subscribed hook in order")
     .option("--feature <id>", "Feature ID, e.g. FEAT-012")
     .option("--task <id>", "Task ID, e.g. TASK-003")
-    .option("--payload <kv>", "Additional payload key=value (repeatable)", collect, [])
+    .option(
+      "--payload <kv>",
+      "Additional payload key=value (repeatable)",
+      collect,
+      []
+    )
     .option("--run-id <id>", "Reuse a runId across multiple hook run calls")
     .option("--protocol <version>", "Durable control protocol (2)")
     .option("--execution <id>", "Lifetime execution context")
     .option("--action <id>", "Selected action to start/advance")
     .option("--retry <event-id>", "Retry the saved blocked event boundary")
-    .option("--parent <execution-id>", "Explicit parent execution for child scope")
+    .option(
+      "--parent <execution-id>",
+      "Explicit parent execution for child scope"
+    )
     .option("--dry-run", "Resolve and print without executing", false)
     .option("--json", "Machine-readable output", false)
-    .option("--verbose", "Protocol 2: include stored approval snapshots and options", false)
-    .option("--skip <name>", "Skip a hook for this invocation only (repeatable; * skips all)", collect, [])
+    .option(
+      "--verbose",
+      "Protocol 2: include stored approval snapshots and options",
+      false
+    )
+    .option(
+      "--skip <name>",
+      "Skip a hook for this invocation only (repeatable; * skips all)",
+      collect,
+      []
+    )
     .action(runAction);
 
-  hook.command("recover <event-id>").description("Reconcile a blocked, paused or uncertain event on the user's instruction")
+  hook
+    .command("recover <event-id>")
+    .description(
+      "Reconcile a blocked, paused or uncertain event on the user's instruction"
+    )
     .requiredOption("--generation <n>", "Observed generation", Number)
     .requiredOption("--mode <mode>", "retry, stop or override")
     .requiredOption("--reason <text>", "User's recovery instruction")
     .option("--checks <names>", "Comma-separated named checks to override")
     .option("--json", "Machine-readable output")
-    .action(async (eventId, options) => renderControl(await recoverEvent(process.cwd(), eventId, options.generation, options.mode, options.reason, options.checks?.split(",").filter(Boolean)), options.json));
+    .action(async (eventId, options) =>
+      renderControl(
+        await recoverEvent(
+          process.cwd(),
+          eventId,
+          options.generation,
+          options.mode,
+          options.reason,
+          options.checks?.split(",").filter(Boolean)
+        ),
+        options.json
+      )
+    );
 
   hook
     .command("list")
@@ -259,14 +432,24 @@ export function registerHookCommand(program: Command): void {
   for (const enabled of [true, false]) {
     hook
       .command(`${enabled ? "enable" : "disable"} <names...>`)
-      .description(`${enabled ? "Enable" : "Disable"} one or more hooks by writing registry overrides`)
-      .option("--global", "Write ~/.spec-lite/hooks.json instead of the project registry", false)
-      .action((names: string[], options: { global?: boolean }) => toggleAction(names, enabled, options));
+      .description(
+        `${enabled ? "Enable" : "Disable"} one or more hooks by writing registry overrides`
+      )
+      .option(
+        "--global",
+        "Write ~/.spec-lite/hooks.json instead of the project registry",
+        false
+      )
+      .action((names: string[], options: { global?: boolean }) =>
+        toggleAction(names, enabled, options)
+      );
   }
 
   hook
     .command("setup [names...]")
-    .description(`Enable or skip the optional hooks and set their options (${OPT_IN_HOOKS.join(", ")})`)
+    .description(
+      `Enable or skip the optional hooks and set their options (${OPT_IN_HOOKS.join(", ")})`
+    )
     .action(setupAction);
 
   hook
@@ -276,21 +459,34 @@ export function registerHookCommand(program: Command): void {
 
   hook
     .command("validate")
-    .description("Validate the merged registry — schema, event names, and interpolation templates")
+    .description(
+      "Validate the merged registry — schema, event names, and interpolation templates"
+    )
     .action(validateAction);
 
   hook
     .command("test <name>")
-    .description("Run one hook in isolation against a synthetic or supplied payload")
-    .option("--event <name>", "Event to simulate (defaults to the hook's first subscribed event)")
-    .option("--payload <file>", "JSON file whose top-level keys become payload values")
+    .description(
+      "Run one hook in isolation against a synthetic or supplied payload"
+    )
+    .option(
+      "--event <name>",
+      "Event to simulate (defaults to the hook's first subscribed event)"
+    )
+    .option(
+      "--payload <file>",
+      "JSON file whose top-level keys become payload values"
+    )
     .option("--feature <id>", "Feature ID, e.g. FEAT-012")
     .option("--task <id>", "Task ID, e.g. TASK-003")
     .option("--protocol <version>", "Durable control protocol (2)")
     .option("--execution <id>", "Existing explicit test execution")
     .option("--action <id>", "Owning action")
     .option("--parent <execution-id>", "Parent test execution")
-    .option("--publish", "Confirm REAL publication to the checkpoint's configured GitHub destination")
+    .option(
+      "--publish",
+      "Confirm REAL publication to the checkpoint's configured GitHub destination"
+    )
     .action(testAction);
 
   hook

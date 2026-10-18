@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { loadRegistry, hooksForEvent } from "../src/hooks/registry.js";
+import { loadRegistry } from "../src/hooks/registry.js";
 import { runEvent } from "../src/hooks/runner.js";
 
 const execFileAsync = promisify(execFile);
@@ -20,7 +20,9 @@ async function writeHooksJson(content: unknown): Promise<void> {
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "spec-lite-registry-"));
   await execFileAsync("git", ["init", "-q"], { cwd: root });
-  await execFileAsync("git", ["config", "user.email", "test@test.local"], { cwd: root });
+  await execFileAsync("git", ["config", "user.email", "test@test.local"], {
+    cwd: root,
+  });
   await execFileAsync("git", ["config", "user.name", "test"], { cwd: root });
   await fs.writeFile(path.join(root, "a.txt"), "x\n");
   await execFileAsync("git", ["add", "a.txt"], { cwd: root });
@@ -37,7 +39,9 @@ describe("registry: builtins are present by default", () => {
     const names = hooks.map((h) => h.name);
     expect(names).toContain("capture-baseline");
     expect(names).toContain("capture-changeset");
-    expect(hooks.find((h) => h.name === "capture-baseline")?.source).toBe("builtin");
+    expect(hooks.find((h) => h.name === "capture-baseline")?.source).toBe(
+      "builtin"
+    );
   });
 });
 
@@ -66,7 +70,14 @@ describe("registry: project hooks.json overrides a builtin by name", () => {
   it("enabled: false disables a builtin without redefining it", async () => {
     await writeHooksJson({
       version: 1,
-      hooks: [{ name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false }],
+      hooks: [
+        {
+          name: "capture-baseline",
+          events: ["implement.pre"],
+          type: "builtin",
+          enabled: false,
+        },
+      ],
     });
 
     const { hooks } = await loadRegistry(root);
@@ -78,20 +89,42 @@ describe("registry: unknown and planned events", () => {
   it("errors on a pattern matching nothing in the catalog", async () => {
     await writeHooksJson({
       version: 1,
-      hooks: [{ name: "bogus", events: ["not.a.real.event"], type: "command", run: "echo hi" }],
+      hooks: [
+        {
+          name: "bogus",
+          events: ["not.a.real.event"],
+          type: "command",
+          run: "echo hi",
+        },
+      ],
     });
     const { issues } = await loadRegistry(root);
-    expect(issues.some((i) => i.level === "error" && i.message.includes("not.a.real.event"))).toBe(true);
+    expect(
+      issues.some(
+        (i) => i.level === "error" && i.message.includes("not.a.real.event")
+      )
+    ).toBe(true);
   });
 
   it("warns, but does not error, on a declared-but-not-emitted event", async () => {
     await writeHooksJson({
       version: 1,
-      hooks: [{ name: "future-hook", events: ["devops.post"], type: "command", run: "echo hi" }],
+      hooks: [
+        {
+          name: "future-hook",
+          events: ["devops.post"],
+          type: "command",
+          run: "echo hi",
+        },
+      ],
     });
     const { issues, hooks } = await loadRegistry(root);
-    expect(issues.some((i) => i.level === "error" && i.hook === "future-hook")).toBe(false);
-    expect(issues.some((i) => i.level === "warning" && i.hook === "future-hook")).toBe(true);
+    expect(
+      issues.some((i) => i.level === "error" && i.hook === "future-hook")
+    ).toBe(false);
+    expect(
+      issues.some((i) => i.level === "warning" && i.hook === "future-hook")
+    ).toBe(true);
     expect(hooks.find((h) => h.name === "future-hook")).toBeDefined();
   });
 });
@@ -100,23 +133,67 @@ describe("runner: failure policy", () => {
   it("a failing hook with onFailure warn does not abort the run", async () => {
     await writeHooksJson({
       version: 1,
-      hooks: [{ name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false },
-              { name: "capture-changeset", events: ["implement.post"], type: "builtin", enabled: false },
-              { name: "boom", events: ["implement.post"], type: "command", run: "exit 1", onFailure: "warn" }],
+      hooks: [
+        {
+          name: "capture-baseline",
+          events: ["implement.pre"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "capture-changeset",
+          events: ["implement.post"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "boom",
+          events: ["implement.post"],
+          type: "command",
+          run: "exit 1",
+          onFailure: "warn",
+        },
+      ],
     });
     const report = await runEvent({ root, event: "implement.post" });
     expect(report.exitCode).toBe(0);
-    expect(report.results.find((r) => r.name === "boom")?.status).toBe("failed");
+    expect(report.results.find((r) => r.name === "boom")?.status).toBe(
+      "failed"
+    );
   });
 
   it("a failing hook with onFailure abort sets exit code 1 and stops the chain", async () => {
     await writeHooksJson({
       version: 1,
       hooks: [
-        { name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false },
-        { name: "capture-changeset", events: ["implement.post"], type: "builtin", enabled: false },
-        { name: "first", events: ["implement.post"], type: "command", run: "exit 1", onFailure: "abort", order: 1 },
-        { name: "second", events: ["implement.post"], type: "command", run: "echo should-not-run", onFailure: "warn", order: 2 },
+        {
+          name: "capture-baseline",
+          events: ["implement.pre"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "capture-changeset",
+          events: ["implement.post"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "first",
+          events: ["implement.post"],
+          type: "command",
+          run: "exit 1",
+          onFailure: "abort",
+          order: 1,
+        },
+        {
+          name: "second",
+          events: ["implement.post"],
+          type: "command",
+          run: "echo should-not-run",
+          onFailure: "warn",
+          order: 2,
+        },
       ],
     });
     const report = await runEvent({ root, event: "implement.post" });
@@ -130,16 +207,34 @@ describe("runner: agentic hooks are emitted, never executed", () => {
     await writeHooksJson({
       version: 1,
       hooks: [
-        { name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false },
-        { name: "capture-changeset", events: ["implement.post"], type: "builtin", enabled: false },
-        { name: "deep-review", events: ["implement.post"], type: "skill", skill: "review", args: "review feature x" },
+        {
+          name: "capture-baseline",
+          events: ["implement.pre"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "capture-changeset",
+          events: ["implement.post"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "deep-review",
+          events: ["implement.post"],
+          type: "skill",
+          skill: "review",
+          args: "review feature x",
+        },
       ],
     });
     const report = await runEvent({ root, event: "implement.post" });
     const result = report.results.find((r) => r.name === "deep-review");
     expect(result?.status).toBe("emitted");
     expect(result?.directive).toMatch(/^SPEC-LITE-DIRECTIVE /);
-    const parsed = JSON.parse(result!.directive!.replace(/^SPEC-LITE-DIRECTIVE /, ""));
+    const parsed = JSON.parse(
+      result!.directive!.replace(/^SPEC-LITE-DIRECTIVE /, "")
+    );
     expect(parsed.skill).toBe("review");
   });
 });
@@ -153,8 +248,18 @@ describe("runner: reentrancy guard", () => {
     await writeHooksJson({
       version: 1,
       hooks: [
-        { name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false },
-        { name: "capture-changeset", events: ["implement.post"], type: "builtin", enabled: false },
+        {
+          name: "capture-baseline",
+          events: ["implement.pre"],
+          type: "builtin",
+          enabled: false,
+        },
+        {
+          name: "capture-changeset",
+          events: ["implement.post"],
+          type: "builtin",
+          enabled: false,
+        },
         {
           name: "self-trigger",
           events: ["implement.post"],

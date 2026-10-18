@@ -28,7 +28,9 @@ export function extractFeatureId(content: string): string | undefined {
 }
 
 /** Parse an ID-prefixed feature directory into its stable ID and name. */
-export function parseFeatureDirectory(entry: string): ParsedFeatureDirectory | undefined {
+export function parseFeatureDirectory(
+  entry: string
+): ParsedFeatureDirectory | undefined {
   const match = FEATURE_DIR_RE.exec(entry);
   if (!match) return undefined;
   return {

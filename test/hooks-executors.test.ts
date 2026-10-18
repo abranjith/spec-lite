@@ -16,14 +16,28 @@ const execFileAsync = promisify(execFile);
 let root: string;
 
 const DISABLE_BUILTINS = [
-  { name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false },
-  { name: "capture-changeset", events: ["implement.post"], type: "builtin", enabled: false },
+  {
+    name: "capture-baseline",
+    events: ["implement.pre"],
+    type: "builtin",
+    enabled: false,
+  },
+  {
+    name: "capture-changeset",
+    events: ["implement.post"],
+    type: "builtin",
+    enabled: false,
+  },
 ];
 
 async function writeHooks(hooks: unknown[]): Promise<void> {
   const file = path.join(root, ".spec-lite", "hooks.json");
   await fs.ensureDir(path.dirname(file));
-  await fs.writeJson(file, { version: 1, hooks: [...DISABLE_BUILTINS, ...hooks] }, { spaces: 2 });
+  await fs.writeJson(
+    file,
+    { version: 1, hooks: [...DISABLE_BUILTINS, ...hooks] },
+    { spaces: 2 }
+  );
 }
 
 function samplePayload(over: Partial<HookPayload> = {}): HookPayload {
@@ -36,7 +50,11 @@ function samplePayload(over: Partial<HookPayload> = {}): HookPayload {
     timestamp: "2026-08-21T00:00:00.000Z",
     cwd: "/repo",
     provider: "claude-code",
-    feature: { id: "FEAT-012", name: "user_management", dir: ".spec-lite/features/FEAT-012-user_management" },
+    feature: {
+      id: "FEAT-012",
+      name: "user_management",
+      dir: ".spec-lite/features/FEAT-012-user_management",
+    },
     summary: "did a thing",
     ...over,
   };
@@ -45,12 +63,16 @@ function samplePayload(over: Partial<HookPayload> = {}): HookPayload {
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "spec-lite-exec-"));
   await execFileAsync("git", ["init", "-q"], { cwd: root });
-  await execFileAsync("git", ["config", "user.email", "t@t.local"], { cwd: root });
+  await execFileAsync("git", ["config", "user.email", "t@t.local"], {
+    cwd: root,
+  });
   await execFileAsync("git", ["config", "user.name", "t"], { cwd: root });
   await fs.writeFile(path.join(root, "a.txt"), "x\n");
   await execFileAsync("git", ["add", "a.txt"], { cwd: root });
   await execFileAsync("git", ["commit", "-q", "-m", "init"], { cwd: root });
-  await fs.ensureDir(path.join(root, ".spec-lite", "features", "FEAT-001-demo"));
+  await fs.ensureDir(
+    path.join(root, ".spec-lite", "features", "FEAT-001-demo")
+  );
 });
 
 afterEach(async () => {
@@ -67,7 +89,9 @@ describe("shell executor delivers the payload three ways", () => {
         name: "env-probe",
         events: ["implement.post"],
         type: "command",
-        run: write("[process.env.SPEC_LITE_EVENT, process.env.SPEC_LITE_FEATURE_ID, process.env.SPEC_LITE_FEATURE_DIR].join('|')"),
+        run: write(
+          "[process.env.SPEC_LITE_EVENT, process.env.SPEC_LITE_FEATURE_ID, process.env.SPEC_LITE_FEATURE_DIR].join('|')"
+        ),
         env: { OUT: out },
       },
     ]);
@@ -113,11 +137,19 @@ describe("once", () => {
     ]);
 
     await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
-    const second = await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
+    const second = await runEvent({
+      root,
+      event: "implement.post",
+      featureId: "FEAT-001",
+    });
 
     expect(await fs.readFile(counter, "utf-8")).toBe("x");
-    expect(second.results.find((r) => r.name === "run-once")?.status).toBe("skipped");
-    expect(second.results.find((r) => r.name === "run-once")?.message).toContain("already ran once");
+    expect(second.results.find((r) => r.name === "run-once")?.status).toBe(
+      "skipped"
+    );
+    expect(
+      second.results.find((r) => r.name === "run-once")?.message
+    ).toContain("already ran once");
   });
 
   it("runs every time when once is not set", async () => {
@@ -144,9 +176,30 @@ describe("hook ordering", () => {
     const append = (label: string) =>
       `node -e "const f=process.env.OUT; const fs=require('fs'); fs.writeFileSync(f, (fs.existsSync(f)?fs.readFileSync(f,'utf8'):'') + '${label}')"`;
     await writeHooks([
-      { name: "third", events: ["implement.post"], type: "command", order: 30, run: append("3"), env: { OUT: log } },
-      { name: "first", events: ["implement.post"], type: "command", order: 10, run: append("1"), env: { OUT: log } },
-      { name: "second", events: ["implement.post"], type: "command", order: 20, run: append("2"), env: { OUT: log } },
+      {
+        name: "third",
+        events: ["implement.post"],
+        type: "command",
+        order: 30,
+        run: append("3"),
+        env: { OUT: log },
+      },
+      {
+        name: "first",
+        events: ["implement.post"],
+        type: "command",
+        order: 10,
+        run: append("1"),
+        env: { OUT: log },
+      },
+      {
+        name: "second",
+        events: ["implement.post"],
+        type: "command",
+        order: 20,
+        run: append("2"),
+        env: { OUT: log },
+      },
     ]);
 
     await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
@@ -169,7 +222,12 @@ describe("dry run", () => {
         },
       ]);
 
-      const report = await runEvent({ root, event: "implement.post", featureId: "FEAT-001", dryRun: true });
+      const report = await runEvent({
+        root,
+        event: "implement.post",
+        featureId: "FEAT-001",
+        dryRun: true,
+      });
       const result = report.results.find((r) => r.name === "would-run");
 
       expect(result?.status).toBe("skipped");
@@ -186,7 +244,13 @@ describe("dry run", () => {
 describe("http executor", () => {
   it("reports a failure for an unreachable URL", async () => {
     const result = await runHttpHook(
-      { name: "dead", events: ["implement.post"], type: "http", url: "http://127.0.0.1:1/none", timeoutMs: 2000 },
+      {
+        name: "dead",
+        events: ["implement.post"],
+        type: "http",
+        url: "http://127.0.0.1:1/none",
+        timeoutMs: 2000,
+      },
       { payload: samplePayload() }
     );
     expect(result.status).toBe("failed");
@@ -195,7 +259,12 @@ describe("http executor", () => {
 
   it("treats an unresolvable template as a contract error before any request", async () => {
     const result = await runHttpHook(
-      { name: "bad-url", events: ["implement.post"], type: "http", url: "https://x.test/${task.id}" },
+      {
+        name: "bad-url",
+        events: ["implement.post"],
+        type: "http",
+        url: "https://x.test/${task.id}",
+      },
       { payload: samplePayload() } // implement.post carries no task
     );
     expect(result.status).toBe("failed");
@@ -204,15 +273,37 @@ describe("http executor", () => {
 
   it("honours onFailure: warn vs abort at the runner level", async () => {
     await writeHooks([
-      { name: "dead-warn", events: ["implement.post"], type: "http", url: "http://127.0.0.1:1/none", timeoutMs: 1500, onFailure: "warn" },
+      {
+        name: "dead-warn",
+        events: ["implement.post"],
+        type: "http",
+        url: "http://127.0.0.1:1/none",
+        timeoutMs: 1500,
+        onFailure: "warn",
+      },
     ]);
-    const warned = await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
+    const warned = await runEvent({
+      root,
+      event: "implement.post",
+      featureId: "FEAT-001",
+    });
     expect(warned.exitCode).toBe(0);
 
     await writeHooks([
-      { name: "dead-abort", events: ["implement.post"], type: "http", url: "http://127.0.0.1:1/none", timeoutMs: 1500, onFailure: "abort" },
+      {
+        name: "dead-abort",
+        events: ["implement.post"],
+        type: "http",
+        url: "http://127.0.0.1:1/none",
+        timeoutMs: 1500,
+        onFailure: "abort",
+      },
     ]);
-    const aborted = await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
+    const aborted = await runEvent({
+      root,
+      event: "implement.post",
+      featureId: "FEAT-001",
+    });
     expect(aborted.exitCode).toBe(1);
   }, 25000);
 
@@ -223,7 +314,9 @@ describe("http executor", () => {
       received.push({ ...req.headers } as Record<string, string | undefined>);
       res.writeHead(204).end();
     });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) =>
+      server.listen(0, "127.0.0.1", resolve)
+    );
     const port = (server.address() as AddressInfo).port;
 
     try {
@@ -305,10 +398,22 @@ describe("cwd is interpolated", () => {
       },
     ]);
 
-    const report = await runEvent({ root, event: "implement.post", featureId: "FEAT-001" });
+    const report = await runEvent({
+      root,
+      event: "implement.post",
+      featureId: "FEAT-001",
+    });
 
-    expect(report.results.find((r) => r.name === "writes-relative")?.status).toBe("ok");
-    const written = path.join(root, ".spec-lite", "features", "FEAT-001-demo", out);
+    expect(
+      report.results.find((r) => r.name === "writes-relative")?.status
+    ).toBe("ok");
+    const written = path.join(
+      root,
+      ".spec-lite",
+      "features",
+      "FEAT-001-demo",
+      out
+    );
     expect(await fs.pathExists(written)).toBe(true);
     expect(await fs.readFile(written, "utf-8")).toContain("FEAT-001-demo");
   }, 15000);
@@ -317,31 +422,75 @@ describe("cwd is interpolated", () => {
 describe("agentic kinds are emitted, never executed", () => {
   it("emits a well-formed directive for each agentic kind", () => {
     const cases = [
-      { def: { name: "s", events: [], type: "skill" as const, skill: "review", args: "review feature ${feature.name}" }, expectKey: "skill", expectValue: "review" },
-      { def: { name: "a", events: [], type: "agent" as const, agent: "spec.reviewer" }, expectKey: "agent", expectValue: "spec.reviewer" },
-      { def: { name: "p", events: [], type: "prompt" as const, prompt: "Summarise ${feature.id}" }, expectKey: "prompt", expectValue: "Summarise FEAT-012" },
+      {
+        def: {
+          name: "s",
+          events: [],
+          type: "skill" as const,
+          skill: "review",
+          args: "review feature ${feature.name}",
+        },
+        expectKey: "skill",
+        expectValue: "review",
+      },
+      {
+        def: {
+          name: "a",
+          events: [],
+          type: "agent" as const,
+          agent: "spec.reviewer",
+        },
+        expectKey: "agent",
+        expectValue: "spec.reviewer",
+      },
+      {
+        def: {
+          name: "p",
+          events: [],
+          type: "prompt" as const,
+          prompt: "Summarise ${feature.id}",
+        },
+        expectKey: "prompt",
+        expectValue: "Summarise FEAT-012",
+      },
     ];
 
     for (const { def, expectKey, expectValue } of cases) {
       const result = emitAgenticDirective(def, { payload: samplePayload() });
       expect(result.status).toBe("emitted");
-      const parsed = JSON.parse(result.directive!.replace(/^SPEC-LITE-DIRECTIVE /, ""));
+      const parsed = JSON.parse(
+        result.directive!.replace(/^SPEC-LITE-DIRECTIVE /, "")
+      );
       expect(parsed[expectKey]).toBe(expectValue);
     }
   });
 
   it("interpolates args without shell escaping, since no shell is involved", () => {
     const result = emitAgenticDirective(
-      { name: "s", events: [], type: "skill", skill: "review", args: "review feature ${feature.name}" },
+      {
+        name: "s",
+        events: [],
+        type: "skill",
+        skill: "review",
+        args: "review feature ${feature.name}",
+      },
       { payload: samplePayload() }
     );
-    const parsed = JSON.parse(result.directive!.replace(/^SPEC-LITE-DIRECTIVE /, ""));
+    const parsed = JSON.parse(
+      result.directive!.replace(/^SPEC-LITE-DIRECTIVE /, "")
+    );
     expect(parsed.args).toBe("review feature user_management");
   });
 
   it("previews an agentic hook as an instruction, not a command", () => {
     const preview = previewHook(
-      { name: "s", events: [], type: "skill", skill: "review", args: "review feature ${feature.name}" },
+      {
+        name: "s",
+        events: [],
+        type: "skill",
+        skill: "review",
+        args: "review feature ${feature.name}",
+      },
       { payload: samplePayload() }
     );
     expect(preview).toContain('invoke skill "review"');

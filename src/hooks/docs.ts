@@ -18,7 +18,8 @@ export const EVENTS_TABLE_START = "<!-- hook-events-table:start -->";
 export const EVENTS_TABLE_END = "<!-- hook-events-table:end -->";
 export const BUILTIN_HOOKS_START = "<!-- builtin-hooks-json:start -->";
 export const BUILTIN_HOOKS_END = "<!-- builtin-hooks-json:end -->";
-export const GIT_WORKFLOW_HOOKS_START = "<!-- git-workflow-hooks-json:start -->";
+export const GIT_WORKFLOW_HOOKS_START =
+  "<!-- git-workflow-hooks-json:start -->";
 export const GIT_WORKFLOW_HOOKS_END = "<!-- git-workflow-hooks-json:end -->";
 export const BUILTIN_OPTIONS_START = "<!-- builtin-options-table:start -->";
 export const BUILTIN_OPTIONS_END = "<!-- builtin-options-table:end -->";
@@ -34,11 +35,16 @@ const GROUP_LABELS: Record<string, string> = {
 
 /** The `${...}` variable reference table, grouped, in catalog order. */
 export function renderVarsTable(): string {
-  const rows: string[] = ["| Variable | Group | Meaning | Example |", "|---|---|---|---|"];
+  const rows: string[] = [
+    "| Variable | Group | Meaning | Example |",
+    "|---|---|---|---|",
+  ];
 
   for (const v of describeVars()) {
     const label = GROUP_LABELS[v.group] ?? v.group;
-    rows.push(`| \`\${${v.name}}\` | ${label} | ${v.description} | \`${v.example}\` |`);
+    rows.push(
+      `| \`\${${v.name}}\` | ${label} | ${v.description} | \`${v.example}\` |`
+    );
   }
 
   rows.push(
@@ -56,7 +62,10 @@ export function renderEventsTable(): string {
   ];
 
   for (const e of EVENT_CATALOG) {
-    const guarantees = e.provides.length > 0 ? e.provides.map((g) => `\`${g}\``).join(", ") : "—";
+    const guarantees =
+      e.provides.length > 0
+        ? e.provides.map((g) => `\`${g}\``).join(", ")
+        : "—";
     rows.push(`| \`${e.name}\` | ${e.role} | ${e.status} | ${guarantees} |`);
   }
 
@@ -75,7 +84,8 @@ export function replaceBetweenMarkers(
 ): string | null {
   const startIndex = content.indexOf(start);
   const endIndex = content.indexOf(end);
-  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) return null;
+  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex)
+    return null;
 
   return (
     content.slice(0, startIndex + start.length) +
@@ -87,15 +97,24 @@ export function replaceBetweenMarkers(
 }
 
 /** Extract a trimmed block, normalizing CRLF to LF for generated-content comparisons. */
-export function extractBetweenMarkers(content: string, start: string, end: string): string | null {
+export function extractBetweenMarkers(
+  content: string,
+  start: string,
+  end: string
+): string | null {
   const startIndex = content.indexOf(start);
   const endIndex = content.indexOf(end);
-  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) return null;
+  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex)
+    return null;
 
-  return content.slice(startIndex + start.length, endIndex).replace(/\r\n/g, "\n").trim();
+  return content
+    .slice(startIndex + start.length, endIndex)
+    .replace(/\r\n/g, "\n")
+    .trim();
 }
 
-const registryJson = (hooks: unknown[]) => ["```json", JSON.stringify({ version: 1, hooks }, null, 2), "```"].join("\n");
+const registryJson = (hooks: unknown[]) =>
+  ["```json", JSON.stringify({ version: 1, hooks }, null, 2), "```"].join("\n");
 
 /** Every builtin as it ships: a reference, never something to copy. */
 export function renderBuiltinHooksJson(): string {
@@ -110,15 +129,19 @@ const EXAMPLE_OPTIONS: Record<string, Record<string, unknown>> = {
 
 /** The Git workflow builtins enabled with example options, as settings-only entries. */
 export function renderGitWorkflowHooksJson(): string {
-  return registryJson(GIT_WORKFLOW_HOOKS.map((name) => {
-    const options = EXAMPLE_OPTIONS[name];
-    return { name, enabled: true, ...(options ? { options } : {}) };
-  }));
+  return registryJson(
+    GIT_WORKFLOW_HOOKS.map((name) => {
+      const options = EXAMPLE_OPTIONS[name];
+      return { name, enabled: true, ...(options ? { options } : {}) };
+    })
+  );
 }
 
 function optionType(schema: Record<string, unknown>): string {
-  if (Array.isArray(schema.enum)) return schema.enum.map((value) => `\`"${value}"\``).join(", ");
-  if (schema.type === "array") return `${(schema.items as Record<string, unknown> | undefined)?.type ?? "value"} array`;
+  if (Array.isArray(schema.enum))
+    return schema.enum.map((value) => `\`"${value}"\``).join(", ");
+  if (schema.type === "array")
+    return `${(schema.items as Record<string, unknown> | undefined)?.type ?? "value"} array`;
   return String(schema.type);
 }
 
@@ -127,7 +150,9 @@ export function renderBuiltinOptionsTable(): string {
   const rows = ["| Hook | Option | Type | Meaning |", "|---|---|---|---|"];
   for (const [hook, spec] of Object.entries(BUILTIN_OPTIONS)) {
     for (const [name, option] of Object.entries(spec.options)) {
-      rows.push(`| \`${hook}\` | \`${name}\` | ${optionType(option.schema)} | ${option.required ? "**Required.** " : ""}${option.description} |`);
+      rows.push(
+        `| \`${hook}\` | \`${name}\` | ${optionType(option.schema)} | ${option.required ? "**Required.** " : ""}${option.description} |`
+      );
     }
   }
   return rows.join("\n");

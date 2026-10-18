@@ -50,7 +50,8 @@ export function validatePayloadForHook(
   const validate = compile(hook);
   if (!validate) return { ok: true }; // no payloadSchema declared
 
-  const schemaError = (validate as unknown as { schemaError?: string }).schemaError;
+  const schemaError = (validate as unknown as { schemaError?: string })
+    .schemaError;
   if (schemaError) {
     return { ok: false, message: `invalid payloadSchema: ${schemaError}` };
   }

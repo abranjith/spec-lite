@@ -9,8 +9,12 @@
 import { resolveTemplate, type ResolveContext } from "../interpolation.js";
 import type { HookDefinition, HookResult } from "../types.js";
 
-export function emitAgenticDirective(hook: HookDefinition, ctx: ResolveContext): HookResult {
-  const resolve = (t: string | undefined) => (t ? resolveTemplate(t, ctx, "none").value : undefined);
+export function emitAgenticDirective(
+  hook: HookDefinition,
+  ctx: ResolveContext
+): HookResult {
+  const resolve = (t: string | undefined) =>
+    t ? resolveTemplate(t, ctx, "none").value : undefined;
 
   let directiveObj: Record<string, unknown>;
   try {
@@ -25,12 +29,23 @@ export function emitAgenticDirective(hook: HookDefinition, ctx: ResolveContext):
     };
   } catch (err) {
     return {
-      name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed",
-      durationMs: 0, message: err instanceof Error ? err.message : String(err),
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: hook.type,
+      status: "failed",
+      durationMs: 0,
+      message: err instanceof Error ? err.message : String(err),
       contractError: true,
     };
   }
 
   const directive = `SPEC-LITE-DIRECTIVE ${JSON.stringify(directiveObj)}`;
-  return { name: hook.name, event: ctx.payload.event, kind: hook.type, status: "emitted", durationMs: 0, directive };
+  return {
+    name: hook.name,
+    event: ctx.payload.event,
+    kind: hook.type,
+    status: "emitted",
+    durationMs: 0,
+    directive,
+  };
 }

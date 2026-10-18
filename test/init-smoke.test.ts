@@ -36,10 +36,7 @@ describe("fresh provider initialization", () => {
         ".codex/agents/spec.planner.toml",
         ".agents/skills/spec-review/SKILL.md",
       ],
-      pi: [
-        ".pi/prompts/spec.plan.md",
-        ".pi/skills/spec-review/SKILL.md",
-      ],
+      pi: [".pi/prompts/spec.plan.md", ".pi/skills/spec-review/SKILL.md"],
       generic: [
         ".spec-lite/prompts/spec.plan.md",
         ".spec-lite/prompts/spec.orchestrator.md",
@@ -54,7 +51,10 @@ describe("fresh provider initialization", () => {
         await initCommand({ ai: provider, skipProfile: true, force: true });
 
         for (const relativePath of paths) {
-          expect(await fs.pathExists(path.join(target, relativePath)), `${provider}: ${relativePath}`).toBe(true);
+          expect(
+            await fs.pathExists(path.join(target, relativePath)),
+            `${provider}: ${relativePath}`
+          ).toBe(true);
         }
 
         const config = await fs.readJson(path.join(target, ".spec-lite.json"));
@@ -65,12 +65,20 @@ describe("fresh provider initialization", () => {
           updateWithDevelopment: false,
         });
         expect(await allTextFiles(target)).not.toMatch(
-          /review_security|review_performance|review_code|spec\.explore|write_readme/,
+          /review_security|review_performance|review_code|spec\.explore|write_readme/
         );
       }
 
-      expect(await fs.pathExists(path.join(root, "claude-code", ".claude", "agents", "spec.help.md"))).toBe(false);
-      expect(await fs.pathExists(path.join(root, "codex", ".codex", "agents", "spec.help.toml"))).toBe(false);
+      expect(
+        await fs.pathExists(
+          path.join(root, "claude-code", ".claude", "agents", "spec.help.md")
+        )
+      ).toBe(false);
+      expect(
+        await fs.pathExists(
+          path.join(root, "codex", ".codex", "agents", "spec.help.toml")
+        )
+      ).toBe(false);
     } finally {
       process.chdir(originalCwd);
       log.mockRestore();

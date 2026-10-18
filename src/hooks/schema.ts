@@ -17,11 +17,20 @@ function builtinOptionsRules(): Record<string, unknown>[] {
   return Object.entries(BUILTIN_OPTIONS).map(([id, spec]) => ({
     if: {
       allOf: [
-        { anyOf: [{ not: { required: ["type"] } }, { required: ["type"], properties: { type: { const: "builtin" } } }] },
+        {
+          anyOf: [
+            { not: { required: ["type"] } },
+            { required: ["type"], properties: { type: { const: "builtin" } } },
+          ],
+        },
         {
           anyOf: [
             { required: ["builtin"], properties: { builtin: { const: id } } },
-            { not: { required: ["builtin"] }, required: ["name"], properties: { name: { const: id } } },
+            {
+              not: { required: ["builtin"] },
+              required: ["name"],
+              properties: { name: { const: id } },
+            },
           ],
         },
       ],
@@ -57,10 +66,20 @@ export function buildHooksSchema(): Record<string, unknown> {
             minItems: 1,
             items: { type: "string" },
             description:
-              "Concrete event names or wildcard patterns (e.g. \"implement.*\"). " +
+              'Concrete event names or wildcard patterns (e.g. "implement.*"). ' +
               `Known concrete events: ${allEventNames().join(", ")}.`,
           },
-          type: { enum: ["command", "script", "http", "builtin", "skill", "agent", "prompt"] },
+          type: {
+            enum: [
+              "command",
+              "script",
+              "http",
+              "builtin",
+              "skill",
+              "agent",
+              "prompt",
+            ],
+          },
           description: { type: "string" },
           enabled: { type: "boolean", default: true },
           order: { type: "number", default: 100 },
@@ -73,7 +92,11 @@ export function buildHooksSchema(): Record<string, unknown> {
           payloadSchema: { type: "object" },
 
           builtin: { type: "string" },
-          options: { type: "object", description: "Settings of a builtin that declares them; see the builtin options table in docs/features/hooks.md." },
+          options: {
+            type: "object",
+            description:
+              "Settings of a builtin that declares them; see the builtin options table in docs/features/hooks.md.",
+          },
 
           run: { type: "string" },
           shell: { enum: ["auto", "bash", "pwsh"], default: "auto" },
@@ -92,15 +115,33 @@ export function buildHooksSchema(): Record<string, unknown> {
         },
         additionalProperties: false,
         allOf: [
-          { if: { required: ["gate"], properties: { gate: { const: true } } }, then: { required: ["onFailure"], properties: { type: { enum: ["command", "script"] }, onFailure: { const: "abort" } } } },
-          { if: { required: ["type"] }, then: { required: ["events"] } },
-          { if: { not: { required: ["type"] } }, then: { propertyNames: { enum: [...SETTINGS_FIELDS] } } },
           {
-            if: { properties: { type: { const: "command" } }, required: ["type"] },
+            if: { required: ["gate"], properties: { gate: { const: true } } },
+            then: {
+              required: ["onFailure"],
+              properties: {
+                type: { enum: ["command", "script"] },
+                onFailure: { const: "abort" },
+              },
+            },
+          },
+          { if: { required: ["type"] }, then: { required: ["events"] } },
+          {
+            if: { not: { required: ["type"] } },
+            then: { propertyNames: { enum: [...SETTINGS_FIELDS] } },
+          },
+          {
+            if: {
+              properties: { type: { const: "command" } },
+              required: ["type"],
+            },
             then: { required: ["run"] },
           },
           {
-            if: { properties: { type: { const: "script" } }, required: ["type"] },
+            if: {
+              properties: { type: { const: "script" } },
+              required: ["type"],
+            },
             then: { required: ["run"] },
           },
           {
@@ -108,15 +149,24 @@ export function buildHooksSchema(): Record<string, unknown> {
             then: { required: ["url"] },
           },
           {
-            if: { properties: { type: { const: "skill" } }, required: ["type"] },
+            if: {
+              properties: { type: { const: "skill" } },
+              required: ["type"],
+            },
             then: { required: ["skill"] },
           },
           {
-            if: { properties: { type: { const: "agent" } }, required: ["type"] },
+            if: {
+              properties: { type: { const: "agent" } },
+              required: ["type"],
+            },
             then: { required: ["agent"] },
           },
           {
-            if: { properties: { type: { const: "prompt" } }, required: ["type"] },
+            if: {
+              properties: { type: { const: "prompt" } },
+              required: ["type"],
+            },
             then: { required: ["prompt"] },
           },
           ...builtinOptionsRules(),

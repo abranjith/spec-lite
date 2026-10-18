@@ -35,7 +35,9 @@ export interface HookRelevantConfig {
  * hook — or block every run — over a file the hook system only reads two keys
  * from.
  */
-export async function readProjectConfig(root: string): Promise<HookRelevantConfig> {
+export async function readProjectConfig(
+  root: string
+): Promise<HookRelevantConfig> {
   const file = path.join(root, ".spec-lite.json");
   if (!(await fs.pathExists(file))) return {};
   try {
@@ -70,7 +72,10 @@ export interface FeatureLocation {
 }
 
 /** Resolve a feature ID (e.g. "FEAT-012", legacy "FEAT-FP-007", or "12") to its directory. */
-export async function resolveFeature(root: string, featureId: string): Promise<FeatureLocation | undefined> {
+export async function resolveFeature(
+  root: string,
+  featureId: string
+): Promise<FeatureLocation | undefined> {
   const normalized = normalizeFeatureId(featureId);
   if (!normalized) return undefined;
 
@@ -86,7 +91,10 @@ export async function resolveFeature(root: string, featureId: string): Promise<F
       id: feature.id,
       name: feature.name,
       dir: path.relative(root, absDir).split(path.sep).join("/"),
-      spec: path.relative(root, path.join(absDir, "spec.md")).split(path.sep).join("/"),
+      spec: path
+        .relative(root, path.join(absDir, "spec.md"))
+        .split(path.sep)
+        .join("/"),
     };
   }
   return undefined;
@@ -113,12 +121,15 @@ export async function nextFeatureNumber(root: string): Promise<number> {
   }
 
   const specLiteDir = path.join(root, ".spec-lite");
-  const planFiles = (await fs.readdir(specLiteDir).catch(() => [] as string[])).filter(
-    (f) => /^plan.*\.md$/i.test(f)
-  );
+  const planFiles = (
+    await fs.readdir(specLiteDir).catch(() => [] as string[])
+  ).filter((f) => /^plan.*\.md$/i.test(f));
   for (const file of planFiles) {
-    const content = await fs.readFile(path.join(specLiteDir, file), "utf-8").catch(() => "");
-    for (const featureNumber of featureNumbersInText(content)) max = Math.max(max, featureNumber);
+    const content = await fs
+      .readFile(path.join(specLiteDir, file), "utf-8")
+      .catch(() => "");
+    for (const featureNumber of featureNumbersInText(content))
+      max = Math.max(max, featureNumber);
   }
 
   return max + 1;

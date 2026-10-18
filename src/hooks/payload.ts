@@ -21,18 +21,28 @@ export interface BuildPayloadOptions {
 }
 
 /** The feature's changeset, with HEAD read live: changeset.json records no HEAD, so committing it is idempotent. */
-async function changesFor(root: string, featureDir: string): Promise<ChangesPayload | undefined> {
+async function changesFor(
+  root: string,
+  featureDir: string
+): Promise<ChangesPayload | undefined> {
   const doc = await readChangeset(root, featureDir);
   if (!doc) return undefined;
   return {
     source: doc.vcs === "git" ? "git" : "none",
     baseline: doc.baseline?.sha,
     head: doc.vcs === "git" ? await currentHead(root) : undefined,
-    files: doc.files.map((f) => ({ path: f.path, status: f.status, role: f.role, task: f.task })),
+    files: doc.files.map((f) => ({
+      path: f.path,
+      status: f.status,
+      role: f.role,
+      task: f.task,
+    })),
   };
 }
 
-export async function buildPayload(opts: BuildPayloadOptions): Promise<HookPayload> {
+export async function buildPayload(
+  opts: BuildPayloadOptions
+): Promise<HookPayload> {
   const event = getEvent(opts.event);
   const role = event?.role ?? opts.event.split(".")[0];
   const phase = event?.phase ?? "post";
@@ -68,7 +78,10 @@ export async function buildPayload(opts: BuildPayloadOptions): Promise<HookPaylo
 }
 
 /** Re-read changeset.json after a builtin runs, so later hooks in the same chain see it. */
-export async function refreshChanges(root: string, payload: HookPayload): Promise<void> {
+export async function refreshChanges(
+  root: string,
+  payload: HookPayload
+): Promise<void> {
   if (!payload.feature?.dir) return;
   const changes = await changesFor(root, payload.feature.dir);
   if (changes) payload.changes = changes;

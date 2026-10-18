@@ -11,7 +11,11 @@ export const DEFAULT_DOCUMENTATION_SETTINGS: Readonly<DocumentationSettings> = {
 };
 
 export function normalizeDocumentationDirectory(value: string): string {
-  return value.trim().replace(/\\/g, "/").replace(/^\.\//, "").replace(/\/+$/, "");
+  return value
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/^\.\//, "")
+    .replace(/\/+$/, "");
 }
 
 export function validateDocumentationDirectory(value: string): true | string {

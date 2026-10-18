@@ -5,7 +5,11 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { getProvider, getAllProviders } from "../providers/index.js";
 import type { SpecLiteGlobalConfig } from "../providers/base.js";
-import { copyNativeSkillDir, hasPromptName, loadAllSources } from "../utils/prompts.js";
+import {
+  copyNativeSkillDir,
+  hasPromptName,
+  loadAllSources,
+} from "../utils/prompts.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
 import { getPackageVersion } from "../utils/package-version.js";
 
@@ -107,7 +111,9 @@ export async function installCommand(options: InstallOptions): Promise<void> {
 
     if (!provider.supportsGlobal || !provider.getGlobalOutputPaths) {
       console.error(
-        chalk.red(`  Provider "${provider.name}" does not support global installation.`)
+        chalk.red(
+          `  Provider "${provider.name}" does not support global installation.`
+        )
       );
       process.exit(1);
     }
@@ -115,11 +121,18 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     return provider;
   });
 
-  console.log(chalk.cyan(`  Providers: ${providers.map((provider) => provider.name).join(", ")}`));
+  console.log(
+    chalk.cyan(
+      `  Providers: ${providers.map((provider) => provider.name).join(", ")}`
+    )
+  );
 
   // 2. Parse exclusions
   const exclude = options.exclude
-    ? options.exclude.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
+    ? options.exclude
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
 
   if (exclude.length > 0) {
@@ -132,7 +145,8 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   const globalConfigPath = path.join(globalConfigDir, "global-config.json");
 
   if (!options.force && (await fs.pathExists(globalConfigPath))) {
-    const existingConfig: SpecLiteGlobalConfig = await fs.readJson(globalConfigPath);
+    const existingConfig: SpecLiteGlobalConfig =
+      await fs.readJson(globalConfigPath);
     const existingProviders = new Set(
       (Array.isArray(existingConfig.providers)
         ? existingConfig.providers
@@ -168,7 +182,9 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   const installedPrompts = sources.map((source) => source.name);
 
   for (const provider of providers) {
-    console.log(chalk.cyan(`\n  Installing global prompts for ${provider.name}...`));
+    console.log(
+      chalk.cyan(`\n  Installing global prompts for ${provider.name}...`)
+    );
     const nativeSkillNames = new Set<string>();
 
     for (const source of sources) {
@@ -261,7 +277,11 @@ export async function installCommand(options: InstallOptions): Promise<void> {
   console.log(chalk.green(`  ✓ ~/.spec-lite/global-config.json`));
 
   // 6. Summary
-  console.log(chalk.bold(`\n  Done! ${written} files written globally across ${providers.length} provider(s).`));
+  console.log(
+    chalk.bold(
+      `\n  Done! ${written} files written globally across ${providers.length} provider(s).`
+    )
+  );
 
   for (const provider of providers) {
     if (provider.getGlobalPostInstallMessage) {
@@ -281,4 +301,3 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     }
   }
 }
-

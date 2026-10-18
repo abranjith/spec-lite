@@ -19,11 +19,12 @@ export async function listCommand(): Promise<void> {
   );
 
   // Group by kind
-  const grouped: Record<SourceItemKind, [string, typeof catalog[string]][]> = {
-    agent: [],
-    skill: [],
-    reference: [],
-  };
+  const grouped: Record<SourceItemKind, [string, (typeof catalog)[string]][]> =
+    {
+      agent: [],
+      skill: [],
+      reference: [],
+    };
 
   for (const [name, meta] of Object.entries(catalog)) {
     const kind = meta.kind ?? "agent";
@@ -31,7 +32,11 @@ export async function listCommand(): Promise<void> {
   }
 
   // Render each group
-  const sections: { label: string; kind: SourceItemKind; color: typeof chalk.blue }[] = [
+  const sections: {
+    label: string;
+    kind: SourceItemKind;
+    color: typeof chalk.blue;
+  }[] = [
     { label: "Agents", kind: "agent", color: chalk.blue },
     { label: "Skills", kind: "skill", color: chalk.magenta },
     { label: "References", kind: "reference", color: chalk.yellow },

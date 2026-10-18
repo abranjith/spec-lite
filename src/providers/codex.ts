@@ -2,7 +2,12 @@ import path from "path";
 import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-import { getAgentOutputName, getPromptOutputName, hasPromptName, isPromptOnly } from "../utils/prompts.js";
+import {
+  getAgentOutputName,
+  getPromptOutputName,
+  hasPromptName,
+  isPromptOnly,
+} from "../utils/prompts.js";
 import { getSkillDirName } from "./copilot.js";
 import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
@@ -31,7 +36,8 @@ import { detectHarnessMarkers } from "../utils/harness-detection.js";
 export class CodexProvider implements Provider {
   name = "OpenAI Codex";
   alias = "codex";
-  description = "OpenAI Codex (AGENTS.md + .codex/agents subagents + .agents/skills)";
+  description =
+    "OpenAI Codex (AGENTS.md + .codex/agents subagents + .agents/skills)";
   /**
    * Codex's "agents" are TOML files routed through the prompt path so we can
    * skip writing a separate markdown file. `supportsAgents = false` keeps the
@@ -43,7 +49,11 @@ export class CodexProvider implements Provider {
 
   getOutputPaths(promptName: string): { prompt: string } {
     return {
-      prompt: path.join(".codex", "agents", `spec.${this.subagentFileName(promptName)}.toml`),
+      prompt: path.join(
+        ".codex",
+        "agents",
+        `spec.${this.subagentFileName(promptName)}.toml`
+      ),
     };
   }
 
@@ -144,7 +154,10 @@ export class CodexProvider implements Provider {
   ): Promise<{ path: string; label: string } | null> {
     const p = path.join(workspaceRoot, "AGENTS.md");
     if (await fs.pathExists(p)) {
-      return { path: "AGENTS.md", label: "Codex root instructions (AGENTS.md)" };
+      return {
+        path: "AGENTS.md",
+        label: "Codex root instructions (AGENTS.md)",
+      };
     }
     return null;
   }
@@ -211,8 +224,12 @@ export function generateCodexAgentsBlock(
   options: CodexAgentsBlockOptions = {}
 ): string {
   const isGlobal = options.scope === "global";
-  const subagentNames = installedPrompts.filter((name) => !nativeSkillNames.has(name));
-  const skillNames = installedPrompts.filter((name) => nativeSkillNames.has(name));
+  const subagentNames = installedPrompts.filter(
+    (name) => !nativeSkillNames.has(name)
+  );
+  const skillNames = installedPrompts.filter((name) =>
+    nativeSkillNames.has(name)
+  );
   const subagentsDir = isGlobal ? "~/.codex/agents/" : ".codex/agents/";
   const skillsDir = isGlobal ? "~/.agents/skills/" : ".agents/skills/";
 
@@ -267,7 +284,7 @@ export function generateCodexAgentsBlock(
       "",
       "Suggested manual checkpoint after planning:",
       "",
-      "- Use `spec.plan_critic` against `.spec-lite/plan.md` to pressure-test feasibility before implementation.",
+      "- Use `spec.plan_critic` against `.spec-lite/plan.md` to pressure-test feasibility before implementation."
     );
   }
 
@@ -290,7 +307,11 @@ export function mergeCodexAgentsMd(
   nativeSkillNames: Set<string> = new Set(),
   options: CodexAgentsBlockOptions = {}
 ): string {
-  const block = generateCodexAgentsBlock(installedPrompts, nativeSkillNames, options);
+  const block = generateCodexAgentsBlock(
+    installedPrompts,
+    nativeSkillNames,
+    options
+  );
 
   if (!existingContent) {
     const headerTitle =
@@ -301,12 +322,7 @@ export function mergeCodexAgentsMd(
       options.scope === "global"
         ? "Codex reads this file automatically for user-level context."
         : "Codex reads this file automatically for project-level context.";
-    const header = [
-      headerTitle,
-      "",
-      headerDescription,
-      "",
-    ].join("\n");
+    const header = [headerTitle, "", headerDescription, ""].join("\n");
     return header + block + "\n";
   }
 

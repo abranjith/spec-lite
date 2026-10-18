@@ -14,7 +14,10 @@ export function getAgentsDir(): string {
     path.resolve(__dirname, "agents"),
     path.resolve(__dirname, "..", "..", "agents"),
   ];
-  return candidates.find((candidate) => fs.pathExistsSync(candidate)) ?? candidates[0];
+  return (
+    candidates.find((candidate) => fs.pathExistsSync(candidate)) ??
+    candidates[0]
+  );
 }
 
 /**
@@ -97,9 +100,7 @@ async function assembleContent(rootDir: string, body: string): Promise<string> {
         `\\[([^\\]]*)\\]\\(${escapeRegex(relPath)}\\)`,
         "g"
       );
-      assembled = assembled.replace(linkPattern, (_match, label) => {
-        return `${refContent.trim()}`;
-      });
+      assembled = assembled.replace(linkPattern, () => refContent.trim());
     } else {
       // Append as a section at the end
       assembled += `\n\n---\n\n${refContent.trim()}\n`;

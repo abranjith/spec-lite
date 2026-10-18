@@ -7,7 +7,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { resolveTemplate, shellEscapeContext, type ResolveContext } from "../interpolation.js";
+import {
+  resolveTemplate,
+  shellEscapeContext,
+  type ResolveContext,
+} from "../interpolation.js";
 import type { HookDefinition, HookResult } from "../types.js";
 
 /**
@@ -45,10 +49,21 @@ function resolvePowershellBin(): string {
   return cachedPowershellBin;
 }
 
-function shellInvocation(shell: string | undefined, resolvedCommand: string): { bin: string; args: string[] } {
-  const effective = !shell || shell === "auto" ? (process.platform === "win32" ? "pwsh" : "bash") : shell;
+function shellInvocation(
+  shell: string | undefined,
+  resolvedCommand: string
+): { bin: string; args: string[] } {
+  const effective =
+    !shell || shell === "auto"
+      ? process.platform === "win32"
+        ? "pwsh"
+        : "bash"
+      : shell;
   return effective === "pwsh"
-    ? { bin: resolvePowershellBin(), args: ["-NoProfile", "-NonInteractive", "-Command", resolvedCommand] }
+    ? {
+        bin: resolvePowershellBin(),
+        args: ["-NoProfile", "-NonInteractive", "-Command", resolvedCommand],
+      }
     : { bin: "bash", args: ["-c", resolvedCommand] };
 }
 
@@ -60,7 +75,14 @@ export async function runShellHook(
 ): Promise<HookResult> {
   const start = Date.now();
   if (!hook.run) {
-    return { name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed", durationMs: 0, message: "no `run` configured" };
+    return {
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: hook.type,
+      status: "failed",
+      durationMs: 0,
+      message: "no `run` configured",
+    };
   }
 
   const escapeCtx = shellEscapeContext(hook.shell);
@@ -71,11 +93,17 @@ export async function runShellHook(
     // `cwd` is handed to spawn() directly rather than to a shell, so it takes
     // the raw value — quoting it here would create a directory name with
     // quotes in it.
-    resolvedCwd = hook.cwd ? resolveTemplate(hook.cwd, ctx, "none").value : undefined;
+    resolvedCwd = hook.cwd
+      ? resolveTemplate(hook.cwd, ctx, "none").value
+      : undefined;
   } catch (err) {
     return {
-      name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed",
-      durationMs: Date.now() - start, message: err instanceof Error ? err.message : String(err),
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: hook.type,
+      status: "failed",
+      durationMs: Date.now() - start,
+      message: err instanceof Error ? err.message : String(err),
       contractError: true,
     };
   }
@@ -85,16 +113,25 @@ export async function runShellHook(
 
   const env: NodeJS.ProcessEnv = { ...process.env, ...reentrancyEnv };
   env.SPEC_LITE_EVENT = ctx.payload.event;
-  if (ctx.payload.feature?.id) env.SPEC_LITE_FEATURE_ID = ctx.payload.feature.id;
-  if (ctx.payload.feature?.dir) env.SPEC_LITE_FEATURE_DIR = ctx.payload.feature.dir;
-  if (ctx.payload.changes) env.SPEC_LITE_CHANGED_FILES = ctx.payload.changes.files.map((f) => f.path).join("\n");
+  if (ctx.payload.feature?.id)
+    env.SPEC_LITE_FEATURE_ID = ctx.payload.feature.id;
+  if (ctx.payload.feature?.dir)
+    env.SPEC_LITE_FEATURE_DIR = ctx.payload.feature.dir;
+  if (ctx.payload.changes)
+    env.SPEC_LITE_CHANGED_FILES = ctx.payload.changes.files
+      .map((f) => f.path)
+      .join("\n");
   if (ctx.payloadFile) env.SPEC_LITE_PAYLOAD_FILE = ctx.payloadFile;
   for (const [k, v] of Object.entries(hook.env ?? {})) {
     env[k] = resolveTemplate(v, ctx, "none").value;
   }
 
   return new Promise<HookResult>((resolve) => {
-    const child = spawn(bin, args, { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(bin, args, {
+      cwd,
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     let stderr = "";
     let stdout = "";
     let timedOut = false;
@@ -113,19 +150,49 @@ export async function runShellHook(
       clearTimeout(timer);
       const durationMs = Date.now() - start;
       if (timedOut) {
-        resolve({ name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed", durationMs, message: `timed out after ${hook.timeoutMs ?? 30000}ms` });
+        resolve({
+          name: hook.name,
+          event: ctx.payload.event,
+          kind: hook.type,
+          status: "failed",
+          durationMs,
+          message: `timed out after ${hook.timeoutMs ?? 30000}ms`,
+        });
         return;
       }
       if (code === 0) {
-        resolve({ name: hook.name, event: ctx.payload.event, kind: hook.type, status: "ok", exitCode: 0, durationMs, message: stdout.trim() || undefined });
+        resolve({
+          name: hook.name,
+          event: ctx.payload.event,
+          kind: hook.type,
+          status: "ok",
+          exitCode: 0,
+          durationMs,
+          message: stdout.trim() || undefined,
+        });
       } else {
-        resolve({ name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed", exitCode: code ?? -1, durationMs, message: stderr.trim() || stdout.trim() || `exit ${code}` });
+        resolve({
+          name: hook.name,
+          event: ctx.payload.event,
+          kind: hook.type,
+          status: "failed",
+          exitCode: code ?? -1,
+          durationMs,
+          message: stderr.trim() || stdout.trim() || `exit ${code}`,
+        });
       }
     });
 
     child.on("error", (err) => {
       clearTimeout(timer);
-      resolve({ name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed", durationMs: Date.now() - start, message: err.message });
+      resolve({
+        name: hook.name,
+        event: ctx.payload.event,
+        kind: hook.type,
+        status: "failed",
+        durationMs: Date.now() - start,
+        message: err.message,
+      });
     });
   });
 }

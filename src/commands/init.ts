@@ -2,9 +2,18 @@ import path from "path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { detectHarnesses, getProvider, getAllProviders } from "../providers/index.js";
+import {
+  detectHarnesses,
+  getProvider,
+  getAllProviders,
+} from "../providers/index.js";
 import type { SpecLiteConfig, ProjectProfile } from "../providers/base.js";
-import { copyNativeSkillDir, hasPromptName, loadAllSources, replaceProjectContext } from "../utils/prompts.js";
+import {
+  copyNativeSkillDir,
+  hasPromptName,
+  loadAllSources,
+  replaceProjectContext,
+} from "../utils/prompts.js";
 import { generateClaudeRootMd } from "../providers/claude-code.js";
 import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
@@ -80,7 +89,10 @@ function dedupeValues(values: string[]): string[] {
   return uniqueValues;
 }
 
-function mergeSelectedValues(selected: string[], otherInput?: string): string[] {
+function mergeSelectedValues(
+  selected: string[],
+  otherInput?: string
+): string[] {
   return dedupeValues([
     ...selected.filter((value) => value !== "__other__"),
     ...parseCommaSeparatedList(otherInput ?? ""),
@@ -173,7 +185,8 @@ async function collectProjectProfile(): Promise<ProjectProfile> {
       name: "architectureOther",
       message: "Specify any other architecture pattern(s), comma-separated:",
       when: (prev: ProjectProfileAnswers) =>
-        Array.isArray(prev.architectures) && prev.architectures.includes("__other__"),
+        Array.isArray(prev.architectures) &&
+        prev.architectures.includes("__other__"),
       validate: (input: string) =>
         input.trim() ? true : "Please enter at least one pattern.",
     },
@@ -187,7 +200,10 @@ async function collectProjectProfile(): Promise<ProjectProfile> {
   ]);
 
   return {
-    languages: mergeSelectedValues(answers.languages ?? [], answers.languageOther),
+    languages: mergeSelectedValues(
+      answers.languages ?? [],
+      answers.languageOther
+    ),
     frameworks: dedupeValues(parseCommaSeparatedList(answers.frameworks)),
     testFrameworks: dedupeValues(
       parseCommaSeparatedList(answers.testFrameworks)
@@ -241,7 +257,7 @@ function buildSeededMemory(
     "",
     `> These instructions were **auto-seeded** from \`${sourcePath}\` during \`spec-lite init\`.`,
     "> They have not yet been organized into sections.",
-    "> Run \`/memorize bootstrap\` in your AI assistant to review, reorganize, and refine them.",
+    "> Run `/memorize bootstrap` in your AI assistant to review, reorganize, and refine them.",
     ">",
     "> Memory is the **authoritative source** for coding standards, architecture, testing, logging, and security.",
     "> Plans may contain plan-specific overrides but should not duplicate these rules.",
@@ -266,17 +282,31 @@ function buildSeededMemory(
  * --skip-hooks, or when there is no terminal to ask in (CI); `spec-lite hook
  * setup` covers both later.
  */
-export async function offerHooks(cwd: string, skip: boolean | undefined): Promise<void> {
+export async function offerHooks(
+  cwd: string,
+  skip: boolean | undefined
+): Promise<void> {
   if (skip || !process.stdin.isTTY) {
-    if ((await undecidedHooks(cwd)).length) console.log(chalk.dim("  Optional hooks not set up. Run `spec-lite hook setup` to choose them."));
+    if ((await undecidedHooks(cwd)).length)
+      console.log(
+        chalk.dim(
+          "  Optional hooks not set up. Run `spec-lite hook setup` to choose them."
+        )
+      );
     return;
   }
   try {
     for (const line of await offerHookSetup(cwd)) {
-      console.log(line.startsWith("Enabled") ? chalk.green(`  ✓ ${line}`) : chalk.dim(`  ${line}`));
+      console.log(
+        line.startsWith("Enabled")
+          ? chalk.green(`  ✓ ${line}`)
+          : chalk.dim(`  ${line}`)
+      );
     }
   } catch (err) {
-    console.log(chalk.yellow(`  Hook setup skipped: ${(err as Error).message}`));
+    console.log(
+      chalk.yellow(`  Hook setup skipped: ${(err as Error).message}`)
+    );
   }
 }
 
@@ -294,7 +324,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
     const detectedAliases = new Set(
       detections
         .filter(({ detection }) => detection.detected)
-        .map(({ provider }) => provider.alias),
+        .map(({ provider }) => provider.alias)
     );
     const answer = await inquirer.prompt([
       {
@@ -328,7 +358,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
     return provider;
   });
 
-  console.log(chalk.cyan(`  Providers: ${providers.map((p) => p.name).join(", ")}`));
+  console.log(
+    chalk.cyan(`  Providers: ${providers.map((p) => p.name).join(", ")}`)
+  );
 
   // 2. Collect project profile (unless --skip-profile)
   let projectProfile: ProjectProfile | undefined;
@@ -348,7 +380,10 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   // 3. Parse exclusions (split on commas or spaces to handle both bash and PowerShell)
   const exclude = options.exclude
-    ? options.exclude.split(/[,\s]+/).map((s) => s.trim()).filter(Boolean)
+    ? options.exclude
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
     : [];
 
   if (exclude.length > 0) {
@@ -447,7 +482,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(chalk.cyan(`\n  Installing prompts for ${provider.name}...`));
 
     const existingFiles = providerExistingFiles.get(provider.alias) ?? [];
-    const existingPathSet = new Set(existingFiles.map((filePath) => path.normalize(filePath)));
+    const existingPathSet = new Set(
+      existingFiles.map((filePath) => path.normalize(filePath))
+    );
     const globalAction = providerActions.get(provider.alias);
     const nativeSkillNames = new Set<string>();
 
@@ -557,7 +594,11 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
     if (provider.alias === "copilot") {
       // Write / update .github/copilot-instructions.md
-      const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
+      const copilotInstructionsPath = path.join(
+        cwd,
+        ".github",
+        "copilot-instructions.md"
+      );
       await fs.ensureDir(path.join(cwd, ".github"));
       const existingContent = (await fs.pathExists(copilotInstructionsPath))
         ? await fs.readFile(copilotInstructionsPath, "utf-8")
@@ -569,7 +610,11 @@ export async function initCommand(options: InitOptions): Promise<void> {
       );
       await fs.writeFile(copilotInstructionsPath, merged, "utf-8");
       if (existingContent) {
-        console.log(chalk.green(`  ✓ .github/copilot-instructions.md (updated with spec-lite block)`));
+        console.log(
+          chalk.green(
+            `  ✓ .github/copilot-instructions.md (updated with spec-lite block)`
+          )
+        );
       } else {
         console.log(chalk.green(`  ✓ .github/copilot-instructions.md`));
       }
@@ -593,7 +638,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
       );
       await fs.writeFile(agentsMdPath, merged, "utf-8");
       if (existingContent) {
-        console.log(chalk.green(`  ✓ AGENTS.md (updated with spec-lite block)`));
+        console.log(
+          chalk.green(`  ✓ AGENTS.md (updated with spec-lite block)`)
+        );
       } else {
         console.log(chalk.green(`  ✓ AGENTS.md`));
       }
@@ -646,8 +693,8 @@ export async function initCommand(options: InitOptions): Promise<void> {
     console.log(
       chalk.dim(
         "     ↳ Builtins (capture-baseline, capture-changeset) are already registered. " +
-        "Run `spec-lite hook events` for the catalog, `spec-lite hook vars` for ${...} " +
-        "interpolation, and `spec-lite hook validate` before committing your own."
+          "Run `spec-lite hook events` for the catalog, `spec-lite hook vars` for ${...} " +
+          "interpolation, and `spec-lite hook validate` before committing your own."
       )
     );
   }
@@ -672,9 +719,11 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
       const snippetPath = path.join(stacksTargetDir, snippet.fileName);
 
-      if (await fs.pathExists(snippetPath) && !options.force) {
+      if ((await fs.pathExists(snippetPath)) && !options.force) {
         console.log(
-          chalk.dim(`  – .spec-lite/stacks/${snippet.fileName} already exists (kept your edits)`)
+          chalk.dim(
+            `  – .spec-lite/stacks/${snippet.fileName} already exists (kept your edits)`
+          )
         );
         continue;
       }
@@ -682,7 +731,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
       await fs.writeFile(snippetPath, snippet.content, "utf-8");
       console.log(chalk.green(`  ✓ .spec-lite/stacks/${snippet.fileName}`));
       console.log(
-        chalk.dim("     ↳ Edit this file to customize defaults before running /memorize bootstrap")
+        chalk.dim(
+          "     ↳ Edit this file to customize defaults before running /memorize bootstrap"
+        )
       );
       written++;
     }
@@ -697,13 +748,16 @@ export async function initCommand(options: InitOptions): Promise<void> {
     if (memorySeedCandidates.length === 1) {
       const candidate = memorySeedCandidates[0];
       console.log(
-        chalk.cyan(`\n  💡 Found existing ${candidate.label} (${candidate.path}).`)
+        chalk.cyan(
+          `\n  💡 Found existing ${candidate.label} (${candidate.path}).`
+        )
       );
       const seedAnswer = await inquirer.prompt([
         {
           type: "confirm",
           name: "seedMemory",
-          message: "Seed .spec-lite/memory.md from it so /memorize bootstrap can refine your existing conventions?",
+          message:
+            "Seed .spec-lite/memory.md from it so /memorize bootstrap can refine your existing conventions?",
           default: true,
         },
       ]);
@@ -715,7 +769,8 @@ export async function initCommand(options: InitOptions): Promise<void> {
         {
           type: "list",
           name: "seedSource",
-          message: "Select an existing instruction source to seed .spec-lite/memory.md:",
+          message:
+            "Select an existing instruction source to seed .spec-lite/memory.md:",
           choices: [
             ...memorySeedCandidates.map((candidate) => ({
               name: `[${candidate.providerAlias}] ${candidate.label} (${candidate.path})`,
@@ -731,7 +786,9 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
       if (answer.seedSource !== "__skip__") {
         selectedSeed =
-          memorySeedCandidates.find((candidate) => candidate.path === answer.seedSource) ?? null;
+          memorySeedCandidates.find(
+            (candidate) => candidate.path === answer.seedSource
+          ) ?? null;
       }
     }
 
@@ -746,8 +803,16 @@ export async function initCommand(options: InitOptions): Promise<void> {
       await fs.writeFile(memoryPath, seededContent, "utf-8");
       memorySeedWritten = true;
       written++;
-      console.log(chalk.green(`  ✓ .spec-lite/memory.md (seeded from ${selectedSeed.path})`));
-      console.log(chalk.dim("     ↳ Run /memorize bootstrap to organize and refine into standing instructions"));
+      console.log(
+        chalk.green(
+          `  ✓ .spec-lite/memory.md (seeded from ${selectedSeed.path})`
+        )
+      );
+      console.log(
+        chalk.dim(
+          "     ↳ Run /memorize bootstrap to organize and refine into standing instructions"
+        )
+      );
     }
   }
 
@@ -793,8 +858,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
   if (projectProfile || memorySeedWritten) {
     if (memorySeedWritten) {
       console.log(
-        chalk.cyan(
-          "\n  📌 Next step: Run ") +
+        chalk.cyan("\n  📌 Next step: Run ") +
           chalk.bold("/memorize bootstrap") +
           chalk.cyan(
             " in your AI assistant.\n     It will see your seeded memory and offer to merge or refine it\n     into properly organized standing instructions."
@@ -802,8 +866,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
       );
     } else {
       console.log(
-        chalk.cyan(
-          "\n  📌 Next step: Run ") +
+        chalk.cyan("\n  📌 Next step: Run ") +
           chalk.bold("/memorize bootstrap") +
           chalk.cyan(
             " in your AI assistant to auto-generate\n     coding standards, architecture guidelines, and best practices\n     for your project based on the profile you just provided."
@@ -812,4 +875,3 @@ export async function initCommand(options: InitOptions): Promise<void> {
     }
   }
 }
-

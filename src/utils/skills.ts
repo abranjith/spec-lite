@@ -14,7 +14,10 @@ export function getSkillsDir(): string {
     path.resolve(__dirname, "skills"),
     path.resolve(__dirname, "..", "..", "skills"),
   ];
-  return candidates.find((candidate) => fs.pathExistsSync(candidate)) ?? candidates[0];
+  return (
+    candidates.find((candidate) => fs.pathExistsSync(candidate)) ??
+    candidates[0]
+  );
 }
 
 /**

@@ -44,12 +44,7 @@ import path from "node:path";
 
 /** Where a substituted value will land, which determines how it is escaped. */
 export type EscapeContext =
-  | "shell-posix"
-  | "shell-pwsh"
-  | "json"
-  | "url"
-  | "header"
-  | "none";
+  "shell-posix" | "shell-pwsh" | "json" | "url" | "header" | "none";
 
 /** `base` variables are available on every event; the rest come from event `provides`. */
 export interface VarDefinition {
@@ -69,7 +64,10 @@ export interface ResolveContext {
 }
 
 export class InterpolationError extends Error {
-  constructor(message: string, readonly varName?: string) {
+  constructor(
+    message: string,
+    readonly varName?: string
+  ) {
     super(message);
     this.name = "InterpolationError";
   }
@@ -88,69 +86,227 @@ const V = (
 ): VarDefinition => ({ name, group, description, example, resolve });
 
 export const INTERPOLATION_VARS: readonly VarDefinition[] = [
-  V("plan.file", "plan", "Canonical source plan path (source-plan modes only).", ".spec-lite/plan_orders.md", (c) => typeof c.payload.plan === "string" ? c.payload.plan : undefined),
-  V("plan.name", "plan", "Source plan name.", "orders", (c) => typeof c.payload.plan === "string" ? path.basename(c.payload.plan, ".md").replace(/^plan[_-]?/, "") || "plan" : undefined),
-  V("report.file", "report", "Report-producing event's output path.", ".spec-lite/reviews/review_orders.md", (c) => typeof c.payload.report === "string" ? c.payload.report : undefined),
-  V("verdict.code", "verdict", "Stable structured verdict code.", "ready", (c) => typeof c.payload.verdictCode === "string" ? c.payload.verdictCode : undefined),
-  V("workflow.id", "workflow", "Durable workflow identity (protocol 2).", "w-1234", (c) => (c.payload.workflow as { id?: string })?.id),
-  V("execution.id", "execution", "Lifetime role owner identity (protocol 2).", "x-1234", (c) => (c.payload.execution as { id?: string })?.id),
-  V("action.id", "action", "Owning action, when present; otherwise use a fallback.", "a-1234", (c) => (c.payload.action as { id?: string })?.id),
-  ...(["id", "question", "status", "url", "choice", "actor", "feedbackFile"] as const).map((field) => V(`decision.${field}`, ["choice", "actor", "feedbackFile"].includes(field) ? "decision-resolved" : "decision", `Checkpoint ${field}; URL is optional.`, field === "id" ? "d-1234" : field, (c) => (c.payload.decision as Record<string,string>)?.[field])),
+  V(
+    "plan.file",
+    "plan",
+    "Canonical source plan path (source-plan modes only).",
+    ".spec-lite/plan_orders.md",
+    (c) => (typeof c.payload.plan === "string" ? c.payload.plan : undefined)
+  ),
+  V("plan.name", "plan", "Source plan name.", "orders", (c) =>
+    typeof c.payload.plan === "string"
+      ? path.basename(c.payload.plan, ".md").replace(/^plan[_-]?/, "") || "plan"
+      : undefined
+  ),
+  V(
+    "report.file",
+    "report",
+    "Report-producing event's output path.",
+    ".spec-lite/reviews/review_orders.md",
+    (c) => (typeof c.payload.report === "string" ? c.payload.report : undefined)
+  ),
+  V(
+    "verdict.code",
+    "verdict",
+    "Stable structured verdict code.",
+    "ready",
+    (c) =>
+      typeof c.payload.verdictCode === "string"
+        ? c.payload.verdictCode
+        : undefined
+  ),
+  V(
+    "workflow.id",
+    "workflow",
+    "Durable workflow identity (protocol 2).",
+    "w-1234",
+    (c) => (c.payload.workflow as { id?: string })?.id
+  ),
+  V(
+    "execution.id",
+    "execution",
+    "Lifetime role owner identity (protocol 2).",
+    "x-1234",
+    (c) => (c.payload.execution as { id?: string })?.id
+  ),
+  V(
+    "action.id",
+    "action",
+    "Owning action, when present; otherwise use a fallback.",
+    "a-1234",
+    (c) => (c.payload.action as { id?: string })?.id
+  ),
+  ...(
+    [
+      "id",
+      "question",
+      "status",
+      "url",
+      "choice",
+      "actor",
+      "feedbackFile",
+    ] as const
+  ).map((field) =>
+    V(
+      `decision.${field}`,
+      ["choice", "actor", "feedbackFile"].includes(field)
+        ? "decision-resolved"
+        : "decision",
+      `Checkpoint ${field}; URL is optional.`,
+      field === "id" ? "d-1234" : field,
+      (c) => (c.payload.decision as Record<string, string>)?.[field]
+    )
+  ),
   // --- base: present on every event ---------------------------------------
-  V("event", "base", "Full dotted event name.", "implement.post",
-    (c) => c.payload.event),
-  V("role", "base", "Agent or skill that emitted the event.", "implement",
-    (c) => c.payload.role),
-  V("phase", "base", "Lifecycle position: pre, post, or signal.", "post",
-    (c) => c.payload.phase),
-  V("runId", "base", "Stable id for one `hook run` invocation.", "01J9F2K7M4",
-    (c) => c.payload.runId),
-  V("timestamp", "base", "ISO-8601 UTC timestamp of the run.", "2026-08-21T14:03:11.204Z",
-    (c) => c.payload.timestamp),
-  V("cwd", "base", "Absolute workspace root.", "/repo",
-    (c) => c.payload.cwd),
-  V("provider", "base", "Configured harness alias, or \"unknown\".", "claude-code",
-    (c) => c.payload.provider),
-  V("payload", "base", "The entire payload as compact JSON.", "{\"event\":\"implement.post\",…}",
-    (c) => JSON.stringify(c.payload)),
-  V("payload.file", "base", "Path to a temp file holding the payload JSON.", "/tmp/spec-lite-x.json",
-    (c) => c.payloadFile),
+  V(
+    "event",
+    "base",
+    "Full dotted event name.",
+    "implement.post",
+    (c) => c.payload.event
+  ),
+  V(
+    "role",
+    "base",
+    "Agent or skill that emitted the event.",
+    "implement",
+    (c) => c.payload.role
+  ),
+  V(
+    "phase",
+    "base",
+    "Lifecycle position: pre, post, or signal.",
+    "post",
+    (c) => c.payload.phase
+  ),
+  V(
+    "runId",
+    "base",
+    "Stable id for one `hook run` invocation.",
+    "01J9F2K7M4",
+    (c) => c.payload.runId
+  ),
+  V(
+    "timestamp",
+    "base",
+    "ISO-8601 UTC timestamp of the run.",
+    "2026-08-21T14:03:11.204Z",
+    (c) => c.payload.timestamp
+  ),
+  V("cwd", "base", "Absolute workspace root.", "/repo", (c) => c.payload.cwd),
+  V(
+    "provider",
+    "base",
+    'Configured harness alias, or "unknown".',
+    "claude-code",
+    (c) => c.payload.provider
+  ),
+  V(
+    "payload",
+    "base",
+    "The entire payload as compact JSON.",
+    '{"event":"implement.post",…}',
+    (c) => JSON.stringify(c.payload)
+  ),
+  V(
+    "payload.file",
+    "base",
+    "Path to a temp file holding the payload JSON.",
+    "/tmp/spec-lite-x.json",
+    (c) => c.payloadFile
+  ),
 
   // --- feature -------------------------------------------------------------
-  V("feature.id", "feature", "Stable feature identifier.", "FEAT-012",
-    (c) => c.payload.feature?.id),
-  V("feature.name", "feature", "Snake_case feature name.", "user_management",
-    (c) => c.payload.feature?.name),
-  V("feature.dir", "feature", "Feature directory, workspace-relative.",
+  V(
+    "feature.id",
+    "feature",
+    "Stable feature identifier.",
+    "FEAT-012",
+    (c) => c.payload.feature?.id
+  ),
+  V(
+    "feature.name",
+    "feature",
+    "Snake_case feature name.",
+    "user_management",
+    (c) => c.payload.feature?.name
+  ),
+  V(
+    "feature.dir",
+    "feature",
+    "Feature directory, workspace-relative.",
     ".spec-lite/features/FEAT-012-user_management",
-    (c) => c.payload.feature?.dir),
-  V("feature.spec", "feature", "Feature spec path, workspace-relative.",
+    (c) => c.payload.feature?.dir
+  ),
+  V(
+    "feature.spec",
+    "feature",
+    "Feature spec path, workspace-relative.",
     ".spec-lite/features/FEAT-012-user_management/spec.md",
-    (c) => c.payload.feature?.spec),
+    (c) => c.payload.feature?.spec
+  ),
 
   // --- task ----------------------------------------------------------------
-  V("task.id", "task", "Task identifier within a feature.", "TASK-003",
-    (c) => c.payload.task?.id),
+  V(
+    "task.id",
+    "task",
+    "Task identifier within a feature.",
+    "TASK-003",
+    (c) => c.payload.task?.id
+  ),
 
   // --- changes -------------------------------------------------------------
-  V("changes.count", "changes", "Number of files in the captured changeset.", "12",
-    (c) => (c.payload.changes ? String(c.payload.changes.files.length) : undefined)),
-  V("changes.source", "changes", "How the changeset was captured: git, gh, or none.", "git",
-    (c) => c.payload.changes?.source),
-  V("changes.baseline", "changes", "Baseline commit the changeset is diffed against.", "abc1234",
-    (c) => c.payload.changes?.baseline),
-  V("changes.head", "changes", "HEAD of the checkout when the event fired.", "def5678",
-    (c) => c.payload.changes?.head),
-  V("changes.files", "changes", "Changed paths, newline-separated.", "src/a.ts\\nsrc/b.ts",
+  V(
+    "changes.count",
+    "changes",
+    "Number of files in the captured changeset.",
+    "12",
     (c) =>
-      c.payload.changes ? c.payload.changes.files.map((f) => f.path).join("\n") : undefined),
+      c.payload.changes ? String(c.payload.changes.files.length) : undefined
+  ),
+  V(
+    "changes.source",
+    "changes",
+    "How the changeset was captured: git, gh, or none.",
+    "git",
+    (c) => c.payload.changes?.source
+  ),
+  V(
+    "changes.baseline",
+    "changes",
+    "Baseline commit the changeset is diffed against.",
+    "abc1234",
+    (c) => c.payload.changes?.baseline
+  ),
+  V(
+    "changes.head",
+    "changes",
+    "HEAD of the checkout when the event fired.",
+    "def5678",
+    (c) => c.payload.changes?.head
+  ),
+  V(
+    "changes.files",
+    "changes",
+    "Changed paths, newline-separated.",
+    "src/a.ts\\nsrc/b.ts",
+    (c) =>
+      c.payload.changes
+        ? c.payload.changes.files.map((f) => f.path).join("\n")
+        : undefined
+  ),
 
   // --- verdict / summary ---------------------------------------------------
-  V("verdict", "verdict", "Review verdict.", "Request changes",
-    (c) => (c.payload.verdict == null ? undefined : String(c.payload.verdict))),
-  V("summary", "summary", "One-line summary supplied by the emitting role.",
+  V("verdict", "verdict", "Review verdict.", "Request changes", (c) =>
+    c.payload.verdict == null ? undefined : String(c.payload.verdict)
+  ),
+  V(
+    "summary",
+    "summary",
+    "One-line summary supplied by the emitting role.",
     "Added session expiry handling",
-    (c) => c.payload.summary),
+    (c) => c.payload.summary
+  ),
 ];
 
 const VARS_BY_NAME = new Map(INTERPOLATION_VARS.map((v) => [v.name, v]));
@@ -182,7 +338,12 @@ function parseRef(inner: string, raw: string): VarRef {
   const body = isEnv ? inner.slice(4) : inner;
   const sep = body.indexOf(":-");
   if (sep === -1) return { name: body, isEnv, raw };
-  return { name: body.slice(0, sep), isEnv, fallback: body.slice(sep + 2), raw };
+  return {
+    name: body.slice(0, sep),
+    isEnv,
+    fallback: body.slice(sep + 2),
+    raw,
+  };
 }
 
 /** Every `${...}` reference in a template, in order of appearance. */
@@ -225,7 +386,12 @@ export function escapeValue(value: string, context: EscapeContext): string {
       // value carrying CR/LF would otherwise inject an extra header (or a
       // body) into the request, so newlines collapse to a space and every
       // other control character is dropped.
-      return value.replace(/\r\n|[\r\n]/g, " ").replace(/[\u0000-\u001f\u007f]/g, "");
+      return (
+        value
+          .replace(/\r\n|[\r\n]/g, " ")
+          // eslint-disable-next-line no-control-regex -- Strip control characters to prevent header injection.
+          .replace(/[\u0000-\u001f\u007f]/g, "")
+      );
     case "none":
       return value;
   }
@@ -262,7 +428,9 @@ export function validateTemplate(
   for (const ref of parseTemplate(template)) {
     if (ref.isEnv) {
       if (!ref.name) {
-        errors.push(`${label}: ${ref.raw} is missing an environment variable name.`);
+        errors.push(
+          `${label}: ${ref.raw} is missing an environment variable name.`
+        );
         continue;
       }
       envVars.push(ref.name);
@@ -286,9 +454,14 @@ export function validateTemplate(
 
     if (ref.fallback !== undefined || def.group === "base") continue;
     if (["workflow.id", "execution.id"].includes(ref.name)) continue; // guaranteed to protocol 2 callers
-    if (ref.name === "decision.url") { errors.push(`${label}: decision.url is optional; use a fallback.`); continue; }
+    if (ref.name === "decision.url") {
+      errors.push(`${label}: decision.url is optional; use a fallback.`);
+      continue;
+    }
 
-    const missing = subscribedEvents.filter((e) => !e.provides.includes(def.group as VarGroup));
+    const missing = subscribedEvents.filter(
+      (e) => !e.provides.includes(def.group as VarGroup)
+    );
     if (missing.length > 0) {
       errors.push(
         `${label}: \${${ref.name}} has no guaranteed value on ` +
@@ -366,7 +539,11 @@ export function resolveTemplate(
 }
 
 /** Replace the values of the given env vars with a placeholder, for logs and --dry-run. */
-export function redactEnvValues(text: string, envVars: string[], env = process.env): string {
+export function redactEnvValues(
+  text: string,
+  envVars: string[],
+  env = process.env
+): string {
   let out = text;
   for (const name of envVars) {
     const secret = env[name];
@@ -379,6 +556,11 @@ export function redactEnvValues(text: string, envVars: string[], env = process.e
 
 /** The escape context for a shell, given the platform default for "auto". */
 export function shellEscapeContext(shell: string | undefined): EscapeContext {
-  const resolved = !shell || shell === "auto" ? (process.platform === "win32" ? "pwsh" : "bash") : shell;
+  const resolved =
+    !shell || shell === "auto"
+      ? process.platform === "win32"
+        ? "pwsh"
+        : "bash"
+      : shell;
   return resolved === "pwsh" ? "shell-pwsh" : "shell-posix";
 }

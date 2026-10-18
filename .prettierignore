@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.spec-lite/
+.spec-lite.json
+.husky/
+package-lock.json
+schema/hooks.schema.json

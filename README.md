@@ -115,11 +115,26 @@ npm test
 | `npm run dev` | Rebuild on source changes. |
 | `npm run build` | Bundle the CLI and copy prompt/stack assets to `dist/`. |
 | `npm run typecheck` | Run strict TypeScript checking. |
+| `npm run lint` | Check JavaScript and TypeScript with ESLint; fail on warnings. |
+| `npm run lint:fix` | Fix automatically repairable lint issues. |
+| `npm run format` | Format JavaScript, TypeScript, and JSON with Prettier. |
+| `npm run format:check` | Check formatting without changing files. |
+| `npm run precommit` | Run linting and formatting on staged files. |
 | `npm test` | Run the Vitest regression suite. |
 | `npm run generate:hooks-schema` | Regenerate `schema/hooks.schema.json` from the source of truth. |
 | `npm run generate:hook-docs` | Regenerate the hook variable and event tables in the docs. |
 
 Repository layout is described in [Architecture](docs/architecture.md#repository-layout-of-spec-lite-itself).
+
+`npm install` (or `npm ci`) installs the Husky Git hooks automatically. Before each
+commit, lint-staged runs ESLint fixes and Prettier on staged code, and Prettier on
+staged JSON. Remaining lint errors block the commit. Generated files, build output,
+and local project state are excluded from formatting. Markdown prompts are not
+included in the formatting commands. Git attributes keep code and hook line endings
+consistent on Windows and Unix.
+
+Run `npm run lint:fix` and `npm run format` to clean up files manually. Pull requests
+also run `lint` and `format:check` alongside the existing build, typecheck, and tests.
 
 ## Contributing
 
@@ -129,7 +144,7 @@ Before submitting a change:
 
 1. Keep source catalog mappings, provider handoffs, relative Markdown links, canonical shared blocks, and Project Context markers synchronized.
 2. Add or update regression tests for CLI and provider behavior.
-3. Run `npm run build`, `npm run typecheck`, and `npm test`.
+3. Run `npm run lint`, `npm run format:check`, `npm run build`, `npm run typecheck`, and `npm test`.
 4. Set the pull request base branch to `development`.
 
 ## License

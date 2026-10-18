@@ -7,19 +7,32 @@ import path from "node:path";
 import fs from "fs-extra";
 import { loadRegistry, hooksForEvent, hookIsSkipped } from "./registry.js";
 import { excludeHookLogs, git } from "./builtins/git-workflow.js";
-import { buildPayload, writePayloadFile, refreshChanges, type BuildPayloadOptions } from "./payload.js";
+import {
+  buildPayload,
+  writePayloadFile,
+  refreshChanges,
+  type BuildPayloadOptions,
+} from "./payload.js";
 import { runShellHook } from "./executors/shell.js";
 import { runHttpHook } from "./executors/http.js";
 import { runBuiltinHook } from "./executors/builtin.js";
 import { emitAgenticDirective } from "./executors/agentic.js";
 import { isAgenticKind } from "./types.js";
 import { getEvent } from "./events.js";
-import { hooksLogPath, readProjectConfig, resolveFeature } from "./workspace.js";
+import {
+  hooksLogPath,
+  readProjectConfig,
+  resolveFeature,
+} from "./workspace.js";
 import { previewHook } from "./preview.js";
 import { validatePayloadForHook } from "./payload-validation.js";
 import type { HookPayload, HookResult, ResolvedHook } from "./types.js";
 import type { ResolveContext } from "./interpolation.js";
-import { runControlledEvent, controlFailure, legacyBarrier } from "./control/engine.js";
+import {
+  runControlledEvent,
+  controlFailure,
+  legacyBarrier,
+} from "./control/engine.js";
 import { checkpoint } from "./control/validation.js";
 import { ControlError, type ControlResult } from "./control/types.js";
 import { Store } from "./control/store.js";
@@ -58,21 +71,33 @@ async function hooksDisabled(root: string): Promise<boolean> {
 
 function currentChain(): { depth: number; chain: string[] } {
   const depth = parseInt(process.env.SPEC_LITE_HOOK_DEPTH ?? "0", 10) || 0;
-  const chain = (process.env.SPEC_LITE_HOOK_CHAIN ?? "").split(",").filter(Boolean);
+  const chain = (process.env.SPEC_LITE_HOOK_CHAIN ?? "")
+    .split(",")
+    .filter(Boolean);
   return { depth, chain };
 }
 
-async function appendLog(root: string, featureDir: string | undefined, result: HookResult): Promise<void> {
+async function appendLog(
+  root: string,
+  featureDir: string | undefined,
+  result: HookResult
+): Promise<void> {
   if (!featureDir) return;
   // The log is a local audit trail; keep it out of every commit in this clone.
   await excludeHookLogs(root);
   const file = hooksLogPath(root, featureDir);
   await fs.ensureDir(path.dirname(file));
-  const line = JSON.stringify({ at: new Date().toISOString(), ...result }) + "\n";
+  const line =
+    JSON.stringify({ at: new Date().toISOString(), ...result }) + "\n";
   await fs.appendFile(file, line, "utf-8");
 }
 
-async function alreadyRanOnce(root: string, featureDir: string | undefined, hookName: string, event: string): Promise<boolean> {
+async function alreadyRanOnce(
+  root: string,
+  featureDir: string | undefined,
+  hookName: string,
+  event: string
+): Promise<boolean> {
   if (!featureDir) return false;
   const file = hooksLogPath(root, featureDir);
   if (!(await fs.pathExists(file))) return false;
@@ -80,7 +105,12 @@ async function alreadyRanOnce(root: string, featureDir: string | undefined, hook
   for (const line of content.split("\n").filter(Boolean)) {
     try {
       const entry = JSON.parse(line) as HookResult;
-      if (entry.name === hookName && entry.event === event && (entry.status === "ok" || entry.status === "emitted")) return true;
+      if (
+        entry.name === hookName &&
+        entry.event === event &&
+        (entry.status === "ok" || entry.status === "emitted")
+      )
+        return true;
     } catch {
       /* ignore malformed line */
     }
@@ -89,21 +119,59 @@ async function alreadyRanOnce(root: string, featureDir: string | undefined, hook
 }
 
 export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
-  if (opts.protocol !== undefined) opts = { ...opts, root: await git(opts.root, ["rev-parse", "--show-toplevel"]).catch(() => opts.root) };
-  const skip = [...(opts.skip ?? []), ...(process.env.SPEC_LITE_SKIP_HOOKS ?? "").split(",").map((name) => name.trim()).filter(Boolean)];
+  if (opts.protocol !== undefined)
+    opts = {
+      ...opts,
+      root: await git(opts.root, ["rev-parse", "--show-toplevel"]).catch(
+        () => opts.root
+      ),
+    };
+  const skip = [
+    ...(opts.skip ?? []),
+    ...(process.env.SPEC_LITE_SKIP_HOOKS ?? "")
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean),
+  ];
   opts = { ...opts, skip };
   const { depth, chain } = currentChain();
   const payload = await buildPayload(opts);
-  if (opts.protocol !== undefined && String(opts.protocol) !== "2") return { ...controlFailure(new ControlError("protocol-version", "Supported control protocol: 2. Update the caller before running hooks.", 2)), payload };
+  if (opts.protocol !== undefined && String(opts.protocol) !== "2")
+    return {
+      ...controlFailure(
+        new ControlError(
+          "protocol-version",
+          "Supported control protocol: 2. Update the caller before running hooks.",
+          2
+        )
+      ),
+      payload,
+    };
 
   if (depth >= MAX_HOOK_DEPTH) {
-    if (opts.protocol !== undefined) return { ...controlFailure(new ControlError("recursion-limit", `Hook recursion depth ${depth} reached the in-process cap of ${MAX_HOOK_DEPTH}.`, 2)), payload };
+    if (opts.protocol !== undefined)
+      return {
+        ...controlFailure(
+          new ControlError(
+            "recursion-limit",
+            `Hook recursion depth ${depth} reached the in-process cap of ${MAX_HOOK_DEPTH}.`,
+            2
+          )
+        ),
+        payload,
+      };
     return {
       payload,
-      results: [{
-        name: "*", event: opts.event, kind: "command", status: "failed", durationMs: 0,
-        message: `hook reentrancy depth ${depth} >= ${MAX_HOOK_DEPTH}; aborting to prevent a loop`,
-      }],
+      results: [
+        {
+          name: "*",
+          event: opts.event,
+          kind: "command",
+          status: "failed",
+          durationMs: 0,
+          message: `hook reentrancy depth ${depth} >= ${MAX_HOOK_DEPTH}; aborting to prevent a loop`,
+        },
+      ],
       exitCode: 2,
       registryIssues: [],
     };
@@ -112,11 +180,32 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   if (await hooksDisabled(opts.root)) {
     if (opts.protocol !== undefined) {
       // Outside Git there is no durable store and nothing to route: a disabled kill switch stays a no-op.
-      if (!(await durableStoreAvailable(opts.root))) return { ...statelessControl({ payload, results: [], exitCode: 0, registryIssues: [] }), disabled: true };
-      const controlled = await runControlledEvent(opts, payload, []); return { ...controlled, payload: controlled.payload ?? payload, disabled: true };
+      if (!(await durableStoreAvailable(opts.root)))
+        return {
+          ...statelessControl({
+            payload,
+            results: [],
+            exitCode: 0,
+            registryIssues: [],
+          }),
+          disabled: true,
+        };
+      const controlled = await runControlledEvent(opts, payload, []);
+      return {
+        ...controlled,
+        payload: controlled.payload ?? payload,
+        disabled: true,
+      };
     }
-    const barrier = await legacyBarrier(opts, payload); if (barrier) return { ...barrier, payload };
-    return { payload, results: [], exitCode: 0, registryIssues: [], disabled: true };
+    const barrier = await legacyBarrier(opts, payload);
+    if (barrier) return { ...barrier, payload };
+    return {
+      payload,
+      results: [],
+      exitCode: 0,
+      registryIssues: [],
+      disabled: true,
+    };
   }
 
   // An event outside the catalog is a contract error, not a quiet no-op: a
@@ -124,14 +213,26 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   // subscribed to the event that was meant. The kill switch above still wins,
   // so a clone with hooks disabled never fails on one.
   if (!getEvent(opts.event)) {
-    if (opts.protocol !== undefined) return { ...controlFailure(new ControlError("unknown-event", `Unknown event ${opts.event}.`, 2)), payload };
+    if (opts.protocol !== undefined)
+      return {
+        ...controlFailure(
+          new ControlError("unknown-event", `Unknown event ${opts.event}.`, 2)
+        ),
+        payload,
+      };
     return {
       payload,
-      results: [{
-        name: "*", event: opts.event, kind: "command", status: "failed", durationMs: 0,
-        contractError: true,
-        message: `unknown event "${opts.event}" — run \`spec-lite hook events\` for the catalog`,
-      }],
+      results: [
+        {
+          name: "*",
+          event: opts.event,
+          kind: "command",
+          status: "failed",
+          durationMs: 0,
+          contractError: true,
+          message: `unknown event "${opts.event}" — run \`spec-lite hook events\` for the catalog`,
+        },
+      ],
       exitCode: 2,
       registryIssues: [],
     };
@@ -141,22 +242,48 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   const subscribed = hooksForEvent(allHooks, opts.event).filter(
     (h) => !opts.only || h.name === opts.only
   );
-  const registryIssues = issues.map((i) => `[${i.level}] ${i.hook ? `${i.hook}: ` : ""}${i.message}`);
+  const registryIssues = issues.map(
+    (i) => `[${i.level}] ${i.hook ? `${i.hook}: ` : ""}${i.message}`
+  );
 
   // A registry error means the configuration itself is wrong. Run nothing:
   // firing a partially-valid registry is how side effects happen against a
   // config the user has not actually got right yet.
   if (issues.some((i) => i.level === "error")) {
-    if (opts.protocol !== undefined) return { ...controlFailure(new ControlError("registry-invalid", registryIssues.join("\n"), 2)), payload, registryIssues };
+    if (opts.protocol !== undefined)
+      return {
+        ...controlFailure(
+          new ControlError("registry-invalid", registryIssues.join("\n"), 2)
+        ),
+        payload,
+        registryIssues,
+      };
     return { payload, results: [], exitCode: 2, registryIssues };
   }
 
-  if (opts.protocol !== undefined || subscribed.some((hook) => hook.gate || checkpoint(hook))) {
+  if (
+    opts.protocol !== undefined ||
+    subscribed.some((hook) => hook.gate || checkpoint(hook))
+  ) {
     const active = subscribed.filter((h) => !hookIsSkipped(h, skip));
     // Durable context needs a Git store. Without one, stateless hooks keep their original behavior;
     // gates, checkpoints and routing still fail visibly in the engine.
-    if (opts.protocol !== undefined && !active.some(durableHook) && !(await durableStoreAvailable(opts.root))) {
-      return statelessControl(await runStateless(opts, payload, subscribed, skip, depth, chain, registryIssues));
+    if (
+      opts.protocol !== undefined &&
+      !active.some(durableHook) &&
+      !(await durableStoreAvailable(opts.root))
+    ) {
+      return statelessControl(
+        await runStateless(
+          opts,
+          payload,
+          subscribed,
+          skip,
+          depth,
+          chain,
+          registryIssues
+        )
+      );
     }
     const controlled = await runControlledEvent(opts, payload, active);
     return { ...controlled, payload: controlled.payload ?? payload };
@@ -164,23 +291,54 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   const barrier = await legacyBarrier(opts, payload);
   if (barrier) return { ...barrier, payload };
 
-  return runStateless(opts, payload, subscribed, skip, depth, chain, registryIssues);
+  return runStateless(
+    opts,
+    payload,
+    subscribed,
+    skip,
+    depth,
+    chain,
+    registryIssues
+  );
 }
 
 /** True when the hook needs durable control state (a Git checkout). */
-const durableHook = (hook: ResolvedHook): boolean => !!hook.gate || checkpoint(hook) || isAgenticKind(hook.type);
+const durableHook = (hook: ResolvedHook): boolean =>
+  !!hook.gate || checkpoint(hook) || isAgenticKind(hook.type);
 
 async function durableStoreAvailable(root: string): Promise<boolean> {
-  try { await Store.open(root); return true; } catch { return false; }
+  try {
+    await Store.open(root);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Protocol-2 envelope for a stateless dispatch: no IDs, because no durable context exists. */
-function statelessControl(report: RunEventReport): RunEventReport & ControlResult {
+function statelessControl(
+  report: RunEventReport
+): RunEventReport & ControlResult {
   const failed = report.exitCode !== 0;
   return {
-    ...report, protocol: 2, status: failed ? "error" : "continue", exitCode: report.exitCode,
-    message: "Stateless run: not a Git checkout, so no durable context was created. Later events need no --execution.",
-    ...(failed ? { error: { code: report.exitCode === 2 ? "contract-error" : "hook-failed", message: report.results.filter((r) => r.status === "failed").map((r) => `${r.name}: ${r.message ?? "failed"}`).join("; ") || "Hook dispatch failed." } } : {}),
+    ...report,
+    protocol: 2,
+    status: failed ? "error" : "continue",
+    exitCode: report.exitCode,
+    message:
+      "Stateless run: not a Git checkout, so no durable context was created. Later events need no --execution.",
+    ...(failed
+      ? {
+          error: {
+            code: report.exitCode === 2 ? "contract-error" : "hook-failed",
+            message:
+              report.results
+                .filter((r) => r.status === "failed")
+                .map((r) => `${r.name}: ${r.message ?? "failed"}`)
+                .join("; ") || "Hook dispatch failed.",
+          },
+        }
+      : {}),
   };
 }
 
@@ -201,16 +359,45 @@ async function runStateless(
 
   for (const hook of subscribed) {
     if (hookIsSkipped(hook, skip)) {
-      results.push({ name: hook.name, event: opts.event, kind: hook.type, status: "skipped", durationMs: 0, message: "disabled for this invocation" });
+      results.push({
+        name: hook.name,
+        event: opts.event,
+        kind: hook.type,
+        status: "skipped",
+        durationMs: 0,
+        message: "disabled for this invocation",
+      });
       continue;
     }
     const chainKey = `${opts.event}:${hook.name}`;
     if (chain.includes(chainKey)) {
-      results.push({ name: hook.name, event: opts.event, kind: hook.type, status: "skipped", durationMs: 0, message: "reentrant within this chain" });
+      results.push({
+        name: hook.name,
+        event: opts.event,
+        kind: hook.type,
+        status: "skipped",
+        durationMs: 0,
+        message: "reentrant within this chain",
+      });
       continue;
     }
-    if (hook.once && (await alreadyRanOnce(opts.root, payload.feature?.dir, hook.name, opts.event))) {
-      results.push({ name: hook.name, event: opts.event, kind: hook.type, status: "skipped", durationMs: 0, message: "already ran once for this event" });
+    if (
+      hook.once &&
+      (await alreadyRanOnce(
+        opts.root,
+        payload.feature?.dir,
+        hook.name,
+        opts.event
+      ))
+    ) {
+      results.push({
+        name: hook.name,
+        event: opts.event,
+        kind: hook.type,
+        status: "skipped",
+        durationMs: 0,
+        message: "already ran once for this event",
+      });
       continue;
     }
 
@@ -221,8 +408,13 @@ async function runStateless(
     const validation = validatePayloadForHook(hook, payload);
     if (!validation.ok) {
       const result: HookResult = {
-        name: hook.name, event: opts.event, kind: hook.type, status: "failed",
-        durationMs: 0, message: validation.message, contractError: true,
+        name: hook.name,
+        event: opts.event,
+        kind: hook.type,
+        status: "failed",
+        durationMs: 0,
+        message: validation.message,
+        contractError: true,
       };
       results.push(result);
       await appendLog(opts.root, payload.feature?.dir, result);
@@ -233,20 +425,35 @@ async function runStateless(
     if (opts.dryRun) {
       const preview = previewHook(hook, ctx);
       results.push({
-        name: hook.name, event: opts.event, kind: hook.type, status: "skipped", durationMs: 0,
-        message: "dry run — not executed", preview,
+        name: hook.name,
+        event: opts.event,
+        kind: hook.type,
+        status: "skipped",
+        durationMs: 0,
+        message: "dry run — not executed",
+        preview,
       });
       continue;
     }
 
-    const result = await dispatch(hook, ctx, opts.root, depth, [...chain, chainKey], skip);
+    const result = await dispatch(
+      hook,
+      ctx,
+      opts.root,
+      depth,
+      [...chain, chainKey],
+      skip
+    );
     results.push(result);
     if (result.worktree && result.status === "ok") {
       opts = { ...opts, root: result.worktree.path };
       payload.cwd = result.worktree.path;
       payload.worktree = result.worktree;
       // Called from another checkout, the feature directory may exist only in the worktree.
-      if (payload.feature?.id && !payload.feature.dir) payload.feature = (await resolveFeature(opts.root, payload.feature.id)) ?? payload.feature;
+      if (payload.feature?.id && !payload.feature.dir)
+        payload.feature =
+          (await resolveFeature(opts.root, payload.feature.id)) ??
+          payload.feature;
       delete payload.changes;
       if (payloadFile) await fs.writeJson(payloadFile, payload);
     }
@@ -300,7 +507,9 @@ async function emitHookError(
   if (opts.event === "hook.error" || opts.dryRun) return;
 
   const { hooks } = await loadRegistry(opts.root, { skip: opts.skip });
-  const handlers = hooksForEvent(hooks, "hook.error").filter((hook) => !hookIsSkipped(hook, opts.skip ?? []));
+  const handlers = hooksForEvent(hooks, "hook.error").filter(
+    (hook) => !hookIsSkipped(hook, opts.skip ?? [])
+  );
   if (handlers.length === 0) return;
 
   const errorPayload = await buildPayload({
@@ -319,7 +528,14 @@ async function emitHookError(
   for (const handler of handlers) {
     const chainKey = `hook.error:${handler.name}`;
     if (chain.includes(chainKey)) continue;
-    const result = await dispatch(handler, { payload: errorPayload, payloadFile }, opts.root, depth, [...chain, chainKey], opts.skip);
+    const result = await dispatch(
+      handler,
+      { payload: errorPayload, payloadFile },
+      opts.root,
+      depth,
+      [...chain, chainKey],
+      opts.skip
+    );
     await appendLog(opts.root, payload.feature?.dir, result);
   }
   await fs.remove(payloadFile);
@@ -333,7 +549,11 @@ async function dispatch(
   chain: string[],
   skip: string[] = []
 ): Promise<HookResult> {
-  const reentrancyEnv = { SPEC_LITE_HOOK_DEPTH: String(depth + 1), SPEC_LITE_HOOK_CHAIN: chain.join(","), SPEC_LITE_SKIP_HOOKS: skip.join(",") };
+  const reentrancyEnv = {
+    SPEC_LITE_HOOK_DEPTH: String(depth + 1),
+    SPEC_LITE_HOOK_CHAIN: chain.join(","),
+    SPEC_LITE_SKIP_HOOKS: skip.join(","),
+  };
 
   if (isAgenticKind(hook.type)) return emitAgenticDirective(hook, ctx);
 
@@ -346,6 +566,13 @@ async function dispatch(
     case "script":
       return runShellHook(hook, ctx, root, reentrancyEnv);
     default:
-      return { name: hook.name, event: ctx.payload.event, kind: hook.type, status: "failed", durationMs: 0, message: `unhandled kind "${hook.type}"` };
+      return {
+        name: hook.name,
+        event: ctx.payload.event,
+        kind: hook.type,
+        status: "failed",
+        durationMs: 0,
+        message: `unhandled kind "${hook.type}"`,
+      };
   }
 }

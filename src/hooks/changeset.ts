@@ -27,14 +27,22 @@ import type { ChangedFile } from "./types.js";
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_EXCLUDES = [
-  /^dist\//, /^build\//, /^out\//, /^node_modules\//,
-  /package-lock\.json$/, /yarn\.lock$/, /pnpm-lock\.yaml$/,
+  /^dist\//,
+  /^build\//,
+  /^out\//,
+  /^node_modules\//,
+  /package-lock\.json$/,
+  /yarn\.lock$/,
+  /pnpm-lock\.yaml$/,
   /^\.spec-lite\//,
 ];
 
 async function git(root: string, args: string[]): Promise<string> {
   try {
-    const { stdout } = await execFileAsync("git", args, { cwd: root, maxBuffer: 32 * 1024 * 1024 });
+    const { stdout } = await execFileAsync("git", args, {
+      cwd: root,
+      maxBuffer: 32 * 1024 * 1024,
+    });
     return stdout;
   } catch (err) {
     const e = err as { stdout?: string; code?: number };
@@ -45,7 +53,9 @@ async function git(root: string, args: string[]): Promise<string> {
 
 async function isGitRepo(root: string): Promise<boolean> {
   try {
-    await execFileAsync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root });
+    await execFileAsync("git", ["rev-parse", "--is-inside-work-tree"], {
+      cwd: root,
+    });
     return true;
   } catch {
     return false;
@@ -53,9 +63,14 @@ async function isGitRepo(root: string): Promise<boolean> {
 }
 
 /** Working-tree blob hash for a path, or undefined if it doesn't exist (deleted). */
-async function hashWorkingTreeFile(root: string, relPath: string): Promise<string | undefined> {
+async function hashWorkingTreeFile(
+  root: string,
+  relPath: string
+): Promise<string | undefined> {
   try {
-    const out = await execFileAsync("git", ["hash-object", "--", relPath], { cwd: root });
+    const out = await execFileAsync("git", ["hash-object", "--", relPath], {
+      cwd: root,
+    });
     return out.stdout.trim();
   } catch {
     return undefined; // file does not exist right now
@@ -125,7 +140,9 @@ async function writeDoc(file: string, doc: ChangesetDoc): Promise<void> {
 /** HEAD of the checkout, or undefined outside Git or before the first commit. */
 export async function currentHead(root: string): Promise<string | undefined> {
   try {
-    return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+    return (
+      await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })
+    ).stdout.trim();
   } catch {
     return undefined;
   }
@@ -143,7 +160,12 @@ export async function currentHead(root: string): Promise<string | undefined> {
  * every file inside it.
  */
 async function porcelainPaths(root: string): Promise<string[]> {
-  const raw = await git(root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"]);
+  const raw = await git(root, [
+    "status",
+    "--porcelain=v1",
+    "-z",
+    "--untracked-files=all",
+  ]);
   const entries = raw.split("\0").filter(Boolean);
   const paths: string[] = [];
   for (const entry of entries) {
@@ -175,7 +197,11 @@ export async function captureBaseline(
 
   // A new Git workflow starts a new changeset: the existing one (perhaps
   // committed by an earlier branch) describes different work.
-  if (doc.baseline && opts.workflow && doc.baseline.workflow !== opts.workflow) {
+  if (
+    doc.baseline &&
+    opts.workflow &&
+    doc.baseline.workflow !== opts.workflow
+  ) {
     doc = { vcs: "git", featureId: doc.featureId, files: [], excluded: [] };
   }
 
@@ -191,7 +217,10 @@ export async function captureBaseline(
     }
     doc.vcs = "git";
     doc.baseline = {
-      sha, capturedAt: new Date().toISOString(), dirtyAtBaseline: dirty, dirtyBlobHashes,
+      sha,
+      capturedAt: new Date().toISOString(),
+      dirtyAtBaseline: dirty,
+      dirtyBlobHashes,
       ...(opts.workflow ? { workflow: opts.workflow } : {}),
     };
     delete doc.noBaselineReason;
@@ -202,13 +231,22 @@ export async function captureBaseline(
   return doc;
 }
 
-function parseNameStatus(raw: string): Array<{ path: string; status: ChangedFile["status"] }> {
+function parseNameStatus(
+  raw: string
+): Array<{ path: string; status: ChangedFile["status"] }> {
   const out: Array<{ path: string; status: ChangedFile["status"] }> = [];
   for (const line of raw.split("\n").filter(Boolean)) {
     const [code, ...rest] = line.split("\t");
     const p = rest[rest.length - 1];
     if (!p) continue;
-    const status = code[0] === "R" ? "R" : code[0] === "A" ? "A" : code[0] === "D" ? "D" : "M";
+    const status =
+      code[0] === "R"
+        ? "R"
+        : code[0] === "A"
+          ? "A"
+          : code[0] === "D"
+            ? "D"
+            : "M";
     out.push({ path: p, status });
   }
   return out;
@@ -248,8 +286,10 @@ export async function captureChangeset(
   ]);
 
   const found = new Map<string, ChangedFile["status"]>();
-  for (const { path: p, status } of parseNameStatus(committed)) found.set(p, status);
-  for (const { path: p, status } of parseNameStatus(workingTree)) found.set(p, status);
+  for (const { path: p, status } of parseNameStatus(committed))
+    found.set(p, status);
+  for (const { path: p, status } of parseNameStatus(workingTree))
+    found.set(p, status);
   for (const p of untracked.split("\n").filter(Boolean)) {
     if (!found.has(p)) found.set(p, "U");
   }
@@ -289,7 +329,10 @@ export async function captureChangeset(
   return doc;
 }
 
-export async function readChangeset(root: string, featureDir: string): Promise<ChangesetDoc | undefined> {
+export async function readChangeset(
+  root: string,
+  featureDir: string
+): Promise<ChangesetDoc | undefined> {
   const file = changesetPath(root, featureDir);
   if (!(await fs.pathExists(file))) return undefined;
   return (await fs.readJson(file)) as ChangesetDoc;

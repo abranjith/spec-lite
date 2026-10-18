@@ -2,7 +2,12 @@ import path from "path";
 import os from "os";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
-import { getAgentOutputName, getPromptOutputName, hasPromptName, isPromptOnly } from "../utils/prompts.js";
+import {
+  getAgentOutputName,
+  getPromptOutputName,
+  hasPromptName,
+  isPromptOnly,
+} from "../utils/prompts.js";
 import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
@@ -28,7 +33,11 @@ export class ClaudeCodeProvider implements Provider {
 
   getOutputPaths(promptName: string): { agent?: string; prompt: string } {
     const promptOutName = getPromptOutputName(promptName);
-    const promptPath = path.join(".claude", "commands", `spec.${promptOutName}.md`);
+    const promptPath = path.join(
+      ".claude",
+      "commands",
+      `spec.${promptOutName}.md`
+    );
 
     if (isPromptOnly(promptName)) {
       return { prompt: promptPath };
@@ -41,14 +50,22 @@ export class ClaudeCodeProvider implements Provider {
     };
   }
 
-  getGlobalOutputPaths(promptName: string): { agent?: string; prompt?: string } {
+  getGlobalOutputPaths(promptName: string): {
+    agent?: string;
+    prompt?: string;
+  } {
     const homeDir = os.homedir();
 
     // Global install for Claude only writes agent files
     if (isPromptOnly(promptName)) {
       const promptOutName = getPromptOutputName(promptName);
       return {
-        prompt: path.join(homeDir, ".claude", "commands", `spec.${promptOutName}.md`),
+        prompt: path.join(
+          homeDir,
+          ".claude",
+          "commands",
+          `spec.${promptOutName}.md`
+        ),
       };
     }
 
@@ -125,7 +142,10 @@ export class ClaudeCodeProvider implements Provider {
   ): Promise<{ path: string; label: string } | null> {
     const p = path.join(workspaceRoot, "CLAUDE.md");
     if (await fs.pathExists(p)) {
-      return { path: "CLAUDE.md", label: "Claude root instructions (CLAUDE.md)" };
+      return {
+        path: "CLAUDE.md",
+        label: "Claude root instructions (CLAUDE.md)",
+      };
     }
     return null;
   }
@@ -162,9 +182,7 @@ export class ClaudeCodeProvider implements Provider {
 /**
  * Generate the root CLAUDE.md content that references spec-lite agents and skills.
  */
-export function generateClaudeRootMd(
-  installedPrompts: string[]
-): string {
+export function generateClaudeRootMd(installedPrompts: string[]): string {
   const lines = [
     "<!-- spec-lite managed — regenerated on spec-lite init/update -->",
     "",
@@ -194,7 +212,9 @@ export function generateClaudeRootMd(
 
   for (const name of installedPrompts) {
     const promptName = getPromptOutputName(name);
-    lines.push(`- [spec.${promptName}](.claude/commands/spec.${promptName}.md)`);
+    lines.push(
+      `- [spec.${promptName}](.claude/commands/spec.${promptName}.md)`
+    );
   }
 
   lines.push(
@@ -203,9 +223,9 @@ export function generateClaudeRootMd(
     "",
     "To use an agent, reference its prompt file in your conversation:",
     "",
-    '```text',
+    "```text",
     "Use the planner from .claude/agents/spec.planner.md to create a technical plan for this project.",
-    '```',
+    "```"
   );
 
   if (hasPromptName(installedPrompts, "plan_critic")) {
@@ -213,9 +233,9 @@ export function generateClaudeRootMd(
       "",
       "Suggested manual checkpoint after planning:",
       "",
-      '```text',
+      "```text",
       "Use the plan critic from .claude/agents/spec.plan_critic.md to review .spec-lite/plan.md for feasibility, technical risks, product improvements, and future enhancements before implementation starts.",
-      '```',
+      "```"
     );
   }
 

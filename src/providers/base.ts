@@ -37,7 +37,10 @@ export interface Provider {
    * Get the global (user-level) output file paths for a given prompt.
    * Returns absolute paths. Only available when supportsGlobal is true.
    */
-  getGlobalOutputPaths?(promptName: string): { agent?: string; prompt?: string };
+  getGlobalOutputPaths?(promptName: string): {
+    agent?: string;
+    prompt?: string;
+  };
 
   /**
    * Get the output directory for a skill when using native Agent Skills format.
@@ -87,7 +90,9 @@ export interface Provider {
    * be used to seed `.spec-lite/memory.md`, along with a human-readable label.
    * Returns null if no seed source applies for this provider.
    */
-  getMemorySeedSource(workspaceRoot: string): Promise<{ path: string; label: string } | null>;
+  getMemorySeedSource(
+    workspaceRoot: string
+  ): Promise<{ path: string; label: string } | null>;
 }
 
 export interface PromptMeta {

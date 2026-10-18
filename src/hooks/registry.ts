@@ -10,14 +10,27 @@ import fs from "fs-extra";
 import Ajv2020 from "ajv/dist/2020.js";
 import { BUILTIN_HOOKS } from "./builtins/index.js";
 import { GIT_WORKFLOW_HOOKS } from "./builtins/git-workflow.js";
-import { BUILTIN_REQUIRES, validateBuiltinOptions } from "./builtins/options.js";
+import {
+  BUILTIN_REQUIRES,
+  validateBuiltinOptions,
+} from "./builtins/options.js";
 import { hooksJsonPath, globalHooksJsonPath } from "./workspace.js";
 import { buildHooksSchema } from "./schema.js";
 import { resolvePattern, getEvent, type EventDefinition } from "./events.js";
 import { validateTemplate } from "./interpolation.js";
 import { isHookDefinition, SETTINGS_FIELDS } from "./types.js";
-import type { HookDefinition, HookEntry, HookRegistryFile, HookSource, ResolvedHook } from "./types.js";
-import { flowHookErrors, flowOrderErrors, effectiveOrder } from "./control/validation.js";
+import type {
+  HookDefinition,
+  HookEntry,
+  HookRegistryFile,
+  HookSource,
+  ResolvedHook,
+} from "./types.js";
+import {
+  flowHookErrors,
+  flowOrderErrors,
+  effectiveOrder,
+} from "./control/validation.js";
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 const validateSchema = ajv.compile(buildHooksSchema());
@@ -33,7 +46,10 @@ export interface LoadedRegistry {
   issues: RegistryIssue[];
 }
 
-async function readRegistryFile(file: string, source: HookSource): Promise<{
+async function readRegistryFile(
+  file: string,
+  _source: HookSource
+): Promise<{
   hooks: HookEntry[];
   issues: RegistryIssue[];
 }> {
@@ -45,7 +61,12 @@ async function readRegistryFile(file: string, source: HookSource): Promise<{
   } catch (err) {
     return {
       hooks: [],
-      issues: [{ level: "error", message: `${file}: invalid JSON — ${(err as Error).message}` }],
+      issues: [
+        {
+          level: "error",
+          message: `${file}: invalid JSON — ${(err as Error).message}`,
+        },
+      ],
     };
   }
 
@@ -54,14 +75,27 @@ async function readRegistryFile(file: string, source: HookSource): Promise<{
     // key-level errors do not say which key is wrong.
     // An inner property-name error only restates its propertyNames error.
     const issues: RegistryIssue[] = (validateSchema.errors ?? [])
-      .filter((e) => e.keyword !== "if" && !(e.propertyName !== undefined && e.keyword !== "propertyNames"))
+      .filter(
+        (e) =>
+          e.keyword !== "if" &&
+          !(e.propertyName !== undefined && e.keyword !== "propertyNames")
+      )
       .map((e) => {
-        const params = e.params as { additionalProperty?: string; propertyName?: string };
+        const params = e.params as {
+          additionalProperty?: string;
+          propertyName?: string;
+        };
         const key = params.additionalProperty ?? params.propertyName;
-        const hint = e.keyword === "propertyNames"
-          ? ` ("${key}"): an entry without "type" configures an existing hook and may set only ${SETTINGS_FIELDS.filter((field) => field !== "name").join(", ")}`
-          : key ? ` ("${key}")` : "";
-        return { level: "error" as const, message: `${file}${e.instancePath || ""}: ${e.message}${hint}` };
+        const hint =
+          e.keyword === "propertyNames"
+            ? ` ("${key}"): an entry without "type" configures an existing hook and may set only ${SETTINGS_FIELDS.filter((field) => field !== "name").join(", ")}`
+            : key
+              ? ` ("${key}")`
+              : "";
+        return {
+          level: "error" as const,
+          message: `${file}${e.instancePath || ""}: ${e.message}${hint}`,
+        };
       });
     return { hooks: [], issues };
   }
@@ -72,13 +106,22 @@ async function readRegistryFile(file: string, source: HookSource): Promise<{
 
 /** The templated string fields a hook may carry, per kind. */
 function templateFields(hook: HookDefinition): string[] {
-  const fields: (string | undefined)[] = [hook.run, hook.url, hook.bodyTemplate, hook.args, hook.cwd];
+  const fields: (string | undefined)[] = [
+    hook.run,
+    hook.url,
+    hook.bodyTemplate,
+    hook.args,
+    hook.cwd,
+  ];
   if (hook.env) fields.push(...Object.values(hook.env));
   if (hook.headers) fields.push(...Object.values(hook.headers));
   return fields.filter((f): f is string => typeof f === "string");
 }
 
-function eventsForHook(hook: HookDefinition): { events: EventDefinition[]; issues: RegistryIssue[] } {
+function eventsForHook(hook: HookDefinition): {
+  events: EventDefinition[];
+  issues: RegistryIssue[];
+} {
   const events: EventDefinition[] = [];
   const issues: RegistryIssue[] = [];
 
@@ -107,7 +150,13 @@ function eventsForHook(hook: HookDefinition): { events: EventDefinition[]; issue
 
 function validateHook(hook: HookDefinition): RegistryIssue[] {
   const issues: RegistryIssue[] = [];
-  issues.push(...flowHookErrors(hook).map((message) => ({ level: "error" as const, hook: hook.name, message })));
+  issues.push(
+    ...flowHookErrors(hook).map((message) => ({
+      level: "error" as const,
+      hook: hook.name,
+      message,
+    }))
+  );
   const { events, issues: eventIssues } = eventsForHook(hook);
   issues.push(...eventIssues);
 
@@ -115,33 +164,58 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
 
   for (const field of templateFields(hook)) {
     const d = validateTemplate(field, events, `"${hook.name}"`);
-    for (const message of d.errors) issues.push({ level: "error", hook: hook.name, message });
-    for (const message of d.warnings) issues.push({ level: "warning", hook: hook.name, message });
+    for (const message of d.errors)
+      issues.push({ level: "error", hook: hook.name, message });
+    for (const message of d.warnings)
+      issues.push({ level: "warning", hook: hook.name, message });
   }
 
   // Options are checked against what the builtin declares; any other kind
   // of hook takes none. A builtin's handler existence is checked at dispatch
   // time in runner.ts, since it only matters if the hook fires.
   if (hook.type === "builtin") {
-    const report = validateBuiltinOptions(hook.builtin ?? hook.name, hook.options);
-    for (const message of report.errors) issues.push({ level: "error", hook: hook.name, message: `${hook.name}: ${message}` });
-    for (const message of report.warnings) issues.push({ level: "warning", hook: hook.name, message: `${hook.name}: ${message}` });
+    const report = validateBuiltinOptions(
+      hook.builtin ?? hook.name,
+      hook.options
+    );
+    for (const message of report.errors)
+      issues.push({
+        level: "error",
+        hook: hook.name,
+        message: `${hook.name}: ${message}`,
+      });
+    for (const message of report.warnings)
+      issues.push({
+        level: "warning",
+        hook: hook.name,
+        message: `${hook.name}: ${message}`,
+      });
   } else if (hook.options !== undefined) {
-    issues.push({ level: "error", hook: hook.name, message: `${hook.name}: only builtin hooks take options.` });
+    issues.push({
+      level: "error",
+      hook: hook.name,
+      message: `${hook.name}: only builtin hooks take options.`,
+    });
   }
   return issues;
 }
 
 /** Events each Git workflow builtin must handle for the chain to hold together. */
-const GIT_WORKFLOW_EVENTS: Record<(typeof GIT_WORKFLOW_HOOKS)[number], string[]> = {
+const GIT_WORKFLOW_EVENTS: Record<
+  (typeof GIT_WORKFLOW_HOOKS)[number],
+  string[]
+> = {
   "prepare-worktree": ["implement.pre", "implement.task.pre", "fix.pre"],
   "commit-progress": ["implement.task.post", "implement.post", "fix.post"],
   "create-pull-request": ["implement.post", "fix.post"],
 };
 
-const handlerOf = (hook: HookDefinition) => (hook.type === "builtin" ? hook.builtin ?? hook.name : undefined);
+const handlerOf = (hook: HookDefinition) =>
+  hook.type === "builtin" ? (hook.builtin ?? hook.name) : undefined;
 const subscribes = (hook: HookDefinition, event: string) =>
-  hook.events.some((pattern) => resolvePattern(pattern).matched.some((e) => e.name === event));
+  hook.events.some((pattern) =>
+    resolvePattern(pattern).matched.some((e) => e.name === event)
+  );
 
 /** A builtin that depends on another (builtins/options.ts) needs it enabled too. */
 function gitWorkflowDependencies(enabled: ResolvedHook[]): RegistryIssue[] {
@@ -149,7 +223,11 @@ function gitWorkflowDependencies(enabled: ResolvedHook[]): RegistryIssue[] {
   const issues: RegistryIssue[] = [];
   for (const [id, requirement] of Object.entries(BUILTIN_REQUIRES)) {
     if (has(id) && !has(requirement.hook)) {
-      issues.push({ level: "error", hook: id, message: `${id} needs ${requirement.hook}, which ${requirement.why}. Enable both: spec-lite hook enable ${requirement.hook} ${id}` });
+      issues.push({
+        level: "error",
+        hook: id,
+        message: `${id} needs ${requirement.hook}, which ${requirement.why}. Enable both: spec-lite hook enable ${requirement.hook} ${id}`,
+      });
     }
   }
   return issues;
@@ -161,41 +239,71 @@ function gitWorkflowDependencies(enabled: ResolvedHook[]): RegistryIssue[] {
  * policy, or its place in the order without anything failing loudly.
  */
 function validateGitWorkflow(enabled: ResolvedHook[]): RegistryIssue[] {
-  const git = new Map(GIT_WORKFLOW_HOOKS.map((id) => [id, enabled.find((hook) => handlerOf(hook) === id)]));
+  const git = new Map(
+    GIT_WORKFLOW_HOOKS.map((id) => [
+      id,
+      enabled.find((hook) => handlerOf(hook) === id),
+    ])
+  );
   if (![...git.values()].some(Boolean)) return [];
   const issues = gitWorkflowDependencies(enabled);
-  const error = (hook: HookDefinition, message: string) => issues.push({ level: "error", hook: hook.name, message });
+  const error = (hook: HookDefinition, message: string) =>
+    issues.push({ level: "error", hook: hook.name, message });
 
   for (const [id, hook] of git) {
     if (!hook) continue;
-    const missing = GIT_WORKFLOW_EVENTS[id].filter((event) => !subscribes(hook, event));
-    if (missing.length) error(hook, `${hook.name} must subscribe to ${missing.join(", ")}.`);
-    if (hook.onFailure !== "abort") error(hook, `${hook.name} must use "onFailure": "abort", so a failed step stops the workflow.`);
+    const missing = GIT_WORKFLOW_EVENTS[id].filter(
+      (event) => !subscribes(hook, event)
+    );
+    if (missing.length)
+      error(hook, `${hook.name} must subscribe to ${missing.join(", ")}.`);
+    if (hook.onFailure !== "abort")
+      error(
+        hook,
+        `${hook.name} must use "onFailure": "abort", so a failed step stops the workflow.`
+      );
   }
 
   const prepare = git.get("prepare-worktree");
   const commit = git.get("commit-progress");
   const pr = git.get("create-pull-request");
-  const position = (event: string, hook: ResolvedHook) => hooksForEvent(enabled, event).indexOf(hook);
+  const position = (event: string, hook: ResolvedHook) =>
+    hooksForEvent(enabled, event).indexOf(hook);
   if (prepare) {
     for (const event of GIT_WORKFLOW_EVENTS["prepare-worktree"]) {
       const first = hooksForEvent(enabled, event)[0];
       if (first && first !== prepare) {
-        error(prepare, `${prepare.name} must run first on ${event} so later hooks run in the worktree, but ${first.name} (order ${first.order ?? 100}) runs before it.`);
+        error(
+          prepare,
+          `${prepare.name} must run first on ${event} so later hooks run in the worktree, but ${first.name} (order ${first.order ?? 100}) runs before it.`
+        );
       }
     }
   }
   if (commit) {
-    const capture = enabled.find((hook) => handlerOf(hook) === "capture-changeset");
+    const capture = enabled.find(
+      (hook) => handlerOf(hook) === "capture-changeset"
+    );
     for (const event of GIT_WORKFLOW_EVENTS["commit-progress"]) {
-      if (capture && subscribes(capture, event) && position(event, capture) > position(event, commit)) {
-        error(commit, `${commit.name} must run after ${capture.name} on ${event}, so the commit includes changeset.json.`);
+      if (
+        capture &&
+        subscribes(capture, event) &&
+        position(event, capture) > position(event, commit)
+      ) {
+        error(
+          commit,
+          `${commit.name} must run after ${capture.name} on ${event}, so the commit includes changeset.json.`
+        );
       }
     }
   }
   if (commit && pr) {
     for (const event of GIT_WORKFLOW_EVENTS["create-pull-request"]) {
-      if (position(event, pr) < position(event, commit)) error(pr, `${pr.name} must run after ${commit.name} on ${event}, which pushes the branch.`);
+      if (position(event, pr) < position(event, commit))
+        error(
+          pr,
+          `${pr.name} must run after ${commit.name} on ${event}, which pushes the branch.`
+        );
     }
   }
   return issues;
@@ -247,10 +355,17 @@ export interface LoadRegistryOptions {
 }
 
 export function hookIsSkipped(hook: HookDefinition, skip: string[]): boolean {
-  return skip.includes("*") || skip.includes(hook.name) || (hook.type === "builtin" && skip.includes(hook.builtin ?? hook.name));
+  return (
+    skip.includes("*") ||
+    skip.includes(hook.name) ||
+    (hook.type === "builtin" && skip.includes(hook.builtin ?? hook.name))
+  );
 }
 
-export async function loadRegistry(root: string, options: LoadRegistryOptions = {}): Promise<LoadedRegistry> {
+export async function loadRegistry(
+  root: string,
+  options: LoadRegistryOptions = {}
+): Promise<LoadedRegistry> {
   const [global, project] = await Promise.all([
     readRegistryFile(globalHooksJsonPath(), "global"),
     options.scope === "global"
@@ -263,13 +378,24 @@ export async function loadRegistry(root: string, options: LoadRegistryOptions = 
     { hooks: global.hooks, source: "global" },
     { hooks: project.hooks, source: "project" },
   ]);
-  const issues: RegistryIssue[] = [...global.issues, ...project.issues, ...mergeIssues];
+  const issues: RegistryIssue[] = [
+    ...global.issues,
+    ...project.issues,
+    ...mergeIssues,
+  ];
 
   const enabled = merged.filter((h) => h.enabled !== false);
 
-  for (const hook of enabled) if (!hookIsSkipped(hook, options.skip ?? [])) issues.push(...validateHook(hook));
+  for (const hook of enabled)
+    if (!hookIsSkipped(hook, options.skip ?? []))
+      issues.push(...validateHook(hook));
   issues.push(...validateGitWorkflow(enabled));
-  issues.push(...flowOrderErrors(enabled.filter((h) => !hookIsSkipped(h, options.skip ?? [])), false).map((message) => ({ level: "error" as const, message })));
+  issues.push(
+    ...flowOrderErrors(
+      enabled.filter((h) => !hookIsSkipped(h, options.skip ?? [])),
+      false
+    ).map((message) => ({ level: "error" as const, message }))
+  );
 
   return { hooks: options.includeDisabled ? merged : enabled, issues };
 }
@@ -295,33 +421,55 @@ export async function setHooksEnabled(
   enabled: boolean,
   scope: "global" | "project" = "project"
 ): Promise<string> {
-  const { hooks, issues } = await loadRegistry(root, { includeDisabled: true, scope });
+  const { hooks, issues } = await loadRegistry(root, {
+    includeDisabled: true,
+    scope,
+  });
   // Never overwrite a malformed file. Semantic errors on enabled hooks may
   // still be repaired by disabling them.
-  const fileErrors = issues.filter((issue) => issue.level === "error" && !issue.hook);
-  if (fileErrors.length) throw new Error(fileErrors.map((issue) => issue.message).join("\n"));
+  const fileErrors = issues.filter(
+    (issue) => issue.level === "error" && !issue.hook
+  );
+  if (fileErrors.length)
+    throw new Error(fileErrors.map((issue) => issue.message).join("\n"));
 
   const targets = names.map((name) => {
     const hook = hooks.find((entry) => entry.name === name);
-    if (!hook) throw new Error(`No hook named "${name}". Run \`spec-lite hook list --all\` to see available hooks.`);
+    if (!hook)
+      throw new Error(
+        `No hook named "${name}". Run \`spec-lite hook list --all\` to see available hooks.`
+      );
     return hook;
   });
-  const next = hooks.map((hook) => (names.includes(hook.name) ? { ...hook, enabled } : hook));
-  const active = (list: ResolvedHook[]) => list.filter((hook) => hook.enabled !== false);
+  const next = hooks.map((hook) =>
+    names.includes(hook.name) ? { ...hook, enabled } : hook
+  );
+  const active = (list: ResolvedHook[]) =>
+    list.filter((hook) => hook.enabled !== false);
   // Disabling must not strand a hook that depends on the disabled one;
   // enabling must leave a valid workflow. Pre-existing problems are left to
   // `hook validate`, so they never block an unrelated change.
-  const chain = (list: ResolvedHook[]) => (enabled ? validateGitWorkflow(active(list)) : gitWorkflowDependencies(active(list)))
-    .filter((issue) => issue.level === "error").map((issue) => issue.message);
+  const chain = (list: ResolvedHook[]) =>
+    (enabled
+      ? validateGitWorkflow(active(list))
+      : gitWorkflowDependencies(active(list))
+    )
+      .filter((issue) => issue.level === "error")
+      .map((issue) => issue.message);
   const before = new Set(chain(hooks));
   const errors = [
-    ...(enabled ? targets.flatMap((hook) => validateHook(hook)).filter((issue) => issue.level === "error").map((issue) => issue.message) : []),
+    ...(enabled
+      ? targets
+          .flatMap((hook) => validateHook(hook))
+          .filter((issue) => issue.level === "error")
+          .map((issue) => issue.message)
+      : []),
     ...chain(next).filter((message) => !before.has(message)),
   ];
   if (errors.length) throw new Error(errors.join("\n"));
 
   const file = scope === "global" ? globalHooksJsonPath() : hooksJsonPath(root);
-  const doc: HookRegistryFile = await fs.pathExists(file)
+  const doc: HookRegistryFile = (await fs.pathExists(file))
     ? await fs.readJson(file)
     : { version: 1, hooks: [] };
   for (const hook of targets) {
@@ -345,13 +493,23 @@ export async function setHooksEnabled(
 }
 
 /** Hooks subscribed to a concrete event name, ordered by `order` then declaration. */
-export function hooksForEvent(hooks: ResolvedHook[], eventName: string): ResolvedHook[] {
+export function hooksForEvent(
+  hooks: ResolvedHook[],
+  eventName: string
+): ResolvedHook[] {
   const event = getEvent(eventName);
   if (!event) return [];
 
   return hooks
     .map((hook, index) => ({ hook, index }))
-    .filter(({ hook }) => hook.events.some((pattern) => resolvePattern(pattern).matched.some((e) => e.name === eventName)))
-    .sort((a, b) => effectiveOrder(a.hook) - effectiveOrder(b.hook) || a.index - b.index)
+    .filter(({ hook }) =>
+      hook.events.some((pattern) =>
+        resolvePattern(pattern).matched.some((e) => e.name === eventName)
+      )
+    )
+    .sort(
+      (a, b) =>
+        effectiveOrder(a.hook) - effectiveOrder(b.hook) || a.index - b.index
+    )
     .map(({ hook }) => hook);
 }

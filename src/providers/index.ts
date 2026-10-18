@@ -43,12 +43,14 @@ export interface ProviderHarnessDetection {
 }
 
 /** Detect coding harness usage for every registered provider. */
-export async function detectHarnesses(workspaceRoot: string): Promise<ProviderHarnessDetection[]> {
+export async function detectHarnesses(
+  workspaceRoot: string
+): Promise<ProviderHarnessDetection[]> {
   return Promise.all(
     providers.map(async (provider) => ({
       provider,
       detection: await provider.detectHarnessUsage(workspaceRoot),
-    })),
+    }))
   );
 }
 

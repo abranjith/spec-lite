@@ -4,7 +4,10 @@ import path from "node:path";
 import os from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { planFeatureMigration, runFeatureMigration } from "../src/utils/feature-migration.js";
+import {
+  planFeatureMigration,
+  runFeatureMigration,
+} from "../src/utils/feature-migration.js";
 
 const execFileAsync = promisify(execFile);
 let root: string;
@@ -30,22 +33,38 @@ async function writeFeature(name: string, id: string): Promise<void> {
 describe("planFeatureMigration", () => {
   it.each([
     ["plan-derived", "user_management", "FEAT-001", "FEAT-001-user_management"],
-    ["legacy plan-feature", "focused_search", "FEAT-FP-007", "FEAT-FP-007-focused_search"],
-  ])("finds a flat %s spec and computes its target directory", async (_kind, name, id, targetDir) => {
-    await writeFeature(name, id);
-    const moves = await planFeatureMigration(root);
-    expect(moves).toHaveLength(1);
-    expect(moves[0]).toMatchObject({
-      featureId: id,
-      to: `.spec-lite/features/${targetDir}/spec.md`,
-    });
-  });
+    [
+      "legacy plan-feature",
+      "focused_search",
+      "FEAT-FP-007",
+      "FEAT-FP-007-focused_search",
+    ],
+  ])(
+    "finds a flat %s spec and computes its target directory",
+    async (_kind, name, id, targetDir) => {
+      await writeFeature(name, id);
+      const moves = await planFeatureMigration(root);
+      expect(moves).toHaveLength(1);
+      expect(moves[0]).toMatchObject({
+        featureId: id,
+        to: `.spec-lite/features/${targetDir}/spec.md`,
+      });
+    }
+  );
 
   it("does not touch unit_tests_<name>.md or integration_tests_<name>.md", async () => {
     const dir = path.join(root, ".spec-lite", "features");
     await fs.ensureDir(dir);
-    await fs.writeFile(path.join(dir, "unit_tests_search.md"), "# unit tests\n", "utf-8");
-    await fs.writeFile(path.join(dir, "integration_tests_search.md"), "# integration tests\n", "utf-8");
+    await fs.writeFile(
+      path.join(dir, "unit_tests_search.md"),
+      "# unit tests\n",
+      "utf-8"
+    );
+    await fs.writeFile(
+      path.join(dir, "integration_tests_search.md"),
+      "# integration tests\n",
+      "utf-8"
+    );
     const moves = await planFeatureMigration(root);
     expect(moves).toHaveLength(0);
   });
@@ -53,7 +72,11 @@ describe("planFeatureMigration", () => {
   it("skips a feature file with no discoverable ID rather than guessing", async () => {
     const dir = path.join(root, ".spec-lite", "features");
     await fs.ensureDir(dir);
-    await fs.writeFile(path.join(dir, "feature_orphan.md"), "# Feature: orphan\nno id here\n", "utf-8");
+    await fs.writeFile(
+      path.join(dir, "feature_orphan.md"),
+      "# Feature: orphan\nno id here\n",
+      "utf-8"
+    );
     const moves = await planFeatureMigration(root);
     expect(moves).toHaveLength(0);
   });
@@ -61,7 +84,11 @@ describe("planFeatureMigration", () => {
   it("is a no-op on an already-migrated (directory-based) feature", async () => {
     const dir = path.join(root, ".spec-lite", "features", "FEAT-002-search");
     await fs.ensureDir(dir);
-    await fs.writeFile(path.join(dir, "spec.md"), "**ID**: FEAT-002\n", "utf-8");
+    await fs.writeFile(
+      path.join(dir, "spec.md"),
+      "**ID**: FEAT-002\n",
+      "utf-8"
+    );
     const moves = await planFeatureMigration(root);
     expect(moves).toHaveLength(0);
   });
@@ -77,30 +104,52 @@ describe("runFeatureMigration", () => {
     await fs.writeFile(
       path.join(root, ".spec-lite", "plan.md"),
       "| ID | Feature | Spec File | Status |\n" +
-      "|---|---|---|---|\n" +
-      "| FEAT-001 | User Management | `features/feature_user_management.md` | [x] Complete |\n",
+        "|---|---|---|---|\n" +
+        "| FEAT-001 | User Management | `features/feature_user_management.md` | [x] Complete |\n",
       "utf-8"
     );
     await fs.writeFile(
       path.join(root, ".spec-lite", "feature-summary.md"),
       "**FEAT-001 — User Management**\n" +
-      "Source spec: [feature_user_management.md](.spec-lite/features/feature_user_management.md)\n",
+        "Source spec: [feature_user_management.md](.spec-lite/features/feature_user_management.md)\n",
       "utf-8"
     );
 
     const moves = await planFeatureMigration(root);
     const result = await runFeatureMigration(root, moves);
 
-    expect(await fs.pathExists(path.join(root, ".spec-lite", "features", "feature_user_management.md"))).toBe(false);
-    expect(await fs.pathExists(path.join(root, ".spec-lite", "features", "FEAT-001-user_management", "spec.md"))).toBe(true);
+    expect(
+      await fs.pathExists(
+        path.join(root, ".spec-lite", "features", "feature_user_management.md")
+      )
+    ).toBe(false);
+    expect(
+      await fs.pathExists(
+        path.join(
+          root,
+          ".spec-lite",
+          "features",
+          "FEAT-001-user_management",
+          "spec.md"
+        )
+      )
+    ).toBe(true);
 
-    const planContent = await fs.readFile(path.join(root, ".spec-lite", "plan.md"), "utf-8");
+    const planContent = await fs.readFile(
+      path.join(root, ".spec-lite", "plan.md"),
+      "utf-8"
+    );
     expect(planContent).toContain("features/FEAT-001-user_management/spec.md");
     expect(planContent).not.toContain("features/feature_user_management.md");
     expect(result.planFilesRewritten).toContain(".spec-lite/plan.md");
 
-    const summaryContent = await fs.readFile(path.join(root, ".spec-lite", "feature-summary.md"), "utf-8");
-    expect(summaryContent).toContain("features/FEAT-001-user_management/spec.md");
+    const summaryContent = await fs.readFile(
+      path.join(root, ".spec-lite", "feature-summary.md"),
+      "utf-8"
+    );
+    expect(summaryContent).toContain(
+      "features/FEAT-001-user_management/spec.md"
+    );
     expect(result.featureSummaryRewritten).toBe(true);
   });
 
@@ -109,45 +158,76 @@ describe("runFeatureMigration", () => {
     await fs.writeFile(
       path.join(root, ".spec-lite", "plan.md"),
       "| ID | Feature | Spec File | Status |\n" +
-      "|---|---|---|---|\n" +
-      "| FEAT-FP-007 | Focused Search | `features/feature_focused_search.md` | [x] Complete |\n",
+        "|---|---|---|---|\n" +
+        "| FEAT-FP-007 | Focused Search | `features/feature_focused_search.md` | [x] Complete |\n",
       "utf-8"
     );
     await fs.writeFile(
       path.join(root, ".spec-lite", "feature-summary.md"),
       "**FEAT-FP-007 — Focused Search**\n" +
-      "Source spec: [feature_focused_search.md](.spec-lite/features/feature_focused_search.md)\n",
+        "Source spec: [feature_focused_search.md](.spec-lite/features/feature_focused_search.md)\n",
       "utf-8"
     );
 
     const moves = await planFeatureMigration(root);
     const result = await runFeatureMigration(root, moves);
 
-    const migrated = path.join(root, ".spec-lite", "features", "FEAT-FP-007-focused_search", "spec.md");
+    const migrated = path.join(
+      root,
+      ".spec-lite",
+      "features",
+      "FEAT-FP-007-focused_search",
+      "spec.md"
+    );
     expect(await fs.pathExists(migrated)).toBe(true);
-    expect(await fs.readFile(migrated, "utf-8")).toContain("**ID**: FEAT-FP-007");
-    expect(await fs.readFile(path.join(root, ".spec-lite", "plan.md"), "utf-8"))
-      .toContain("features/FEAT-FP-007-focused_search/spec.md");
-    expect(await fs.readFile(path.join(root, ".spec-lite", "feature-summary.md"), "utf-8"))
-      .toContain("features/FEAT-FP-007-focused_search/spec.md");
+    expect(await fs.readFile(migrated, "utf-8")).toContain(
+      "**ID**: FEAT-FP-007"
+    );
+    expect(
+      await fs.readFile(path.join(root, ".spec-lite", "plan.md"), "utf-8")
+    ).toContain("features/FEAT-FP-007-focused_search/spec.md");
+    expect(
+      await fs.readFile(
+        path.join(root, ".spec-lite", "feature-summary.md"),
+        "utf-8"
+      )
+    ).toContain("features/FEAT-FP-007-focused_search/spec.md");
     expect(result.moved[0]?.featureId).toBe("FEAT-FP-007");
   });
 
   it("uses git mv when the workspace is a git repo, so history follows the move", async () => {
     await execFileAsync("git", ["init", "-q"], { cwd: root });
-    await execFileAsync("git", ["config", "user.email", "t@t.local"], { cwd: root });
+    await execFileAsync("git", ["config", "user.email", "t@t.local"], {
+      cwd: root,
+    });
     await execFileAsync("git", ["config", "user.name", "t"], { cwd: root });
     await writeFeature("search", "FEAT-003");
     await execFileAsync("git", ["add", "-A"], { cwd: root });
-    await execFileAsync("git", ["commit", "-q", "-m", "add feature"], { cwd: root });
+    await execFileAsync("git", ["commit", "-q", "-m", "add feature"], {
+      cwd: root,
+    });
 
     const moves = await planFeatureMigration(root);
     await runFeatureMigration(root, moves);
     // git mv only stages the rename; a commit is needed before `log --follow`
     // has any history to trace through it.
-    await execFileAsync("git", ["commit", "-q", "-m", "migrate feature layout"], { cwd: root });
+    await execFileAsync(
+      "git",
+      ["commit", "-q", "-m", "migrate feature layout"],
+      { cwd: root }
+    );
 
-    const log = await execFileAsync("git", ["log", "--follow", "--format=%H", "--", ".spec-lite/features/FEAT-003-search/spec.md"], { cwd: root });
+    const log = await execFileAsync(
+      "git",
+      [
+        "log",
+        "--follow",
+        "--format=%H",
+        "--",
+        ".spec-lite/features/FEAT-003-search/spec.md",
+      ],
+      { cwd: root }
+    );
     const commits = log.stdout.trim().split("\n").filter(Boolean);
     // Both the migration commit and the original "add feature" commit must
     // be visible — that's what proves --follow traced through the rename.

@@ -32,7 +32,9 @@ export interface PlannedMove {
 
 async function isGitRepo(root: string): Promise<boolean> {
   try {
-    await execFileAsync("git", ["rev-parse", "--is-inside-work-tree"], { cwd: root });
+    await execFileAsync("git", ["rev-parse", "--is-inside-work-tree"], {
+      cwd: root,
+    });
     return true;
   } catch {
     return false;
@@ -40,7 +42,9 @@ async function isGitRepo(root: string): Promise<boolean> {
 }
 
 /** Find every legacy flat feature spec and compute where it should move to. */
-export async function planFeatureMigration(root: string): Promise<PlannedMove[]> {
+export async function planFeatureMigration(
+  root: string
+): Promise<PlannedMove[]> {
   const featuresDir = path.join(root, ".spec-lite", "features");
   if (!(await fs.pathExists(featuresDir))) return [];
 
@@ -60,8 +64,14 @@ export async function planFeatureMigration(root: string): Promise<PlannedMove[]>
     const name = match[1];
     const dirName = `${featureId}-${name}`;
     moves.push({
-      from: path.join(".spec-lite", "features", entry).split(path.sep).join("/"),
-      to: path.join(".spec-lite", "features", dirName, "spec.md").split(path.sep).join("/"),
+      from: path
+        .join(".spec-lite", "features", entry)
+        .split(path.sep)
+        .join("/"),
+      to: path
+        .join(".spec-lite", "features", dirName, "spec.md")
+        .split(path.sep)
+        .join("/"),
       featureId,
       name,
     });
@@ -80,10 +90,16 @@ export interface MigrationResult {
 function linkForms(move: PlannedMove): { oldForms: string[]; newForm: string } {
   const specLiteRelativeOld = move.from.replace(/^\.spec-lite\//, "");
   const specLiteRelativeNew = move.to.replace(/^\.spec-lite\//, "");
-  return { oldForms: [move.from, specLiteRelativeOld], newForm: specLiteRelativeNew };
+  return {
+    oldForms: [move.from, specLiteRelativeOld],
+    newForm: specLiteRelativeNew,
+  };
 }
 
-async function rewritePlanSpecFileCells(root: string, moves: PlannedMove[]): Promise<string[]> {
+async function rewritePlanSpecFileCells(
+  root: string,
+  moves: PlannedMove[]
+): Promise<string[]> {
   const rewritten: string[] = [];
   const specLiteDir = path.join(root, ".spec-lite");
   const entries = await fs.readdir(specLiteDir).catch(() => [] as string[]);
@@ -115,7 +131,10 @@ async function rewritePlanSpecFileCells(root: string, moves: PlannedMove[]): Pro
   return rewritten;
 }
 
-async function rewriteFeatureSummaryLinks(root: string, moves: PlannedMove[]): Promise<boolean> {
+async function rewriteFeatureSummaryLinks(
+  root: string,
+  moves: PlannedMove[]
+): Promise<boolean> {
   const summaryPath = path.join(root, ".spec-lite", "feature-summary.md");
   if (!(await fs.pathExists(summaryPath))) return false;
 
@@ -138,8 +157,16 @@ async function rewriteFeatureSummaryLinks(root: string, moves: PlannedMove[]): P
 }
 
 /** Execute a previously planned migration: move files, then rewrite the two link sites. */
-export async function runFeatureMigration(root: string, moves: PlannedMove[]): Promise<MigrationResult> {
-  if (moves.length === 0) return { moved: [], planFilesRewritten: [], featureSummaryRewritten: false };
+export async function runFeatureMigration(
+  root: string,
+  moves: PlannedMove[]
+): Promise<MigrationResult> {
+  if (moves.length === 0)
+    return {
+      moved: [],
+      planFilesRewritten: [],
+      featureSummaryRewritten: false,
+    };
 
   const useGit = await isGitRepo(root);
 

@@ -2,7 +2,11 @@ import path from "path";
 import fs from "fs-extra";
 import chalk from "chalk";
 import inquirer from "inquirer";
-import { detectHarnesses, getProvider, getAllProviders } from "../providers/index.js";
+import {
+  detectHarnesses,
+  getProvider,
+  getAllProviders,
+} from "../providers/index.js";
 import type { SpecLiteConfig, SourceItem } from "../providers/base.js";
 import {
   loadAllSources,
@@ -18,7 +22,10 @@ import { getStackSnippetInfo } from "../utils/stacks.js";
 import { resolveStaleOutputPaths } from "../utils/stale-sources.js";
 import { buildGroupedSourceChoices } from "../utils/source-selection.js";
 import { getPackageVersion } from "../utils/package-version.js";
-import { planFeatureMigration, runFeatureMigration } from "../utils/feature-migration.js";
+import {
+  planFeatureMigration,
+  runFeatureMigration,
+} from "../utils/feature-migration.js";
 import { offerHooks } from "./init.js";
 
 interface UpdateOptions {
@@ -93,7 +100,9 @@ async function updateFile(
     if (userContext) {
       const mergedContent = replaceProjectContext(newContent, userContext);
       await fs.writeFile(absPath, mergedContent, "utf-8");
-      console.log(chalk.green(`  ✓ ${relPath} (updated, Project Context preserved)`));
+      console.log(
+        chalk.green(`  ✓ ${relPath} (updated, Project Context preserved)`)
+      );
       return { updated: 1, preserved: 1, unchanged: 0 };
     }
   }
@@ -112,16 +121,16 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   const configPath = path.join(cwd, ".spec-lite.json");
   if (!(await fs.pathExists(configPath))) {
     console.error(
-      chalk.red(
-        '  No .spec-lite.json found. Run "spec-lite init" first.'
-      )
+      chalk.red('  No .spec-lite.json found. Run "spec-lite init" first.')
     );
     process.exit(1);
   }
 
   const config: SpecLiteConfig = await fs.readJson(configPath);
   if (!config.documentation) {
-    console.log(chalk.cyan("\n  Documentation settings are new in spec-lite 0.2.0."));
+    console.log(
+      chalk.cyan("\n  Documentation settings are new in spec-lite 0.2.0.")
+    );
     config.documentation = await collectDocumentationSettings();
     await fs.writeJson(configPath, config, { spaces: 2 });
     console.log(chalk.green("  ✓ Documentation preferences saved"));
@@ -148,16 +157,20 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       ({ provider, detection }) =>
         detection.detected &&
         provider.alias !== "generic" &&
-        !configuredProviderAliases.includes(provider.alias),
+        !configuredProviderAliases.includes(provider.alias)
     );
 
     if (detectedAdditions.length > 0) {
-      const detectedSet = new Set(detectedAdditions.map(({ provider }) => provider.alias));
+      const detectedSet = new Set(
+        detectedAdditions.map(({ provider }) => provider.alias)
+      );
       const candidateAliases = [
         ...configuredProviderAliases,
         ...detectedAdditions.map(({ provider }) => provider.alias),
       ];
-      const { selectedProviders } = await inquirer.prompt<{ selectedProviders: string[] }>([
+      const { selectedProviders } = await inquirer.prompt<{
+        selectedProviders: string[];
+      }>([
         {
           type: "checkbox",
           name: "selectedProviders",
@@ -170,7 +183,8 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
               checked: configuredProviderAliases.includes(alias),
             };
           }),
-          validate: (input: string[]) => input.length > 0 || "Select at least one provider.",
+          validate: (input: string[]) =>
+            input.length > 0 || "Select at least one provider.",
         },
       ]);
       targetProviderAliases = selectedProviders;
@@ -202,9 +216,17 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   });
 
   if (requestedProviderAliases.length > 0) {
-    console.log(chalk.dim(`  Targeting providers from --ai: ${targetProviderAliases.join(", ")}`));
+    console.log(
+      chalk.dim(
+        `  Targeting providers from --ai: ${targetProviderAliases.join(", ")}`
+      )
+    );
   }
-  console.log(chalk.cyan(`  Providers: ${providers.map((provider) => provider.name).join(", ")}`));
+  console.log(
+    chalk.cyan(
+      `  Providers: ${providers.map((provider) => provider.name).join(", ")}`
+    )
+  );
   const configuredInstalledPrompts = Array.isArray(config.installedPrompts)
     ? config.installedPrompts
     : [];
@@ -218,18 +240,22 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   const staleOutputs = (
     await Promise.all(
       providers.map(async (provider) =>
-        (await resolveStaleOutputPaths(cwd, provider, allSources)).map((relativePath) => ({
-          provider: provider.name,
-          relativePath,
-        })),
-      ),
+        (await resolveStaleOutputPaths(cwd, provider, allSources)).map(
+          (relativePath) => ({
+            provider: provider.name,
+            relativePath,
+          })
+        )
+      )
     )
   ).flat();
 
   if (staleOutputs.length > 0) {
     console.log(chalk.yellow("\n  Legacy spec-lite outputs detected:"));
     for (const stale of staleOutputs) {
-      console.log(chalk.yellow(`    - [${stale.provider}] ${stale.relativePath}`));
+      console.log(
+        chalk.yellow(`    - [${stale.provider}] ${stale.relativePath}`)
+      );
     }
 
     let removeStale = !!options.force;
@@ -250,10 +276,14 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
         const absolutePath = path.resolve(cwd, relativePath);
         const relativeCheck = path.relative(cwd, absolutePath);
         if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
-          throw new Error(`Refusing to remove path outside workspace: ${relativePath}`);
+          throw new Error(
+            `Refusing to remove path outside workspace: ${relativePath}`
+          );
         }
         await fs.remove(absolutePath);
-        console.log(chalk.green(`  ✓ ${relativePath} (removed obsolete output)`));
+        console.log(
+          chalk.green(`  ✓ ${relativePath} (removed obsolete output)`)
+        );
       }
     }
   }
@@ -263,11 +293,19 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   // changeset.json and hooks.log.jsonl into.
   const plannedMoves = await planFeatureMigration(cwd);
   if (plannedMoves.length > 0) {
-    console.log(chalk.yellow(`\n  Feature spec layout has changed (${plannedMoves.length} to migrate):`));
+    console.log(
+      chalk.yellow(
+        `\n  Feature spec layout has changed (${plannedMoves.length} to migrate):`
+      )
+    );
     for (const move of plannedMoves) {
       console.log(chalk.yellow(`    ${move.from}  →  ${move.to}`));
     }
-    console.log(chalk.dim("  Plan `Spec File` cells and feature-summary.md links will be rewritten to match."));
+    console.log(
+      chalk.dim(
+        "  Plan `Spec File` cells and feature-summary.md links will be rewritten to match."
+      )
+    );
 
     let runMigration = !!options.force;
     if (!options.force) {
@@ -284,20 +322,35 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
 
     if (runMigration) {
       const result = await runFeatureMigration(cwd, plannedMoves);
-      for (const move of result.moved) console.log(chalk.green(`  ✓ ${move.from} → ${move.to}`));
-      for (const file of result.planFilesRewritten) console.log(chalk.green(`  ✓ ${file} (Spec File links updated)`));
-      if (result.featureSummaryRewritten) console.log(chalk.green("  ✓ .spec-lite/feature-summary.md (Source spec links updated)"));
+      for (const move of result.moved)
+        console.log(chalk.green(`  ✓ ${move.from} → ${move.to}`));
+      for (const file of result.planFilesRewritten)
+        console.log(chalk.green(`  ✓ ${file} (Spec File links updated)`));
+      if (result.featureSummaryRewritten)
+        console.log(
+          chalk.green(
+            "  ✓ .spec-lite/feature-summary.md (Source spec links updated)"
+          )
+        );
     } else {
-      console.log(chalk.dim("  Skipped — run `spec-lite update` again when ready."));
+      console.log(
+        chalk.dim("  Skipped — run `spec-lite update` again when ready.")
+      );
     }
   }
 
   const installedAliasSet = new Set(
-    configuredInstalledPrompts.flatMap((promptName) => getPromptAliases(promptName))
+    configuredInstalledPrompts.flatMap((promptName) =>
+      getPromptAliases(promptName)
+    )
   );
 
   function isInstalled(source: SourceItem): boolean {
-    for (const candidate of [source.name, source.promptName, source.agentName]) {
+    for (const candidate of [
+      source.name,
+      source.promptName,
+      source.agentName,
+    ]) {
       for (const alias of getPromptAliases(candidate)) {
         if (installedAliasSet.has(alias)) return true;
       }
@@ -375,9 +428,13 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
           contextBlock = extractProjectContext(existing);
         }
 
-        const filesCopied = await copyNativeSkillDir(source.rootPath, skillAbsDir, {
-          contextBlock,
-        });
+        const filesCopied = await copyNativeSkillDir(
+          source.rootPath,
+          skillAbsDir,
+          {
+            contextBlock,
+          }
+        );
         updated += filesCopied;
         if (contextBlock) preserved += 1;
         for (const alias of getPromptAliases(source.name)) {
@@ -428,7 +485,11 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     }
 
     if (provider.alias === "copilot") {
-      const copilotInstructionsPath = path.join(cwd, ".github", "copilot-instructions.md");
+      const copilotInstructionsPath = path.join(
+        cwd,
+        ".github",
+        "copilot-instructions.md"
+      );
       await fs.ensureDir(path.join(cwd, ".github"));
       const existingContent = (await fs.pathExists(copilotInstructionsPath))
         ? await fs.readFile(copilotInstructionsPath, "utf-8")
@@ -475,7 +536,11 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       await fs.ensureDir(stacksTargetDir);
       await fs.writeFile(snippetPath, snippet.content, "utf-8");
       updated++;
-      console.log(chalk.green(`  ✓ .spec-lite/stacks/${snippet.fileName} (added; existing snippets preserved)`));
+      console.log(
+        chalk.green(
+          `  ✓ .spec-lite/stacks/${snippet.fileName} (added; existing snippets preserved)`
+        )
+      );
     }
   }
 
@@ -489,12 +554,16 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     config.installedPrompts = resolvedInstalledPrompts;
   }
   config.providers = Array.from(
-    new Set([
-      ...(Array.isArray(config.providers) ? config.providers : [config.provider]),
-      ...targetProviderAliases,
-    ]
-      .map((providerAlias) => providerAlias?.trim().toLowerCase())
-      .filter((providerAlias): providerAlias is string => !!providerAlias))
+    new Set(
+      [
+        ...(Array.isArray(config.providers)
+          ? config.providers
+          : [config.provider]),
+        ...targetProviderAliases,
+      ]
+        .map((providerAlias) => providerAlias?.trim().toLowerCase())
+        .filter((providerAlias): providerAlias is string => !!providerAlias)
+    )
   );
   if (!config.provider || !config.providers.includes(config.provider)) {
     config.provider = config.providers[0];

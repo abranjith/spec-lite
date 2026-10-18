@@ -43,7 +43,10 @@ program
     "--skip-profile",
     "Skip the project profile questionnaire (for CI/scripting)"
   )
-  .option("--skip-hooks", "Don't offer the optional hooks; run `spec-lite hook setup` later")
+  .option(
+    "--skip-hooks",
+    "Don't offer the optional hooks; run `spec-lite hook setup` later"
+  )
   .action(initCommand);
 
 program
@@ -58,12 +61,17 @@ program
     []
   )
   .option("--force", "Overwrite all files including user-modified ones", false)
-  .option("--skip-hooks", "Don't offer optional hooks this project hasn't decided on")
+  .option(
+    "--skip-hooks",
+    "Don't offer optional hooks this project hasn't decided on"
+  )
   .action(updateCommand);
 
 program
   .command("install")
-  .description("Install spec-lite prompts globally for use across all workspaces")
+  .description(
+    "Install spec-lite prompts globally for use across all workspaces"
+  )
   .option(
     "--ai <provider>",
     "AI provider(s) to install for; repeat flag or use comma-separated values (copilot, claude-code, codex, pi)",
@@ -71,10 +79,7 @@ program
     []
   )
   .option("--global", "Install prompts globally", false)
-  .option(
-    "--exclude <prompts>",
-    "Comma-separated list of prompts to exclude"
-  )
+  .option("--exclude <prompts>", "Comma-separated list of prompts to exclude")
   .option("--force", "Overwrite existing global files without prompting", false)
   .action(installCommand);
 
@@ -85,9 +90,14 @@ program
 
 program
   .command("export [names...]")
-  .description("Bundle selected agents, skills, and references into one self-contained Markdown file")
+  .description(
+    "Bundle selected agents, skills, and references into one self-contained Markdown file"
+  )
   .option("--all", "Export every available item", false)
-  .option("-o, --output <file>", 'Output file (default: "spec-lite-prompts.md"; use "-" for stdout)')
+  .option(
+    "-o, --output <file>",
+    'Output file (default: "spec-lite-prompts.md"; use "-" for stdout)'
+  )
   .option("--no-references", "Omit references when used with --all")
   .action(exportCommand);
 

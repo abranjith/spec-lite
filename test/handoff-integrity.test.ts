@@ -6,16 +6,16 @@ describe("Copilot handoffs", () => {
   it("only uses real source keys and real agent targets", () => {
     const sourceNames = new Set(Object.keys(PROMPT_NAMES));
     const agentNames = new Set(
-      Object.values(PROMPT_NAMES).map(({ agentName }) => `spec.${agentName}`),
+      Object.values(PROMPT_NAMES).map(({ agentName }) => `spec.${agentName}`)
     );
     const invalidKeys = Object.keys(AGENT_HANDOFFS).filter(
-      (name) => !sourceNames.has(name),
+      (name) => !sourceNames.has(name)
     );
     const invalidTargets = Object.entries(AGENT_HANDOFFS).flatMap(
       ([source, handoffs]) =>
         handoffs
           .filter(({ agent }) => !agentNames.has(agent))
-          .map(({ agent }) => `${source} -> ${agent}`),
+          .map(({ agent }) => `${source} -> ${agent}`)
     );
 
     expect(invalidKeys).toEqual([]);

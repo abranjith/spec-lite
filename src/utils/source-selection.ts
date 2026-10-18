@@ -3,13 +3,14 @@ import inquirer from "inquirer";
 import type { SourceItem } from "../providers/base.js";
 
 export type SourceCheckboxChoice =
-  | { name: string; value: string; checked: boolean }
-  | inquirer.Separator;
+  { name: string; value: string; checked: boolean } | inquirer.Separator;
 
 /** Build the shared Agents / Skills / References checkbox used by update and export. */
 export function buildGroupedSourceChoices(
   sources: SourceItem[],
-  state: (source: SourceItem) => { checked: boolean; tag?: string } = () => ({ checked: false }),
+  state: (source: SourceItem) => { checked: boolean; tag?: string } = () => ({
+    checked: false,
+  })
 ): SourceCheckboxChoice[] {
   const choices: SourceCheckboxChoice[] = [];
   for (const [label, group] of [

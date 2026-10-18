@@ -16,7 +16,10 @@ export function getReferencesDir(): string {
     path.resolve(__dirname, "references"),
     path.resolve(__dirname, "..", "..", "references"),
   ];
-  return candidates.find((candidate) => fs.pathExistsSync(candidate)) ?? candidates[0];
+  return (
+    candidates.find((candidate) => fs.pathExistsSync(candidate)) ??
+    candidates[0]
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -37,41 +40,110 @@ export interface PromptNameEntry {
  * verb-form (prompt) and noun-form (agent) output names, plus a flag for prompt-only items.
  */
 export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
-  help:                       { promptName: "help",                         agentName: "help",                   promptOnly: true  },
-  orchestrator:               { promptName: "orchestrator",                 agentName: "orchestrator",           promptOnly: true  },
-  brainstorm:                 { promptName: "brainstorm",                   agentName: "brainstormer",           promptOnly: false },
-  plan:                       { promptName: "plan",                         agentName: "planner",                promptOnly: false },
-  plan_critic:                { promptName: "plan_critic",                  agentName: "plan_critic",            promptOnly: false },
-  todo:                       { promptName: "todo",                         agentName: "todo",                   promptOnly: false },
-  feature:                    { promptName: "feature",                      agentName: "feature",                promptOnly: false },
-  plan_feature:               { promptName: "plan_feature",                 agentName: "feature_planner",        promptOnly: false },
-  implement:                  { promptName: "implement",                    agentName: "implementer",            promptOnly: false },
-  review:                     { promptName: "review",                       agentName: "reviewer",               promptOnly: false },
-  write_integration_tests:    { promptName: "write_integration_tests",      agentName: "integration_tester",     promptOnly: false },
-  write_unit_tests:           { promptName: "write_unit_tests",             agentName: "unit_tester",            promptOnly: false },
-  devops:                     { promptName: "devops",                       agentName: "devops",                 promptOnly: false },
-  fix:                        { promptName: "fix",                          agentName: "fixer",                  promptOnly: false },
-  memorize:                   { promptName: "memorize",                     agentName: "memorize",               promptOnly: false },
-  document:                   { promptName: "document",                     agentName: "documenter",             promptOnly: false },
-  document_feature:           { promptName: "document_feature",             agentName: "feature_documenter",     promptOnly: false },
-  document_design:            { promptName: "document_design",              agentName: "design_documenter",      promptOnly: false },
-  document_usage:             { promptName: "document_usage",               agentName: "usage_documenter",       promptOnly: false },
-  document_readme:            { promptName: "document_readme",              agentName: "readme_writer",          promptOnly: false },
-  architect:                  { promptName: "architect",                    agentName: "architect",              promptOnly: false },
-  build_data_model:           { promptName: "build_data_model",             agentName: "data_model_builder",     promptOnly: false },
-  yolo:                       { promptName: "yolo",                         agentName: "yolo",                   promptOnly: false },
-  tool_help:                  { promptName: "tool_help",                    agentName: "tool_helper",            promptOnly: false },
+  help: { promptName: "help", agentName: "help", promptOnly: true },
+  orchestrator: {
+    promptName: "orchestrator",
+    agentName: "orchestrator",
+    promptOnly: true,
+  },
+  brainstorm: {
+    promptName: "brainstorm",
+    agentName: "brainstormer",
+    promptOnly: false,
+  },
+  plan: { promptName: "plan", agentName: "planner", promptOnly: false },
+  plan_critic: {
+    promptName: "plan_critic",
+    agentName: "plan_critic",
+    promptOnly: false,
+  },
+  todo: { promptName: "todo", agentName: "todo", promptOnly: false },
+  feature: { promptName: "feature", agentName: "feature", promptOnly: false },
+  plan_feature: {
+    promptName: "plan_feature",
+    agentName: "feature_planner",
+    promptOnly: false,
+  },
+  implement: {
+    promptName: "implement",
+    agentName: "implementer",
+    promptOnly: false,
+  },
+  review: { promptName: "review", agentName: "reviewer", promptOnly: false },
+  write_integration_tests: {
+    promptName: "write_integration_tests",
+    agentName: "integration_tester",
+    promptOnly: false,
+  },
+  write_unit_tests: {
+    promptName: "write_unit_tests",
+    agentName: "unit_tester",
+    promptOnly: false,
+  },
+  devops: { promptName: "devops", agentName: "devops", promptOnly: false },
+  fix: { promptName: "fix", agentName: "fixer", promptOnly: false },
+  memorize: {
+    promptName: "memorize",
+    agentName: "memorize",
+    promptOnly: false,
+  },
+  document: {
+    promptName: "document",
+    agentName: "documenter",
+    promptOnly: false,
+  },
+  document_feature: {
+    promptName: "document_feature",
+    agentName: "feature_documenter",
+    promptOnly: false,
+  },
+  document_design: {
+    promptName: "document_design",
+    agentName: "design_documenter",
+    promptOnly: false,
+  },
+  document_usage: {
+    promptName: "document_usage",
+    agentName: "usage_documenter",
+    promptOnly: false,
+  },
+  document_readme: {
+    promptName: "document_readme",
+    agentName: "readme_writer",
+    promptOnly: false,
+  },
+  architect: {
+    promptName: "architect",
+    agentName: "architect",
+    promptOnly: false,
+  },
+  build_data_model: {
+    promptName: "build_data_model",
+    agentName: "data_model_builder",
+    promptOnly: false,
+  },
+  yolo: { promptName: "yolo", agentName: "yolo", promptOnly: false },
+  tool_help: {
+    promptName: "tool_help",
+    agentName: "tool_helper",
+    promptOnly: false,
+  },
 };
 
 /** Normalize a source, prompt, or CLI name to the catalog's underscore form. */
 export function normalizePromptName(name: string): string {
-  return name.trim().replace(/^spec[._-]/, "").replace(/-/g, "_");
+  return name
+    .trim()
+    .replace(/^spec[._-]/, "")
+    .replace(/-/g, "_");
 }
 
 /** Match installed prompt names regardless of their historical hyphen/underscore form. */
 export function hasPromptName(installed: string[], name: string): boolean {
   const expected = normalizePromptName(name);
-  return installed.some((candidate) => normalizePromptName(candidate) === expected);
+  return installed.some(
+    (candidate) => normalizePromptName(candidate) === expected
+  );
 }
 
 /** Get the verb-form output name for a prompt file. Falls back to the name itself. */
@@ -97,15 +169,20 @@ export function isPromptOnly(internalName: string): boolean {
 // ---------------------------------------------------------------------------
 
 /** Map of prompt names to their human titles and descriptions */
-export const PROMPT_CATALOG: Record<string, { title: string; description: string; output?: string }> = {
+export const PROMPT_CATALOG: Record<
+  string,
+  { title: string; description: string; output?: string }
+> = {
   help: {
     title: "Spec Help",
-    description: "Lists available agents, skills, and their purpose, inputs, and outputs",
+    description:
+      "Lists available agents, skills, and their purpose, inputs, and outputs",
     output: "(interactive guide)",
   },
   orchestrator: {
     title: "Orchestrator",
-    description: "Defines the shared workflow contracts, precedence, naming, and handoff protocols",
+    description:
+      "Defines the shared workflow contracts, precedence, naming, and handoff protocols",
     output: "(agent-facing reference)",
   },
   brainstorm: {
@@ -120,12 +197,14 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   plan_critic: {
     title: "Plan Critic",
-    description: "Pressure-tests a plan for feasibility, technical risk, product improvements, and future adaptability",
+    description:
+      "Pressure-tests a plan for feasibility, technical risk, product improvements, and future adaptability",
     output: ".spec-lite/reviews/plan_critique_<scope>.md",
   },
   todo: {
     title: "TODO",
-    description: "Adds user-requested backlog items to .spec-lite/TODO.md under the right category",
+    description:
+      "Adds user-requested backlog items to .spec-lite/TODO.md under the right category",
     output: ".spec-lite/TODO.md",
   },
   feature: {
@@ -135,7 +214,8 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   plan_feature: {
     title: "Feature Planner",
-    description: "Clarifies requirements and produces a single self-contained feature spec with tasks — skips the full plan",
+    description:
+      "Clarifies requirements and produces a single self-contained feature spec with tasks — skips the full plan",
     output: ".spec-lite/features/feature_<name>.md",
   },
   implement: {
@@ -145,17 +225,20 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   review: {
     title: "Review",
-    description: "Audits correctness, security, performance, testing gaps, and dependency vulnerabilities using GitHub Advisories, with remediation guidance",
+    description:
+      "Audits correctness, security, performance, testing gaps, and dependency vulnerabilities using GitHub Advisories, with remediation guidance",
     output: ".spec-lite/reviews/review_<scope>.md",
   },
   write_integration_tests: {
     title: "Integration Tests",
-    description: "Writes traceable integration test scenarios from feature specs",
+    description:
+      "Writes traceable integration test scenarios from feature specs",
     output: "tests/",
   },
   write_unit_tests: {
     title: "Unit Tests",
-    description: "Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions",
+    description:
+      "Generates comprehensive unit tests with edge-case coverage and smart coverage exclusions",
     output: ".spec-lite/features/unit_tests_<name>.md",
   },
   devops: {
@@ -176,17 +259,20 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   document: {
     title: "Document",
-    description: "Orchestrates full, targeted, or surgical documentation updates",
+    description:
+      "Orchestrates full, targeted, or surgical documentation updates",
     output: "Configured documentation directory + README.md",
   },
   document_feature: {
     title: "Feature Documentation",
-    description: "Writes or updates documentation for exactly one implemented feature",
+    description:
+      "Writes or updates documentation for exactly one implemented feature",
     output: "<docs>/features/<feature>.md",
   },
   document_design: {
     title: "Design Documentation",
-    description: "Documents the current system architecture with verified Mermaid diagrams",
+    description:
+      "Documents the current system architecture with verified Mermaid diagrams",
     output: "<docs>/architecture.md",
   },
   document_usage: {
@@ -196,7 +282,8 @@ export const PROMPT_CATALOG: Record<string, { title: string; description: string
   },
   document_readme: {
     title: "README Documentation",
-    description: "Writes the top-level README and indexes the configured documentation directory",
+    description:
+      "Writes the top-level README and indexes the configured documentation directory",
     output: "README.md",
   },
   architect: {
@@ -241,10 +328,7 @@ export function extractProjectContext(content: string): string | null {
 
   if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) return null;
 
-  return content.substring(
-    startIdx + CONTEXT_START_MARKER.length,
-    endIdx
-  );
+  return content.substring(startIdx + CONTEXT_START_MARKER.length, endIdx);
 }
 
 /**
@@ -291,10 +375,7 @@ export async function copyNativeSkillDir(
   let skillContent = await fs.readFile(skillMdPath, "utf-8");
 
   // Update the name field in frontmatter (must match parent directory per Agent Skills spec)
-  skillContent = skillContent.replace(
-    /^(name:\s*).+$/m,
-    `$1${targetName}`
-  );
+  skillContent = skillContent.replace(/^(name:\s*).+$/m, `$1${targetName}`);
 
   // Inject project context if provided
   if (options.contextBlock) {
@@ -320,7 +401,9 @@ export async function copyNativeSkillDir(
 
     for (const entry of entries) {
       filesCopied++;
-      console.log(chalk.green(`  \u2713 ${path.join(relTargetDir, subdir, entry)}`));
+      console.log(
+        chalk.green(`  \u2713 ${path.join(relTargetDir, subdir, entry)}`)
+      );
     }
   }
 
@@ -334,19 +417,24 @@ export async function copyNativeSkillDir(
 /** Non-agent reference files (loaded from references/ directory or legacy prompts/) */
 const REFERENCE_FILES = new Set(["orchestrator", "help"]);
 
-/**
- * Classification of existing prompts into agent vs skill categories.
- * This is used for display purposes until items are migrated to their own directories.
- */
-const AGENT_ITEMS = new Set([
-  "brainstorm", "plan", "plan_feature", "architect", "yolo",
-]);
-
 const SKILL_ITEMS = new Set([
-  "implement", "feature", "review", "document", "document_feature",
-  "document_design", "document_usage", "document_readme",
-  "write_unit_tests", "write_integration_tests", "fix",
-  "build_data_model", "devops", "tool_help", "memorize", "plan_critic", "todo",
+  "implement",
+  "feature",
+  "review",
+  "document",
+  "document_feature",
+  "document_design",
+  "document_usage",
+  "document_readme",
+  "write_unit_tests",
+  "write_integration_tests",
+  "fix",
+  "build_data_model",
+  "devops",
+  "tool_help",
+  "memorize",
+  "plan_critic",
+  "todo",
 ]);
 
 /**
@@ -417,8 +505,14 @@ export async function loadAllSources(
   const references = await loadReferences(exclude);
 
   const all = [
-    ...agents.filter((a) => !excludeSet.has(a.name) && !excludeSet.has(a.name.replace(/-/g, "_"))),
-    ...skills.filter((s) => !excludeSet.has(s.name) && !excludeSet.has(s.name.replace(/-/g, "_"))),
+    ...agents.filter(
+      (a) =>
+        !excludeSet.has(a.name) && !excludeSet.has(a.name.replace(/-/g, "_"))
+    ),
+    ...skills.filter(
+      (s) =>
+        !excludeSet.has(s.name) && !excludeSet.has(s.name.replace(/-/g, "_"))
+    ),
     ...references,
   ];
 
@@ -441,19 +535,25 @@ export async function loadAllSources(
  * Get the catalog for display, enhanced with kind information from loaded sources.
  * This merges the static PROMPT_CATALOG with dynamic source item data.
  */
-export function getSourceCatalog(): Record<string, {
-  title: string;
-  description: string;
-  output?: string;
-  kind?: SourceItemKind;
-}> {
-  // Start with the static catalog and add kind info from PROMPT_NAMES
-  const catalog: Record<string, {
+export function getSourceCatalog(): Record<
+  string,
+  {
     title: string;
     description: string;
     output?: string;
     kind?: SourceItemKind;
-  }> = {};
+  }
+> {
+  // Start with the static catalog and add kind info from PROMPT_NAMES
+  const catalog: Record<
+    string,
+    {
+      title: string;
+      description: string;
+      output?: string;
+      kind?: SourceItemKind;
+    }
+  > = {};
 
   for (const [name, meta] of Object.entries(PROMPT_CATALOG)) {
     const kind = classifyItem(name);

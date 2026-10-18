@@ -38,7 +38,13 @@ export class PiProvider implements Provider {
     const homeDir = os.homedir();
     const outName = getPromptOutputName(promptName);
     return {
-      prompt: path.join(homeDir, ".pi", "agent", "prompts", `spec.${outName}.md`),
+      prompt: path.join(
+        homeDir,
+        ".pi",
+        "agent",
+        "prompts",
+        `spec.${outName}.md`
+      ),
     };
   }
 
@@ -48,7 +54,13 @@ export class PiProvider implements Provider {
 
   getGlobalSkillOutputDir(skillName: string): string {
     const homeDir = os.homedir();
-    return path.join(homeDir, ".pi", "agent", "skills", getSkillDirName(skillName));
+    return path.join(
+      homeDir,
+      ".pi",
+      "agent",
+      "skills",
+      getSkillDirName(skillName)
+    );
   }
 
   transformPrompt(content: string, meta: PromptMeta): string {

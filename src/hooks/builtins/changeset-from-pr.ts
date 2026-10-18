@@ -26,13 +26,22 @@ export async function changesetFromPr(
     ? await fs.readJson(file)
     : { vcs: "git", files: [], excluded: [] };
 
-  const { stdout } = await execFileAsync("gh", ["pr", "diff", "--name-only"], { cwd: root });
-  const paths = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  const { stdout } = await execFileAsync("gh", ["pr", "diff", "--name-only"], {
+    cwd: root,
+  });
+  const paths = stdout
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   const byPath = new Map(doc.files.map((f) => [f.path, f]));
   for (const p of paths) {
     const existing = byPath.get(p);
-    byPath.set(p, { path: p, status: existing?.status ?? "M", role: existing?.role ?? opts.role });
+    byPath.set(p, {
+      path: p,
+      status: existing?.status ?? "M",
+      role: existing?.role ?? opts.role,
+    });
   }
   doc.files = [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path));
   delete (doc as { captures?: unknown }).captures;

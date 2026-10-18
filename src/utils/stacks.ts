@@ -38,7 +38,7 @@ export const LANGUAGE_MAP: Record<string, string> = {
   ".net": "dotnet.md",
   dotnet: "dotnet.md",
   java: "java.md",
-  "spring": "java.md",
+  spring: "java.md",
   "spring boot": "java.md",
   "spring-boot": "java.md",
   go: "go.md",

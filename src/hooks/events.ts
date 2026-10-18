@@ -27,7 +27,19 @@ export type EventStatus = "emitted" | "planned";
  * The base group (event, role, phase, runId, timestamp, cwd, provider,
  * payload, env) is implicit and always available.
  */
-export type VarGroup = "feature" | "task" | "changes" | "verdict" | "summary" | "plan" | "report" | "workflow" | "execution" | "action" | "decision" | "decision-resolved";
+export type VarGroup =
+  | "feature"
+  | "task"
+  | "changes"
+  | "verdict"
+  | "summary"
+  | "plan"
+  | "report"
+  | "workflow"
+  | "execution"
+  | "action"
+  | "decision"
+  | "decision-resolved";
 
 export interface EventDefinition {
   name: string;
@@ -58,106 +70,384 @@ const E = (
  */
 export const EVENT_CATALOG: readonly EventDefinition[] = [
   // --- Discovery -----------------------------------------------------------
-  E("brainstorm.pre", "brainstorm", "pre", "emitted", [],
-    "Before a brainstorm session begins."),
-  E("brainstorm.post", "brainstorm", "post", "emitted", ["summary"],
-    "After .spec-lite/brainstorm.md is written."),
-  E("plan.pre", "plan", "pre", "emitted", ["plan"],
-    "Before plan authoring begins."),
-  E("plan.post", "plan", "post", "emitted", ["plan", "summary"],
-    "After the plan file and its FEAT-### rows are written."),
-  E("plan-feature.pre", "plan-feature", "pre", "emitted", [],
-    "Before a standalone feature spec is authored."),
-  E("plan-feature.post", "plan-feature", "post", "emitted", ["feature", "summary"],
-    "After a standalone feature spec is written."),
-  E("architect.pre", "architect", "pre", "planned", [],
-    "Before an architecture consultation begins."),
-  E("architect.post", "architect", "post", "planned", ["summary"],
-    "After the architecture document is written."),
-  E("plan-critic.pre", "plan-critic", "pre", "emitted", ["plan"],
-    "Before a plan is pressure-tested."),
-  E("plan-critic.post", "plan-critic", "post", "emitted", ["plan", "report", "verdict", "summary"],
-    "After the plan critique is written."),
-  E("build-data-model.pre", "build-data-model", "pre", "planned", [],
-    "Before schema design begins."),
-  E("build-data-model.post", "build-data-model", "post", "planned", ["summary"],
-    "After .spec-lite/data_model.md is written."),
+  E(
+    "brainstorm.pre",
+    "brainstorm",
+    "pre",
+    "emitted",
+    [],
+    "Before a brainstorm session begins."
+  ),
+  E(
+    "brainstorm.post",
+    "brainstorm",
+    "post",
+    "emitted",
+    ["summary"],
+    "After .spec-lite/brainstorm.md is written."
+  ),
+  E(
+    "plan.pre",
+    "plan",
+    "pre",
+    "emitted",
+    ["plan"],
+    "Before plan authoring begins."
+  ),
+  E(
+    "plan.post",
+    "plan",
+    "post",
+    "emitted",
+    ["plan", "summary"],
+    "After the plan file and its FEAT-### rows are written."
+  ),
+  E(
+    "plan-feature.pre",
+    "plan-feature",
+    "pre",
+    "emitted",
+    [],
+    "Before a standalone feature spec is authored."
+  ),
+  E(
+    "plan-feature.post",
+    "plan-feature",
+    "post",
+    "emitted",
+    ["feature", "summary"],
+    "After a standalone feature spec is written."
+  ),
+  E(
+    "architect.pre",
+    "architect",
+    "pre",
+    "planned",
+    [],
+    "Before an architecture consultation begins."
+  ),
+  E(
+    "architect.post",
+    "architect",
+    "post",
+    "planned",
+    ["summary"],
+    "After the architecture document is written."
+  ),
+  E(
+    "plan-critic.pre",
+    "plan-critic",
+    "pre",
+    "emitted",
+    ["plan"],
+    "Before a plan is pressure-tested."
+  ),
+  E(
+    "plan-critic.post",
+    "plan-critic",
+    "post",
+    "emitted",
+    ["plan", "report", "verdict", "summary"],
+    "After the plan critique is written."
+  ),
+  E(
+    "build-data-model.pre",
+    "build-data-model",
+    "pre",
+    "planned",
+    [],
+    "Before schema design begins."
+  ),
+  E(
+    "build-data-model.post",
+    "build-data-model",
+    "post",
+    "planned",
+    ["summary"],
+    "After .spec-lite/data_model.md is written."
+  ),
 
   // --- Specification -------------------------------------------------------
-  E("feature.pre", "feature", "pre", "emitted", [],
-    "Before feature breakdown begins."),
-  E("feature.post", "feature", "post", "emitted", ["summary"],
-    "After the Feature skill finishes (all modes)."),
-  E("feature.spec.post", "feature", "post", "emitted", ["feature", "summary"],
-    "Once per FEAT-### spec written, including each Plan Mode fan-out subagent."),
+  E(
+    "feature.pre",
+    "feature",
+    "pre",
+    "emitted",
+    [],
+    "Before feature breakdown begins."
+  ),
+  E(
+    "feature.post",
+    "feature",
+    "post",
+    "emitted",
+    ["summary"],
+    "After the Feature skill finishes (all modes)."
+  ),
+  E(
+    "feature.spec.post",
+    "feature",
+    "post",
+    "emitted",
+    ["feature", "summary"],
+    "Once per FEAT-### spec written, including each Plan Mode fan-out subagent."
+  ),
 
   // --- Implementation ------------------------------------------------------
-  E("implement.pre", "implement", "pre", "emitted", ["feature"],
-    "Before implementation begins. Built-in changeset baseline is captured here."),
-  E("implement.post", "implement", "post", "emitted", ["feature", "changes", "summary"],
-    "After implementation is finalized. Built-in changeset capture runs here."),
-  E("implement.task.pre", "implement", "pre", "emitted", ["feature", "task"],
-    "Before each TASK-### begins."),
-  E("implement.task.post", "implement", "post", "emitted", ["feature", "task", "changes"],
-    "After each TASK-### is verified complete."),
-  E("implement.feature.post", "implement", "post", "emitted", ["feature", "changes", "summary"],
-    "Once per FEAT-### completed during Plan Mode fan-out."),
+  E(
+    "implement.pre",
+    "implement",
+    "pre",
+    "emitted",
+    ["feature"],
+    "Before implementation begins. Built-in changeset baseline is captured here."
+  ),
+  E(
+    "implement.post",
+    "implement",
+    "post",
+    "emitted",
+    ["feature", "changes", "summary"],
+    "After implementation is finalized. Built-in changeset capture runs here."
+  ),
+  E(
+    "implement.task.pre",
+    "implement",
+    "pre",
+    "emitted",
+    ["feature", "task"],
+    "Before each TASK-### begins."
+  ),
+  E(
+    "implement.task.post",
+    "implement",
+    "post",
+    "emitted",
+    ["feature", "task", "changes"],
+    "After each TASK-### is verified complete."
+  ),
+  E(
+    "implement.feature.post",
+    "implement",
+    "post",
+    "emitted",
+    ["feature", "changes", "summary"],
+    "Once per FEAT-### completed during Plan Mode fan-out."
+  ),
 
   // --- Validation ----------------------------------------------------------
-  E("review.pre", "review", "pre", "emitted", [],
-    "After scope resolution, before analysis."),
-  E("review.post", "review", "post", "emitted", ["report", "verdict", "summary"],
-    "After the review report is written."),
-  E("review.verdict", "review", "signal", "emitted", ["report", "verdict", "summary"],
-    "Carries the verdict and finding counts — the routing signal for remediation."),
-  E("fix.pre", "fix", "pre", "emitted", [],
-    "Before diagnosis begins. Built-in changeset baseline is captured here."),
-  E("fix.post", "fix", "post", "emitted", ["changes", "summary"],
-    "After the fix and its regression test are verified. Built-in changeset capture runs here."),
-  E("write-unit-tests.pre", "write-unit-tests", "pre", "planned", [],
-    "Before unit-test generation."),
-  E("write-unit-tests.post", "write-unit-tests", "post", "planned", ["summary"],
-    "After unit tests are written."),
-  E("write-integration-tests.pre", "write-integration-tests", "pre", "planned", [],
-    "Before integration-test generation."),
-  E("write-integration-tests.post", "write-integration-tests", "post", "planned", ["summary"],
-    "After integration tests are written."),
+  E(
+    "review.pre",
+    "review",
+    "pre",
+    "emitted",
+    [],
+    "After scope resolution, before analysis."
+  ),
+  E(
+    "review.post",
+    "review",
+    "post",
+    "emitted",
+    ["report", "verdict", "summary"],
+    "After the review report is written."
+  ),
+  E(
+    "review.verdict",
+    "review",
+    "signal",
+    "emitted",
+    ["report", "verdict", "summary"],
+    "Carries the verdict and finding counts — the routing signal for remediation."
+  ),
+  E(
+    "fix.pre",
+    "fix",
+    "pre",
+    "emitted",
+    [],
+    "Before diagnosis begins. Built-in changeset baseline is captured here."
+  ),
+  E(
+    "fix.post",
+    "fix",
+    "post",
+    "emitted",
+    ["changes", "summary"],
+    "After the fix and its regression test are verified. Built-in changeset capture runs here."
+  ),
+  E(
+    "write-unit-tests.pre",
+    "write-unit-tests",
+    "pre",
+    "planned",
+    [],
+    "Before unit-test generation."
+  ),
+  E(
+    "write-unit-tests.post",
+    "write-unit-tests",
+    "post",
+    "planned",
+    ["summary"],
+    "After unit tests are written."
+  ),
+  E(
+    "write-integration-tests.pre",
+    "write-integration-tests",
+    "pre",
+    "planned",
+    [],
+    "Before integration-test generation."
+  ),
+  E(
+    "write-integration-tests.post",
+    "write-integration-tests",
+    "post",
+    "planned",
+    ["summary"],
+    "After integration tests are written."
+  ),
 
   // --- Delivery ------------------------------------------------------------
-  E("document.pre", "document", "pre", "planned", [],
-    "Before documentation orchestration begins."),
-  E("document.post", "document", "post", "planned", ["summary"],
-    "After the configured doc set is written."),
-  E("document-design.post", "document-design", "post", "planned", ["summary"],
-    "After architecture.md is written."),
-  E("document-feature.post", "document-feature", "post", "planned", ["feature", "summary"],
-    "After one feature doc is written."),
-  E("document-usage.post", "document-usage", "post", "planned", ["summary"],
-    "After quickstart/usage docs are written."),
-  E("document-readme.post", "document-readme", "post", "planned", ["summary"],
-    "After README.md is written."),
-  E("devops.pre", "devops", "pre", "planned", [],
-    "Before infrastructure artifacts are generated."),
-  E("devops.post", "devops", "post", "planned", ["changes", "summary"],
-    "After infrastructure artifacts are generated."),
+  E(
+    "document.pre",
+    "document",
+    "pre",
+    "planned",
+    [],
+    "Before documentation orchestration begins."
+  ),
+  E(
+    "document.post",
+    "document",
+    "post",
+    "planned",
+    ["summary"],
+    "After the configured doc set is written."
+  ),
+  E(
+    "document-design.post",
+    "document-design",
+    "post",
+    "planned",
+    ["summary"],
+    "After architecture.md is written."
+  ),
+  E(
+    "document-feature.post",
+    "document-feature",
+    "post",
+    "planned",
+    ["feature", "summary"],
+    "After one feature doc is written."
+  ),
+  E(
+    "document-usage.post",
+    "document-usage",
+    "post",
+    "planned",
+    ["summary"],
+    "After quickstart/usage docs are written."
+  ),
+  E(
+    "document-readme.post",
+    "document-readme",
+    "post",
+    "planned",
+    ["summary"],
+    "After README.md is written."
+  ),
+  E(
+    "devops.pre",
+    "devops",
+    "pre",
+    "planned",
+    [],
+    "Before infrastructure artifacts are generated."
+  ),
+  E(
+    "devops.post",
+    "devops",
+    "post",
+    "planned",
+    ["changes", "summary"],
+    "After infrastructure artifacts are generated."
+  ),
 
   // --- Cross-cutting -------------------------------------------------------
-  E("memorize.post", "memorize", "post", "planned", ["summary"],
-    "After .spec-lite/memory.md is updated."),
-  E("todo.post", "todo", "post", "planned", ["summary"],
-    "After a backlog item is appended."),
-  E("tool-help.post", "tool-help", "post", "planned", ["summary"],
-    "After a project tool is created or edited."),
-  E("yolo.pre", "yolo", "pre", "emitted", [],
-    "Before an autonomous run starts."),
-  E("yolo.post", "yolo", "post", "emitted", ["summary"],
-    "After an autonomous run completes."),
-  E("yolo.phase.post", "yolo", "post", "planned", ["summary"],
-    "After each YOLO phase."),
-  E("hook.error", "*", "signal", "emitted", ["summary"],
-    "A hook failed. Lets you route hook failures somewhere visible."),
-  E("checkpoint.pending", "*", "signal", "emitted", ["decision", "workflow", "summary"], "A durable checkpoint is waiting; URL is optional."),
-  E("checkpoint.resolved", "*", "signal", "emitted", ["decision", "decision-resolved", "workflow", "summary"], "A durable answer was recorded; URL is optional."),
+  E(
+    "memorize.post",
+    "memorize",
+    "post",
+    "planned",
+    ["summary"],
+    "After .spec-lite/memory.md is updated."
+  ),
+  E(
+    "todo.post",
+    "todo",
+    "post",
+    "planned",
+    ["summary"],
+    "After a backlog item is appended."
+  ),
+  E(
+    "tool-help.post",
+    "tool-help",
+    "post",
+    "planned",
+    ["summary"],
+    "After a project tool is created or edited."
+  ),
+  E(
+    "yolo.pre",
+    "yolo",
+    "pre",
+    "emitted",
+    [],
+    "Before an autonomous run starts."
+  ),
+  E(
+    "yolo.post",
+    "yolo",
+    "post",
+    "emitted",
+    ["summary"],
+    "After an autonomous run completes."
+  ),
+  E(
+    "yolo.phase.post",
+    "yolo",
+    "post",
+    "planned",
+    ["summary"],
+    "After each YOLO phase."
+  ),
+  E(
+    "hook.error",
+    "*",
+    "signal",
+    "emitted",
+    ["summary"],
+    "A hook failed. Lets you route hook failures somewhere visible."
+  ),
+  E(
+    "checkpoint.pending",
+    "*",
+    "signal",
+    "emitted",
+    ["decision", "workflow", "summary"],
+    "A durable checkpoint is waiting; URL is optional."
+  ),
+  E(
+    "checkpoint.resolved",
+    "*",
+    "signal",
+    "emitted",
+    ["decision", "decision-resolved", "workflow", "summary"],
+    "A durable answer was recorded; URL is optional."
+  ),
 ];
 
 const BY_NAME = new Map(EVENT_CATALOG.map((e) => [e.name, e]));
@@ -184,7 +474,10 @@ export function emittedEventNames(): string[] {
  * `implement.post` and `implement.task.post`, and `*.post` matches any event
  * ending in `.post`. A bare `*` matches everything.
  */
-export function matchesEventPattern(pattern: string, eventName: string): boolean {
+export function matchesEventPattern(
+  pattern: string,
+  eventName: string
+): boolean {
   if (pattern === eventName) return true;
   if (!pattern.includes("*")) return false;
 
@@ -206,6 +499,8 @@ export function resolvePattern(pattern: string): {
   matched: EventDefinition[];
   planned: EventDefinition[];
 } {
-  const matched = EVENT_CATALOG.filter((e) => matchesEventPattern(pattern, e.name));
+  const matched = EVENT_CATALOG.filter((e) =>
+    matchesEventPattern(pattern, e.name)
+  );
   return { matched, planned: matched.filter((e) => e.status === "planned") };
 }

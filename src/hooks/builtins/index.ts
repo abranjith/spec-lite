@@ -13,7 +13,7 @@
  */
 import path from "node:path";
 import fs from "fs-extra";
-import type { HookDefinition, HookPayload, HookResult } from "../types.js";
+import type { HookDefinition, HookPayload } from "../types.js";
 import { captureBaseline, captureChangeset } from "../changeset.js";
 import { changesetFromPr } from "./changeset-from-pr.js";
 import { prepareWorktree, commitProgress } from "./git-workflow.js";
@@ -25,7 +25,10 @@ export interface BuiltinContext {
   hook?: HookDefinition;
 }
 
-export interface BuiltinOutcome { message: string; worktree?: import("../types.js").WorktreeInfo }
+export interface BuiltinOutcome {
+  message: string;
+  worktree?: import("../types.js").WorktreeInfo;
+}
 export type BuiltinHandler = (ctx: BuiltinContext) => Promise<BuiltinOutcome>;
 
 /**
@@ -35,7 +38,9 @@ export type BuiltinHandler = (ctx: BuiltinContext) => Promise<BuiltinOutcome>;
  * failure: returning undefined here, rather than throwing, is what keeps
  * feature-less Fix runs from surfacing a spurious hook failure on every call.
  */
-async function optionalFeatureDir(ctx: BuiltinContext): Promise<string | undefined> {
+async function optionalFeatureDir(
+  ctx: BuiltinContext
+): Promise<string | undefined> {
   const dir = ctx.payload.feature?.dir;
   if (!dir) return undefined;
   const abs = path.join(ctx.root, dir);
@@ -49,14 +54,17 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
   "create-pull-request": createPullRequest,
   "capture-baseline": async (ctx) => {
     const dir = await optionalFeatureDir(ctx);
-    if (!dir) return { message: "no --feature given; changeset capture skipped" };
+    if (!dir)
+      return { message: "no --feature given; changeset capture skipped" };
 
     const worktree = ctx.payload.worktree;
     const doc = await captureBaseline(ctx.root, dir, {
       featureId: ctx.payload.feature?.id,
       event: ctx.payload.event,
       // Set when prepare-worktree ran first: a new workflow starts a new changeset.
-      workflow: worktree ? `${worktree.branch}@${worktree.initialHead}` : undefined,
+      workflow: worktree
+        ? `${worktree.branch}@${worktree.initialHead}`
+        : undefined,
     });
     return {
       message:
@@ -68,7 +76,8 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
 
   "capture-changeset": async (ctx) => {
     const dir = await optionalFeatureDir(ctx);
-    if (!dir) return { message: "no --feature given; changeset capture skipped" };
+    if (!dir)
+      return { message: "no --feature given; changeset capture skipped" };
 
     const doc = await captureChangeset(ctx.root, dir, {
       event: ctx.payload.event,
@@ -85,8 +94,12 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
 
   "changeset-from-pr": async (ctx) => {
     const dir = await optionalFeatureDir(ctx);
-    if (!dir) return { message: "no --feature given; changeset capture skipped" };
-    const doc = await changesetFromPr(ctx.root, dir, { event: ctx.payload.event, role: ctx.payload.role });
+    if (!dir)
+      return { message: "no --feature given; changeset capture skipped" };
+    const doc = await changesetFromPr(ctx.root, dir, {
+      event: ctx.payload.event,
+      role: ctx.payload.role,
+    });
     return { message: `${doc.files.length} file(s) from gh pr diff` };
   },
 };
@@ -99,9 +112,12 @@ export async function runBuiltin(
   const handler = BUILTIN_HANDLERS[handlerId];
   if (!handler) return { ok: false, message: `unknown builtin "${handlerId}"` };
   try {
-    return { ok: true, ...await handler(ctx) };
+    return { ok: true, ...(await handler(ctx)) };
   } catch (err) {
-    return { ok: false, message: err instanceof Error ? err.message : String(err) };
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -114,15 +130,24 @@ export const BUILTIN_HOOKS: HookDefinition[] = [
   {
     // Creates one worktree per implementation or fix (implement.pre, fix.pre);
     // implement.task.pre only resumes the feature's worktree, never creates one.
-    name: "prepare-worktree", events: ["implement.pre", "implement.task.pre", "fix.pre"], type: "builtin", builtin: "prepare-worktree",
-    description: "Create or resume the workflow's branch and worktree before code changes.", enabled: false, order: 0, onFailure: "abort", timeoutMs: 300000,
+    name: "prepare-worktree",
+    events: ["implement.pre", "implement.task.pre", "fix.pre"],
+    type: "builtin",
+    builtin: "prepare-worktree",
+    description:
+      "Create or resume the workflow's branch and worktree before code changes.",
+    enabled: false,
+    order: 0,
+    onFailure: "abort",
+    timeoutMs: 300000,
   },
   {
     name: "capture-baseline",
     events: ["implement.pre", "implement.task.pre", "fix.pre"],
     type: "builtin",
     builtin: "capture-baseline",
-    description: "Records HEAD and pre-existing dirt so later diffs are scoped to this run.",
+    description:
+      "Records HEAD and pre-existing dirt so later diffs are scoped to this run.",
     enabled: true,
     order: 10,
     onFailure: "warn",
@@ -132,17 +157,34 @@ export const BUILTIN_HOOKS: HookDefinition[] = [
     events: ["implement.post", "implement.task.post", "fix.post"],
     type: "builtin",
     builtin: "capture-changeset",
-    description: "Diffs against the captured baseline and merges the result into changeset.json.",
+    description:
+      "Diffs against the captured baseline and merges the result into changeset.json.",
     enabled: true,
     order: 10,
     onFailure: "warn",
   },
   {
-    name: "commit-progress", events: ["implement.task.post", "implement.post", "fix.post"], type: "builtin", builtin: "commit-progress",
-    description: "Commit verified tasks; commit and push completed implementations and fixes.", enabled: false, order: 200, onFailure: "abort", timeoutMs: 120000,
+    name: "commit-progress",
+    events: ["implement.task.post", "implement.post", "fix.post"],
+    type: "builtin",
+    builtin: "commit-progress",
+    description:
+      "Commit verified tasks; commit and push completed implementations and fixes.",
+    enabled: false,
+    order: 200,
+    onFailure: "abort",
+    timeoutMs: 120000,
   },
   {
-    name: "create-pull-request", events: ["implement.post", "fix.post"], type: "builtin", builtin: "create-pull-request",
-    description: "Create or reuse the workflow's PR against the configured target branch.", enabled: false, order: 300, onFailure: "abort", timeoutMs: 120000,
+    name: "create-pull-request",
+    events: ["implement.post", "fix.post"],
+    type: "builtin",
+    builtin: "create-pull-request",
+    description:
+      "Create or reuse the workflow's PR against the configured target branch.",
+    enabled: false,
+    order: 300,
+    onFailure: "abort",
+    timeoutMs: 120000,
   },
 ];

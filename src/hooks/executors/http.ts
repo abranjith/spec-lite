@@ -4,10 +4,20 @@
 import { resolveTemplate, type ResolveContext } from "../interpolation.js";
 import type { HookDefinition, HookResult } from "../types.js";
 
-export async function runHttpHook(hook: HookDefinition, ctx: ResolveContext): Promise<HookResult> {
+export async function runHttpHook(
+  hook: HookDefinition,
+  ctx: ResolveContext
+): Promise<HookResult> {
   const start = Date.now();
   if (!hook.url) {
-    return { name: hook.name, event: ctx.payload.event, kind: "http", status: "failed", durationMs: 0, message: "no `url` configured" };
+    return {
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: "http",
+      status: "failed",
+      durationMs: 0,
+      message: "no `url` configured",
+    };
   }
 
   let url: string;
@@ -25,7 +35,15 @@ export async function runHttpHook(hook: HookDefinition, ctx: ResolveContext): Pr
       headers[name] = resolveTemplate(template, ctx, "header").value;
     }
   } catch (err) {
-    return { name: hook.name, event: ctx.payload.event, kind: "http", status: "failed", durationMs: Date.now() - start, message: err instanceof Error ? err.message : String(err), contractError: true };
+    return {
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: "http",
+      status: "failed",
+      durationMs: Date.now() - start,
+      message: err instanceof Error ? err.message : String(err),
+      contractError: true,
+    };
   }
 
   const controller = new AbortController();
@@ -41,12 +59,37 @@ export async function runHttpHook(hook: HookDefinition, ctx: ResolveContext): Pr
     clearTimeout(timer);
     const durationMs = Date.now() - start;
     if (res.ok) {
-      return { name: hook.name, event: ctx.payload.event, kind: "http", status: "ok", exitCode: res.status, durationMs };
+      return {
+        name: hook.name,
+        event: ctx.payload.event,
+        kind: "http",
+        status: "ok",
+        exitCode: res.status,
+        durationMs,
+      };
     }
-    return { name: hook.name, event: ctx.payload.event, kind: "http", status: "failed", exitCode: res.status, durationMs, message: `HTTP ${res.status}` };
+    return {
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: "http",
+      status: "failed",
+      exitCode: res.status,
+      durationMs,
+      message: `HTTP ${res.status}`,
+    };
   } catch (err) {
     clearTimeout(timer);
-    const message = err instanceof Error && err.name === "AbortError" ? `timed out after ${hook.timeoutMs ?? 30000}ms` : String(err);
-    return { name: hook.name, event: ctx.payload.event, kind: "http", status: "failed", durationMs: Date.now() - start, message };
+    const message =
+      err instanceof Error && err.name === "AbortError"
+        ? `timed out after ${hook.timeoutMs ?? 30000}ms`
+        : String(err);
+    return {
+      name: hook.name,
+      event: ctx.payload.event,
+      kind: "http",
+      status: "failed",
+      durationMs: Date.now() - start,
+      message,
+    };
   }
 }

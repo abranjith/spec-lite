@@ -14,7 +14,8 @@
 export type HookPhase = "pre" | "post" | "signal";
 
 /** Executor kind. See the class split in the module docblock. */
-export type HookKind = "command" | "script" | "http" | "builtin" | "skill" | "agent" | "prompt";
+export type HookKind =
+  "command" | "script" | "http" | "builtin" | "skill" | "agent" | "prompt";
 
 /**
  * Deterministic kinds are run by the CLI; agentic kinds are emitted as directives.
@@ -23,7 +24,12 @@ export type HookKind = "command" | "script" | "http" | "builtin" | "skill" | "ag
  * subprocess. This keeps it cross-platform (no shipped .sh) and avoids
  * depending on `spec-lite` resolving on PATH from within its own process.
  */
-export const DETERMINISTIC_KINDS: readonly HookKind[] = ["command", "script", "http", "builtin"];
+export const DETERMINISTIC_KINDS: readonly HookKind[] = [
+  "command",
+  "script",
+  "http",
+  "builtin",
+];
 export const AGENTIC_KINDS: readonly HookKind[] = ["skill", "agent", "prompt"];
 
 export function isAgenticKind(kind: HookKind): boolean {
@@ -176,7 +182,14 @@ export interface ResolvedHook extends HookDefinition {
  * The defining layer owns the rest (type, events, executor fields), so a
  * builtin configured this way keeps receiving fixes from spec-lite updates.
  */
-export const SETTINGS_FIELDS = ["name", "enabled", "options", "order", "timeoutMs", "onFailure"] as const;
+export const SETTINGS_FIELDS = [
+  "name",
+  "enabled",
+  "options",
+  "order",
+  "timeoutMs",
+  "onFailure",
+] as const;
 
 /** A registry entry without `type`: settings for a hook defined by an earlier layer. */
 export interface HookSettings {
@@ -191,7 +204,8 @@ export interface HookSettings {
 /** One entry in a registry file: a complete hook (it has `type`), or settings for an existing one. */
 export type HookEntry = HookDefinition | HookSettings;
 
-export const isHookDefinition = (entry: HookEntry): entry is HookDefinition => "type" in entry && entry.type !== undefined;
+export const isHookDefinition = (entry: HookEntry): entry is HookDefinition =>
+  "type" in entry && entry.type !== undefined;
 
 /** Shape of `.spec-lite/hooks.json` and `~/.spec-lite/hooks.json`. */
 export interface HookRegistryFile {

@@ -29,22 +29,40 @@ const docPath = path.join(__dirname, "..", "docs", "features", "hooks.md");
 
 let content = readFileSync(docPath, "utf-8");
 
-const withVars = replaceBetweenMarkers(content, VARS_TABLE_START, VARS_TABLE_END, renderVarsTable());
+const withVars = replaceBetweenMarkers(
+  content,
+  VARS_TABLE_START,
+  VARS_TABLE_END,
+  renderVarsTable()
+);
 if (withVars === null) {
-  console.error(`Missing ${VARS_TABLE_START} / ${VARS_TABLE_END} markers in ${docPath}`);
+  console.error(
+    `Missing ${VARS_TABLE_START} / ${VARS_TABLE_END} markers in ${docPath}`
+  );
   process.exit(1);
 }
 
-const withEvents = replaceBetweenMarkers(withVars, EVENTS_TABLE_START, EVENTS_TABLE_END, renderEventsTable());
+const withEvents = replaceBetweenMarkers(
+  withVars,
+  EVENTS_TABLE_START,
+  EVENTS_TABLE_END,
+  renderEventsTable()
+);
 if (withEvents === null) {
-  console.error(`Missing ${EVENTS_TABLE_START} / ${EVENTS_TABLE_END} markers in ${docPath}`);
+  console.error(
+    `Missing ${EVENTS_TABLE_START} / ${EVENTS_TABLE_END} markers in ${docPath}`
+  );
   process.exit(1);
 }
 
 let withJson = withEvents;
 for (const [start, end, render] of [
   [BUILTIN_HOOKS_START, BUILTIN_HOOKS_END, renderBuiltinHooksJson],
-  [GIT_WORKFLOW_HOOKS_START, GIT_WORKFLOW_HOOKS_END, renderGitWorkflowHooksJson],
+  [
+    GIT_WORKFLOW_HOOKS_START,
+    GIT_WORKFLOW_HOOKS_END,
+    renderGitWorkflowHooksJson,
+  ],
   [BUILTIN_OPTIONS_START, BUILTIN_OPTIONS_END, renderBuiltinOptionsTable],
 ]) {
   withJson = replaceBetweenMarkers(withJson, start, end, render());

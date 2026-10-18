@@ -12,21 +12,37 @@ let root: string;
 
 /** Builtins are disabled in most fixtures so assertions target only the hook under test. */
 const DISABLE_BUILTINS = [
-  { name: "capture-baseline", events: ["implement.pre"], type: "builtin", enabled: false },
-  { name: "capture-changeset", events: ["implement.post"], type: "builtin", enabled: false },
+  {
+    name: "capture-baseline",
+    events: ["implement.pre"],
+    type: "builtin",
+    enabled: false,
+  },
+  {
+    name: "capture-changeset",
+    events: ["implement.post"],
+    type: "builtin",
+    enabled: false,
+  },
 ];
 
 async function writeHooks(hooks: unknown[]): Promise<void> {
   const file = path.join(root, ".spec-lite", "hooks.json");
   await fs.ensureDir(path.dirname(file));
-  await fs.writeJson(file, { version: 1, hooks: [...DISABLE_BUILTINS, ...hooks] }, { spaces: 2 });
+  await fs.writeJson(
+    file,
+    { version: 1, hooks: [...DISABLE_BUILTINS, ...hooks] },
+    { spaces: 2 }
+  );
 }
 
 beforeEach(async () => {
   clearPayloadSchemaCache();
   root = await fs.mkdtemp(path.join(os.tmpdir(), "spec-lite-contract-"));
   await execFileAsync("git", ["init", "-q"], { cwd: root });
-  await execFileAsync("git", ["config", "user.email", "t@t.local"], { cwd: root });
+  await execFileAsync("git", ["config", "user.email", "t@t.local"], {
+    cwd: root,
+  });
   await execFileAsync("git", ["config", "user.name", "t"], { cwd: root });
   await fs.writeFile(path.join(root, "a.txt"), "x\n");
   await execFileAsync("git", ["add", "a.txt"], { cwd: root });
@@ -73,9 +89,15 @@ describe("payloadSchema is validated before invocation", () => {
       },
     ]);
 
-    const report = await runEvent({ root, event: "implement.task.post", taskId: "TASK-001" });
+    const report = await runEvent({
+      root,
+      event: "implement.task.post",
+      taskId: "TASK-001",
+    });
     expect(report.exitCode).toBe(0);
-    expect(report.results.find((r) => r.name === "needs-task")?.status).toBe("ok");
+    expect(report.results.find((r) => r.name === "needs-task")?.status).toBe(
+      "ok"
+    );
   });
 
   it("reports an invalid schema as a contract error rather than crashing", async () => {
@@ -137,14 +159,26 @@ describe("contract errors bypass onFailure", () => {
 describe("registry errors stop the run", () => {
   it("exits 2 and dispatches nothing when a hook names an unknown event", async () => {
     await writeHooks([
-      { name: "good", events: ["implement.post"], type: "command", run: "echo ok" },
-      { name: "bogus", events: ["not.a.real.event"], type: "command", run: "echo no" },
+      {
+        name: "good",
+        events: ["implement.post"],
+        type: "command",
+        run: "echo ok",
+      },
+      {
+        name: "bogus",
+        events: ["not.a.real.event"],
+        type: "command",
+        run: "echo no",
+      },
     ]);
 
     const report = await runEvent({ root, event: "implement.post" });
     expect(report.exitCode).toBe(2);
     expect(report.results).toEqual([]);
-    expect(report.registryIssues.some((i) => i.includes("not.a.real.event"))).toBe(true);
+    expect(
+      report.registryIssues.some((i) => i.includes("not.a.real.event"))
+    ).toBe(true);
   });
 });
 
@@ -152,7 +186,13 @@ describe("hook.error", () => {
   it("fires when another hook fails, carrying a summary of the failure", async () => {
     const errorLog = path.join(root, "error-log.txt");
     await writeHooks([
-      { name: "boom", events: ["implement.post"], type: "command", run: "exit 1", onFailure: "warn" },
+      {
+        name: "boom",
+        events: ["implement.post"],
+        type: "command",
+        run: "exit 1",
+        onFailure: "warn",
+      },
       {
         name: "on-error",
         events: ["hook.error"],
@@ -163,7 +203,9 @@ describe("hook.error", () => {
 
     const report = await runEvent({ root, event: "implement.post" });
 
-    expect(report.results.find((r) => r.name === "boom")?.status).toBe("failed");
+    expect(report.results.find((r) => r.name === "boom")?.status).toBe(
+      "failed"
+    );
     expect(await fs.pathExists(errorLog)).toBe(true);
     expect(await fs.readFile(errorLog, "utf-8")).toContain("hook.error");
   });
@@ -171,7 +213,12 @@ describe("hook.error", () => {
   it("does not fire when nothing failed", async () => {
     const errorLog = path.join(root, "error-log-2.txt");
     await writeHooks([
-      { name: "fine", events: ["implement.post"], type: "command", run: "echo ok" },
+      {
+        name: "fine",
+        events: ["implement.post"],
+        type: "command",
+        run: "echo ok",
+      },
       {
         name: "on-error",
         events: ["hook.error"],
@@ -186,8 +233,20 @@ describe("hook.error", () => {
 
   it("does not recurse when a hook.error handler itself fails", async () => {
     await writeHooks([
-      { name: "boom", events: ["implement.post"], type: "command", run: "exit 1", onFailure: "warn" },
-      { name: "also-boom", events: ["hook.error"], type: "command", run: "exit 1", onFailure: "warn" },
+      {
+        name: "boom",
+        events: ["implement.post"],
+        type: "command",
+        run: "exit 1",
+        onFailure: "warn",
+      },
+      {
+        name: "also-boom",
+        events: ["hook.error"],
+        type: "command",
+        run: "exit 1",
+        onFailure: "warn",
+      },
     ]);
 
     // Completes rather than looping; the guard is that emitHookError is never
@@ -214,7 +273,11 @@ describe("repository-wide kill switch", () => {
       installedPrompts: [],
       installedAt: "",
       updatedAt: "",
-      documentation: { directory: "docs", level: "technical", updateWithDevelopment: false },
+      documentation: {
+        directory: "docs",
+        level: "technical",
+        updateWithDevelopment: false,
+      },
       hooks: { enabled: false },
     });
 
@@ -226,7 +289,14 @@ describe("repository-wide kill switch", () => {
   });
 
   it("runs normally when the switch is absent", async () => {
-    await writeHooks([{ name: "fine", events: ["implement.post"], type: "command", run: "echo ok" }]);
+    await writeHooks([
+      {
+        name: "fine",
+        events: ["implement.post"],
+        type: "command",
+        run: "echo ok",
+      },
+    ]);
     const report = await runEvent({ root, event: "implement.post" });
     expect(report.disabled).toBeUndefined();
     expect(report.results.find((r) => r.name === "fine")?.status).toBe("ok");
@@ -255,7 +325,9 @@ describe("an event outside the catalog is a contract error", () => {
   });
 
   it("still yields to the repository kill switch", async () => {
-    await fs.writeJson(path.join(root, ".spec-lite.json"), { hooks: { enabled: false } });
+    await fs.writeJson(path.join(root, ".spec-lite.json"), {
+      hooks: { enabled: false },
+    });
     const report = await runEvent({ root, event: "not.an.event" });
     expect(report.disabled).toBe(true);
     expect(report.exitCode).toBe(0);
@@ -286,15 +358,22 @@ describe("${provider} resolves from .spec-lite.json", () => {
     expect((await fs.readFile(out, "utf-8")).trim()).toBe("codex");
   });
 
-  it("falls back to \"unknown\" instead of failing closed when no config exists", async () => {
+  it('falls back to "unknown" instead of failing closed when no config exists', async () => {
     await writeHooks([
-      { name: "show-provider", events: ["implement.post"], type: "command", run: "echo ${provider}" },
+      {
+        name: "show-provider",
+        events: ["implement.post"],
+        type: "command",
+        run: "echo ${provider}",
+      },
     ]);
 
     const report = await runEvent({ root, event: "implement.post" });
 
     expect(report.payload.provider).toBe("unknown");
-    expect(report.results.find((r) => r.name === "show-provider")?.status).toBe("ok");
+    expect(report.results.find((r) => r.name === "show-provider")?.status).toBe(
+      "ok"
+    );
     expect(report.exitCode).toBe(0);
   });
 });

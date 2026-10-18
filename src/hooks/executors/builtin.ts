@@ -7,10 +7,17 @@ import { withProgramEnvironment } from "../builtins/git-workflow.js";
 import type { HookDefinition, HookResult } from "../types.js";
 import type { ResolveContext } from "../interpolation.js";
 
-export async function runBuiltinHook(hook: HookDefinition, ctx: ResolveContext, root: string, env: NodeJS.ProcessEnv = {}): Promise<HookResult> {
+export async function runBuiltinHook(
+  hook: HookDefinition,
+  ctx: ResolveContext,
+  root: string,
+  env: NodeJS.ProcessEnv = {}
+): Promise<HookResult> {
   const start = Date.now();
   const handlerId = hook.builtin ?? hook.name;
-  const { ok, message, worktree } = await withProgramEnvironment(env, () => runBuiltin(handlerId, { root, payload: ctx.payload, hook }));
+  const { ok, message, worktree } = await withProgramEnvironment(env, () =>
+    runBuiltin(handlerId, { root, payload: ctx.payload, hook })
+  );
   return {
     name: hook.name,
     event: ctx.payload.event,

@@ -19,8 +19,12 @@ describe("wildcard event matching", () => {
     // writing implement.* means "everything implement emits", including
     // implement.task.post.
     expect(matchesEventPattern("implement.*", "implement.post")).toBe(true);
-    expect(matchesEventPattern("implement.*", "implement.task.post")).toBe(true);
-    expect(matchesEventPattern("implement.*", "implement.feature.post")).toBe(true);
+    expect(matchesEventPattern("implement.*", "implement.task.post")).toBe(
+      true
+    );
+    expect(matchesEventPattern("implement.*", "implement.feature.post")).toBe(
+      true
+    );
     expect(matchesEventPattern("implement.*", "fix.post")).toBe(false);
   });
 
@@ -67,9 +71,22 @@ describe("catalog integrity", () => {
   });
 
   it("emits the nine instrumented roles and cross-cutting control signals", () => {
-    const roles = new Set(EVENT_CATALOG.filter((e) => e.status === "emitted").map((e) => e.role));
+    const roles = new Set(
+      EVENT_CATALOG.filter((e) => e.status === "emitted").map((e) => e.role)
+    );
     expect([...roles].sort()).toEqual(
-      ["*", "brainstorm", "feature", "fix", "implement", "plan", "plan-critic", "plan-feature", "review", "yolo"].sort()
+      [
+        "*",
+        "brainstorm",
+        "feature",
+        "fix",
+        "implement",
+        "plan",
+        "plan-critic",
+        "plan-feature",
+        "review",
+        "yolo",
+      ].sort()
     );
   });
 
@@ -86,7 +103,9 @@ describe("catalog integrity", () => {
   });
 
   it("guarantees `changes` on exactly the events that follow changeset capture", () => {
-    const withChanges = EVENT_CATALOG.filter((e) => e.provides.includes("changes")).map((e) => e.name);
+    const withChanges = EVENT_CATALOG.filter((e) =>
+      e.provides.includes("changes")
+    ).map((e) => e.name);
     expect(withChanges).toEqual(
       expect.arrayContaining([
         "implement.post",
@@ -103,7 +122,12 @@ describe("catalog integrity", () => {
   });
 
   it("never guarantees `task` on a non-task event", () => {
-    const withTask = EVENT_CATALOG.filter((e) => e.provides.includes("task")).map((e) => e.name);
-    expect(withTask.sort()).toEqual(["implement.task.post", "implement.task.pre"]);
+    const withTask = EVENT_CATALOG.filter((e) =>
+      e.provides.includes("task")
+    ).map((e) => e.name);
+    expect(withTask.sort()).toEqual([
+      "implement.task.post",
+      "implement.task.pre",
+    ]);
   });
 });

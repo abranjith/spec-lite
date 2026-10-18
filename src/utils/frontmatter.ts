@@ -15,7 +15,9 @@ export function parseFrontmatter(raw: string): {
 
   return {
     // Keep js-yaml's timestamp, binary, and merge-key support alongside YAML 1.2 scalars.
-    data: parse(metadata, { customTags: ["timestamp", "binary"], merge: true }) ?? {},
+    data:
+      parse(metadata, { customTags: ["timestamp", "binary"], merge: true }) ??
+      {},
     content: closing ? remainder.slice(closing.index + closing[0].length) : "",
   };
 }
