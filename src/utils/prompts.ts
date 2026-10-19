@@ -128,6 +128,11 @@ export const PROMPT_NAMES: Record<string, PromptNameEntry> = {
     agentName: "tool_helper",
     promptOnly: false,
   },
+  hook_help: {
+    promptName: "hook_help",
+    agentName: "hook_helper",
+    promptOnly: false,
+  },
 };
 
 /** Normalize a source, prompt, or CLI name to the catalog's underscore form. */
@@ -310,6 +315,12 @@ export const PROMPT_CATALOG: Record<
       "Creates and edits efficient bash tools in .spec-lite/tools/ that agents and skills auto-discover and execute",
     output: ".spec-lite/tools/<tool-name>.sh",
   },
+  hook_help: {
+    title: "Hook Helper",
+    description:
+      "Adds, changes, validates and debugs hooks, gates and checkpoints in .spec-lite/hooks.json",
+    output: ".spec-lite/hooks.json",
+  },
 };
 
 /**
@@ -432,6 +443,7 @@ const SKILL_ITEMS = new Set([
   "build_data_model",
   "devops",
   "tool_help",
+  "hook_help",
   "memorize",
   "plan_critic",
   "todo",

@@ -89,26 +89,32 @@ export const INTERPOLATION_VARS: readonly VarDefinition[] = [
   V(
     "plan.file",
     "plan",
-    "Canonical source plan path (source-plan modes only).",
+    "Workspace-relative path of the plan the role works on.",
     ".spec-lite/plan_orders.md",
     (c) => (typeof c.payload.plan === "string" ? c.payload.plan : undefined)
   ),
-  V("plan.name", "plan", "Source plan name.", "orders", (c) =>
-    typeof c.payload.plan === "string"
-      ? path.basename(c.payload.plan, ".md").replace(/^plan[_-]?/, "") || "plan"
-      : undefined
+  V(
+    "plan.name",
+    "plan",
+    "Plan name: the plan file name without `plan_` and `.md`.",
+    "orders",
+    (c) =>
+      typeof c.payload.plan === "string"
+        ? path.basename(c.payload.plan, ".md").replace(/^plan[_-]?/, "") ||
+          "plan"
+        : undefined
   ),
   V(
     "report.file",
     "report",
-    "Report-producing event's output path.",
+    "Workspace-relative path of the report the role wrote.",
     ".spec-lite/reviews/review_orders.md",
     (c) => (typeof c.payload.report === "string" ? c.payload.report : undefined)
   ),
   V(
     "verdict.code",
     "verdict",
-    "Stable structured verdict code.",
+    "Machine-readable verdict: Plan Critic `ready`, `revisions` or `replan`; Review `pass`, `changes-required` or `blocked`.",
     "ready",
     (c) =>
       typeof c.payload.verdictCode === "string"
@@ -118,42 +124,70 @@ export const INTERPOLATION_VARS: readonly VarDefinition[] = [
   V(
     "workflow.id",
     "workflow",
-    "Durable workflow identity (protocol 2).",
+    "ID of the saved workflow (one per feature, plan, fix, review or YOLO run). Tracked runs only.",
     "w-1234",
     (c) => (c.payload.workflow as { id?: string })?.id
   ),
   V(
     "execution.id",
     "execution",
-    "Lifetime role owner identity (protocol 2).",
+    "ID of the role run that fired the event. Tracked runs only.",
     "x-1234",
     (c) => (c.payload.execution as { id?: string })?.id
   ),
   V(
     "action.id",
     "action",
-    "Owning action, when present; otherwise use a fallback.",
+    "ID of the saved action this role run was started from, if any; write `${action.id:-none}`.",
     "a-1234",
     (c) => (c.payload.action as { id?: string })?.id
   ),
   ...(
     [
-      "id",
-      "question",
-      "status",
-      "url",
-      "choice",
-      "actor",
-      "feedbackFile",
+      [
+        "id",
+        "decision",
+        "Checkpoint ID, as used by `spec-lite decide`.",
+        "d-1234",
+      ],
+      [
+        "question",
+        "decision",
+        "The checkpoint question, with templates resolved.",
+        "Plan orders is ready. What next?",
+      ],
+      [
+        "status",
+        "decision",
+        "`pending`, `answered`, `expired`, `cancelled` or `superseded`.",
+        "pending",
+      ],
+      [
+        "url",
+        "decision",
+        "Link to the GitHub comment, when the checkpoint was posted there; write `${decision.url:-}`.",
+        "https://github.com/acme/app/issues/7#issuecomment-1",
+      ],
+      ["choice", "decision-resolved", "The chosen choice ID.", "critique"],
+      [
+        "actor",
+        "decision-resolved",
+        "Who answered: `local-session`, `configured-rule`, or a GitHub login.",
+        "local-session",
+      ],
+      [
+        "feedbackFile",
+        "decision-resolved",
+        "Absolute path of a file holding the answer's free-text feedback.",
+        "/repo/.git/spec-lite/decisions/d-1234/feedback.md",
+      ],
     ] as const
-  ).map((field) =>
+  ).map(([field, group, description, example]) =>
     V(
       `decision.${field}`,
-      ["choice", "actor", "feedbackFile"].includes(field)
-        ? "decision-resolved"
-        : "decision",
-      `Checkpoint ${field}; URL is optional.`,
-      field === "id" ? "d-1234" : field,
+      group,
+      description,
+      example,
       (c) => (c.payload.decision as Record<string, string>)?.[field]
     )
   ),
@@ -453,7 +487,7 @@ export function validateTemplate(
     }
 
     if (ref.fallback !== undefined || def.group === "base") continue;
-    if (["workflow.id", "execution.id"].includes(ref.name)) continue; // guaranteed to protocol 2 callers
+    if (["workflow.id", "execution.id"].includes(ref.name)) continue; // guaranteed in tracked runs
     if (ref.name === "decision.url") {
       errors.push(`${label}: decision.url is optional; use a fallback.`);
       continue;

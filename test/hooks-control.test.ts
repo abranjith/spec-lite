@@ -50,7 +50,7 @@ const call = async (event: string, opts: Record<string, unknown> = {}) =>
   (await runEvent({
     root,
     event,
-    protocol: 2,
+    tracked: true,
     extra: { plan: ".spec-lite/plan.md" },
     ...opts,
   })) as unknown as ControlResult;
@@ -199,7 +199,7 @@ describe("portable durable answer and ownership", () => {
         (await runEvent({
           root: linked,
           event: "plan.pre",
-          protocol: 2,
+          tracked: true,
           extra: { plan: ".spec-lite/plan.md" },
         })) as unknown as ControlResult
       ).error?.code
@@ -365,7 +365,19 @@ describe("gates and replay boundaries", () => {
   });
   const write = (value: unknown) =>
     `node -e "require('fs').writeFileSync(process.env.SPEC_LITE_RESPONSE_FILE,Buffer.from('${Buffer.from(JSON.stringify(value)).toString("base64")}','base64'))"`;
-  it("checks the protocol before any effects", async () => {
+  it("shows the exact recover command once the retry budget is spent", async () => {
+    await hooks([
+      gate(write({ decision: "block", reason: "fix lint" }), { maxRounds: 1 }),
+    ]);
+    const pre = await call("plan.pre");
+    const post = await call("plan.post", { execution: pre.executionId });
+    expect(post.status).toBe("blocked");
+    expect(post.retryAllowed).toBe(false);
+    expect(post.recovery).toBe(
+      `spec-lite hook recover ${post.eventId} --generation 1 --mode retry|stop|override --reason <user-instruction> (override needs --checks check)`
+    );
+  });
+  it("requires a tracked run before any effects", async () => {
     await hooks([gate(write({ decision: "continue" }))]);
     const output = await runEvent({
       root,

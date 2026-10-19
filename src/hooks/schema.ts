@@ -95,7 +95,7 @@ export function buildHooksSchema(): Record<string, unknown> {
           options: {
             type: "object",
             description:
-              "Settings of a builtin that declares them; see the builtin options table in docs/features/hooks.md.",
+              "Settings of a builtin that declares them (checkpoint and the Git workflow builtins). Other hook types take none; see Built-in hooks in docs/features/hooks.md.",
           },
 
           run: { type: "string" },

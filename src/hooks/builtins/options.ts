@@ -64,6 +64,25 @@ const argv: JsonSchema = {
   prefixItems: [{ type: "string", pattern: "\\S" }],
 };
 
+/** One docs/schema line per checkpoint option; the schemas live in control/validation.ts. */
+const CHECKPOINT_DESCRIPTIONS: Record<string, string> = {
+  question:
+    "Text shown to the person. Supports `${...}` templates from the event.",
+  choices:
+    "Two or more answers, keyed by a lowercase-hyphenated ID such as `critique` (`ask` is reserved). Each choice continues, stops, or hands off; see Choices.",
+  inputs:
+    "Files the answer depends on. They are fingerprinted when the question is asked; if one changes before the answer is used, the question must be asked again. Never published.",
+  attach:
+    "Files shown with the question. Fingerprinted like `inputs`, and posted into the GitHub comment when `github` is set.",
+  rules: "Automatic answers: `{ if, choose }` objects; see Automatic answers.",
+  github:
+    "Also post the question to GitHub and accept replies there; see Answer checkpoints from GitHub.",
+  expiresIn:
+    "How long the question can be answered: a number and unit (`ms`, `s`, `m`, `h`, `d`), such as `30m` or `7d`. Default: `72h`.",
+  afterEffects:
+    "Allow the checkpoint to run after hooks that change things (a commit, a push, a webhook) on the same event. Default: `false`, so it must run before them.",
+};
+
 export const BUILTIN_OPTIONS: Record<string, BuiltinOptionsSpec> = {
   checkpoint: {
     options: Object.fromEntries(
@@ -72,7 +91,7 @@ export const BUILTIN_OPTIONS: Record<string, BuiltinOptionsSpec> = {
         {
           schema,
           required: ["question", "choices"].includes(name),
-          description: `Durable checkpoint ${name}; see the Hook Protocol.`,
+          description: CHECKPOINT_DESCRIPTIONS[name],
         },
       ])
     ),

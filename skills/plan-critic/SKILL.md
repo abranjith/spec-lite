@@ -85,7 +85,7 @@ Example invocations:
 
 ### 1. Establish Review Scope
 
-- Resolve the exact plan path before analysis; run `spec-lite hook run plan-critic.pre --protocol 2 --payload plan="{{plan-file}}"` (see [Hooks](#hooks)). When invoked by an action use its start command and returned context instead.
+- Resolve the exact plan path before analysis; run `spec-lite hook run plan-critic.pre --tracked --payload plan="{{plan-file}}"` (see [Hooks](#hooks)). When invoked by an action use its start command and returned context instead.
 
 - Confirm which plan file is under review.
 - Identify any supporting artifacts the user has provided.
@@ -207,15 +207,15 @@ Write your critique as a markdown report in `.spec-lite/reviews/`.
 
 ## Completion
 
-After the report and TODO updates are final, map the checked verdict to `verdictCode`: `ready` for Ready for implementation, `revisions` for Ready after small revisions, or `replan` for Needs significant plan revision before implementation. Run `spec-lite hook run plan-critic.post --protocol 2 --execution {{execution-id}} --payload plan="{{plan-file}}" --payload report="{{report-file}}" --payload verdict="{{display-verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line assessment}}"` with any returned action ID. Process the result before recommending or starting further work.
+After the report and TODO updates are final, map the checked verdict to `verdictCode`: `ready` for Ready for implementation, `revisions` for Ready after small revisions, or `replan` for Needs significant plan revision before implementation. Run `spec-lite hook run plan-critic.post --tracked --execution {{execution-id}} --payload plan="{{plan-file}}" --payload report="{{report-file}}" --payload verdict="{{display-verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line assessment}}"` with any returned action ID. Process the result before recommending or starting further work.
 
 ## Hooks
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

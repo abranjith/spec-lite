@@ -103,11 +103,19 @@ whether it is shipped with the CLI or written by you.
 
 Two builtins subscribe by default and capture each feature's `changeset.json`,
 which Review then uses as its authoritative file scope. Everything about that is
-replaceable. See [Hooks](features/hooks.md).
+replaceable. See [Hooks](features/hooks.md), [Git workflow hooks](features/hooks-git-workflow.md),
+and [Gates and checkpoints](features/hooks-gates-checkpoints.md).
 
-## Durable hook control
+## Tracked runs: pausing, hand-offs, and resuming
 
-Control protocol 2 separates a saved decision from action delivery and ownership. The same CLI/state machine serves generic exports and every provider through short synchronous calls, with no TTY or vendor-cache requirement. A live agent session inspects saved work and acknowledges its start; automatic host wake-up adapters are deferred.
+Roles fire their events as tracked runs (`hook run <event> --tracked`). The CLI
+saves each run's state, so a gate can send the agent back to fix, a checkpoint
+can pause for a person, and a hand-off can start another role, all through short
+synchronous CLI calls that work the same in every provider and in exported
+prompts, with no terminal prompt or vendor-specific feature. The CLI separates
+recording an answer from starting the chosen work, and the agent acknowledges
+each start explicitly. Automatic wake-up of a closed agent session is not
+supported.
 
 ```mermaid
 flowchart LR
@@ -121,9 +129,9 @@ flowchart LR
 
 Runtime records live under `<git-common-dir>/spec-lite/`: workflows, executions, events, decisions/feedback, actions, chains, threads, short locks and bounded local diagnostics. Linked worktrees share them; other clones/machines do not. Atomic journaled transitions protect answer/owner changes; network/effects run outside state locks.
 
-Relevant input/action snapshots prevent stale approvals. Gates stay blocking at their cap. Pending suspends an event suffix; continue resumes it, stop ends it, and handoff replaces it. One active owner is acknowledged explicitly; stdout and model execution are not claimed exactly once.
+Fingerprints of a question's input files prevent stale approvals. Gates stay blocking at their retry limit. A pending question holds the event's remaining hooks: continue runs them, stop ends the run, and a hand-off replaces it. Each action has one acknowledged owner; neither hook output nor model work is claimed to run exactly once.
 
-The GitHub channel validates decision-correlated approvers and explicit destinations/content. A remote reply cannot launch a closed agent session. Runtime state stays out of Git/npm publication, while selected attachments are deliberately published. See [Gates and checkpoints](features/hooks.md#gates-and-checkpoints) and [CLI recovery](usage.md#action-and-decision-management).
+The GitHub channel validates decision-correlated approvers and explicit destinations/content. A remote reply cannot launch a closed agent session. Runtime state stays out of Git/npm publication, while selected attachments are deliberately published. See [Gates and checkpoints](features/hooks-gates-checkpoints.md) and [CLI recovery](usage.md#action-and-decision-management).
 
 ## Configuration
 
@@ -132,7 +140,7 @@ sources, timestamps, the optional project profile, and documentation settings:
 
 ```json
 {
-  "version": "0.4.2",
+  "version": "0.4.3",
   "format": "v2",
   "provider": "codex",
   "providers": ["codex", "claude-code"],
@@ -153,7 +161,8 @@ sources, timestamps, the optional project profile, and documentation settings:
 | `provider`, `providers` | The configured harnesses; `provider` is the primary one |
 | `installedPrompts` | Source names installed into this project |
 | `documentation` | Output directory, depth, and whether Implement/Fix update docs — see [Documentation](features/documentation.md) |
-| `hooks.enabled` | Set to `false` to silence every hook in this clone — see [Hooks](features/hooks.md#turning-hooks-off) |
+| `hooks.enabled` | Set to `false` to silence every hook in this clone — see [Project settings](features/hooks.md#project-settings) |
+| `hooks.maxChain` | How many automatic hand-offs one chain may take (default `8`) — see [Loop limits](features/hooks-gates-checkpoints.md#automatic-answers-and-loop-limits) |
 
 ## Repository layout of spec-lite itself
 
@@ -170,6 +179,7 @@ docs/         This documentation set
 
 Generated artifacts have a single source of truth in `src/`, and tests fail if
 the committed copies drift: `schema/hooks.schema.json` is generated from
-`src/hooks/schema.ts`, and the variable and event tables in
-[`docs/features/hooks.md`](features/hooks.md) are generated from
-`src/hooks/interpolation.ts` and `src/hooks/events.ts`.
+`src/hooks/schema.ts`, and the marked tables and JSON blocks in the hook pages
+(variables, events, shipped builtins, builtin options) are generated from
+`src/hooks/interpolation.ts`, `src/hooks/events.ts`, and `src/hooks/builtins/`.
+`src/hooks/docs.ts` lists which block lives on which page.

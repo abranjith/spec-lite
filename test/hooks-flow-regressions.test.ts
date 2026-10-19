@@ -57,7 +57,7 @@ const fire = async (event: string, options: Partial<RunEventOptions> = {}) =>
   (await runEvent({
     root,
     event,
-    protocol: 2,
+    tracked: true,
     ...options,
   })) as unknown as ControlResult;
 

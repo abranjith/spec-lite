@@ -37,6 +37,7 @@ Use only the roles a task needs — nothing here is a required checklist.
 | `devops` | `spec-devops` | Production-minded platform engineer for CI/CD, containers, environments, and deployment. |
 | `todo` | `spec-todo` | Backlog curator who records useful ideas without expanding the current task. |
 | `tool-help` | `spec-tool-help` | Toolsmith who creates reusable project-analysis scripts for other roles. |
+| `hook-help` | `spec-hook-help` | Hook specialist who adds, validates, and explains hooks, gates, and checkpoints. |
 
 Two reference prompts ship alongside them: `help` is the user-facing catalog, and
 `orchestrator` defines the shared precedence, naming, feature-ID, memory, and
@@ -89,6 +90,7 @@ like these.
 | `spec-devops` | "Add Docker, CI, preview deployments, production secrets guidance, and database migration checks." |
 | `spec-todo` | "Add offline editing and push notifications to the product backlog without changing the current MVP." |
 | `spec-tool-help` | "Create a project tool that reports migration status and failed tests for use by other spec-lite roles." |
+| `spec-hook-help` | "Run the linter after every implementation and stop if it fails, then ask me before opening the pull request." |
 
 ## Stack baselines
 

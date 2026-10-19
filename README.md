@@ -81,7 +81,7 @@ Brainstorm → Plan → Feature × N → Implement → Review → Integration Te
 
 **5 agents** — Brainstormer, Planner, Feature Planner, Architect, YOLO.
 
-**17 skills** — Feature, Implement, Review, Fix, Unit Tests, Integration Tests, Document (+ Design, Feature, Usage, README writers), Memorize, Plan Critic, Data Model, DevOps, Todo, Tool Helper.
+**18 skills** — Feature, Implement, Review, Fix, Unit Tests, Integration Tests, Document (+ Design, Feature, Usage, README writers), Memorize, Plan Critic, Data Model, DevOps, Todo, Tool Helper, Hook Helper.
 
 Personas, harness-by-harness selection, and example prompts for every role: [Agents and skills](docs/features/agents-and-skills.md).
 
@@ -93,7 +93,9 @@ Personas, harness-by-harness selection, and example prompts for every role: [Age
 | [Architecture](docs/architecture.md) | Global roles vs. local state, provider adapters, project layout, configuration |
 | [CLI reference](docs/usage.md) | Every command and option, including the hooks API |
 | [Agents and skills](docs/features/agents-and-skills.md) | The full catalog, selection per harness, example prompts |
-| [Hooks](docs/features/hooks.md) | Subscribe automation to lifecycle events; built-in changeset capture |
+| [Hooks](docs/features/hooks.md) | Run your own automation at lifecycle events; built-in changeset capture |
+| [Git workflow hooks](docs/features/hooks-git-workflow.md) | A worktree, branch, commits, and pull request per piece of work |
+| [Gates and checkpoints](docs/features/hooks-gates-checkpoints.md) | Checks that block the run, and questions that pause it for you |
 | [Review](docs/features/review.md) | Deterministic scopes, findings, verdicts |
 | [Documentation](docs/features/documentation.md) | Documentation settings, document set, and modes |
 | [Memory and project state](docs/features/memory.md) | Standing conventions and what to commit |

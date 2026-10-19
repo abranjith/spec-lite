@@ -129,6 +129,57 @@ describe("registry: unknown and planned events", () => {
   });
 });
 
+describe("registry: validation matches what tracked role runs enforce", () => {
+  const issuesFor = async (hooks: unknown[]) => {
+    await writeHooksJson({ version: 1, hooks });
+    return (await loadRegistry(root)).issues.filter((i) => i.level === "error");
+  };
+
+  it("rejects two hand-off hooks on one event", async () => {
+    const errors = await issuesFor([
+      { name: "a", events: ["fix.post"], type: "skill", skill: "review" },
+      {
+        name: "b",
+        events: ["fix.*"],
+        type: "prompt",
+        prompt: "Summarize",
+        completion: "reported",
+      },
+    ]);
+    expect(errors.map((e) => e.message).join("\n")).toMatch(
+      /fix\.post: only one hand-off .* a, b do/
+    );
+  });
+
+  it("checks templates in prompt text", async () => {
+    const errors = await issuesFor([
+      {
+        name: "p",
+        events: ["fix.post"],
+        type: "prompt",
+        prompt: "Look at ${task.id}",
+        completion: "reported",
+      },
+    ]);
+    expect(errors.map((e) => e.message).join("\n")).toContain("${task.id}");
+  });
+
+  it("names the alternative when a non-builtin hook sets options", async () => {
+    const errors = await issuesFor([
+      {
+        name: "c",
+        events: ["fix.post"],
+        type: "command",
+        run: "echo hi",
+        options: { channel: "x" },
+      },
+    ]);
+    expect(errors.map((e) => e.message).join("\n")).toContain(
+      "only builtin hooks take options. Pass settings to a command hook through `run` arguments or `env` instead."
+    );
+  });
+});
+
 describe("runner: failure policy", () => {
   it("a failing hook with onFailure warn does not abort the run", async () => {
     await writeHooksJson({

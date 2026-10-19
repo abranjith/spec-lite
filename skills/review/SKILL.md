@@ -57,7 +57,7 @@ Natural-language requests such as "review vulnerable packages" or "use the revie
 ### 1. Establish Context
 
 1. Resolve exactly one scope and confirm every path exists.
-2. Run `spec-lite hook run review.pre --protocol 2 --payload scope="{{stable-scope-key}}"` (see [Hooks](#hooks)) after scope resolution, before analysis. For a feature or plan also pass `--feature FEAT-{{ID}}` or `--payload plan="{{plan-file}}"`. Retain those scope flags and execution/action context.
+2. Run `spec-lite hook run review.pre --tracked --payload scope="{{stable-scope-key}}"` (see [Hooks](#hooks)) after scope resolution, before analysis. For a feature or plan also pass `--feature FEAT-{{ID}}` or `--payload plan="{{plan-file}}"`. Retain those scope flags and execution/action context.
 3. Read memory, the governing plan, relevant feature specs, data model, and prior report when re-reviewing.
 4. Read scoped source and adjacent tests/config only where necessary to understand behavior.
 5. If `.spec-lite/tools/` exists, follow [Project Tools](#project-tools).
@@ -107,7 +107,7 @@ Package vulnerabilities are **Security** findings in this same sequence, not a s
 - **Approve with suggestions** when findings are only Medium/Low, or required checks are incomplete/unavailable; prominently qualify the latter verdict and identify what is still unverified.
 - **Approve** when no actionable findings exist and required checks are complete or demonstrably Not applicable. A user-directed skip must be disclosed and the verdict limited to the checks performed; never describe skipped dependency checks as clean.
 - Derive `verdictCode` explicitly: `changes-required` when actionable findings require work, `blocked` when required checks/scope are incomplete and prevent a complete assessment, otherwise `pass`. Keep the display verdict separate.
-- After writing the report, run `spec-lite hook run review.post --protocol 2 --execution {{execution-id}} --payload report="{{report-file}}" --payload verdict="{{verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line verdict and finding counts}}"` (see [Hooks](#hooks)). Process its result before `spec-lite hook run review.verdict --protocol 2 --execution {{execution-id}} --payload report="{{report-file}}" --payload verdict="{{verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line summary}}"`. Retain scope/action flags. If the first event pauses, stops or replaces this continuation, do not fire the second until permitted; do not rerun analysis. `review.verdict` is the remediation routing signal.
+- After writing the report, run `spec-lite hook run review.post --tracked --execution {{execution-id}} --payload report="{{report-file}}" --payload verdict="{{verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line verdict and finding counts}}"` (see [Hooks](#hooks)). Process its result before `spec-lite hook run review.verdict --tracked --execution {{execution-id}} --payload report="{{report-file}}" --payload verdict="{{verdict}}" --payload verdictCode="{{code}}" --payload summary="{{one-line summary}}"`. Retain scope/action flags. If the first event pauses, stops or replaces this continuation, do not fire the second until permitted; do not rerun analysis. `review.verdict` is the remediation routing signal.
 
 ## Output
 
@@ -219,9 +219,9 @@ If `.spec-lite/tools/` exists, list it, read each script's header comment, and r
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

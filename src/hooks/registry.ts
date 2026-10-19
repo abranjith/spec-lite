@@ -104,6 +104,21 @@ async function readRegistryFile(
   return { hooks: doc.hooks, issues: [] };
 }
 
+/** Where a hook that is not a builtin takes its settings, for error messages. */
+function settingsFields(hook: HookDefinition): string {
+  switch (hook.type) {
+    case "command":
+    case "script":
+      return "`run` arguments or `env`";
+    case "http":
+      return "`url`, `headers` or `bodyTemplate`";
+    case "prompt":
+      return "the `prompt` text";
+    default:
+      return "`args`";
+  }
+}
+
 /** The templated string fields a hook may carry, per kind. */
 function templateFields(hook: HookDefinition): string[] {
   const fields: (string | undefined)[] = [
@@ -111,6 +126,7 @@ function templateFields(hook: HookDefinition): string[] {
     hook.url,
     hook.bodyTemplate,
     hook.args,
+    hook.prompt,
     hook.cwd,
   ];
   if (hook.env) fields.push(...Object.values(hook.env));
@@ -194,7 +210,7 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
     issues.push({
       level: "error",
       hook: hook.name,
-      message: `${hook.name}: only builtin hooks take options.`,
+      message: `${hook.name}: only builtin hooks take options. Pass settings to a ${hook.type} hook through ${settingsFields(hook)} instead.`,
     });
   }
   return issues;
@@ -390,10 +406,10 @@ export async function loadRegistry(
     if (!hookIsSkipped(hook, options.skip ?? []))
       issues.push(...validateHook(hook));
   issues.push(...validateGitWorkflow(enabled));
+  // Role runs are tracked, and a tracked event allows one hand-off or checkpoint.
   issues.push(
     ...flowOrderErrors(
-      enabled.filter((h) => !hookIsSkipped(h, options.skip ?? [])),
-      false
+      enabled.filter((h) => !hookIsSkipped(h, options.skip ?? []))
     ).map((message) => ({ level: "error" as const, message }))
   );
 

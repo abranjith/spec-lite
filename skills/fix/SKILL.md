@@ -62,7 +62,7 @@ Diagnose the root cause of a bug or failure, implement a targeted fix, and add a
 ### 1. Reproduce & Understand
 
 - Name the issue once and reuse that name for the whole fix, including the report `fix_{{issue-name}}.md`. Use the user's ticket or issue ID when one is given (e.g. `PROJ-123`); otherwise use a short kebab-case name such as `auth-issue`. When resuming a fix, run `spec-lite worktree list` first and reuse the name of the matching `fix:` workflow.
-- Before edits, run `spec-lite hook run fix.pre --protocol 2 --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. Feature-less fixes skip changeset capture. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call.
+- Before edits, run `spec-lite hook run fix.pre --tracked --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. Feature-less fixes skip changeset capture. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call.
 - Read the error output. Understand the *symptom* before looking for the *cause*.
 - Identify the failing assertion, exception, or unexpected behavior.
 - If possible, reproduce the issue locally.
@@ -106,7 +106,7 @@ When updating, find the affected feature by its stable `FEAT-###` ID, replace th
 
 If `.spec-lite.json.documentation.updateWithDevelopment` is `true` and the fix changes observable behavior, architecture, data, public APIs, or documented operations, invoke **Document** in update mode with the affected paths/feature. If it is `false` or config is absent, do not edit human-facing docs ad hoc; suggest `document update <scope>` in What's Next.
 
-After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --protocol 2 --execution {{execution-id}} --payload name="{{issue-name}}" --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the feature changeset, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL and cleanup command it prints.
+After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --tracked --execution {{execution-id}} --payload name="{{issue-name}}" --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the feature changeset, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL and cleanup command it prints.
 
 ---
 
@@ -177,9 +177,9 @@ If `.spec-lite/tools/` exists, list it, read each script's header comment, and r
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

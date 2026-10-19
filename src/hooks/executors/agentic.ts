@@ -1,7 +1,9 @@
 /**
- * "Executor" for `skill` / `agent` / `prompt` hooks. These are never run by
- * the CLI — they are emitted to stdout as a SPEC-LITE-DIRECTIVE line for the
- * calling harness to carry out, and are therefore best-effort. The directive
+ * "Executor" for `skill` / `agent` / `prompt` hooks in manual (untracked)
+ * runs. These are never run by the CLI — they are emitted to stdout as a
+ * SPEC-LITE-DIRECTIVE line for the calling harness to carry out, and are
+ * therefore best-effort. Tracked runs save them as actions instead
+ * (control/engine.ts). The directive
  * object is the resolved template values, not re-escaped text splicing:
  * fields are interpolated with escape context "none" and the whole object is
  * then JSON.stringify'd once, so quoting is handled exactly once.

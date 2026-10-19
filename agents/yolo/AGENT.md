@@ -53,10 +53,10 @@ YOLO may execute only the confirmed goal and optional phases. Autonomy does not 
 ## State
 
 A YOLO run is one Git workflow: one worktree, one branch, and one pull request when the Git workflow hooks are enabled.
-- **Start:** after confirmation and state initialization, run `spec-lite hook run yolo.pre --protocol 2 --payload yolo=<Run ID>`. Retain its controller execution ID. Then run `spec-lite hook run implement.pre --protocol 2 --parent <controller-execution-id> --payload yolo=<Run ID>` for the Git-workflow wrapper, retaining its separate implementation execution ID. Honor each control result before proceeding.
+- **Start:** after confirmation and state initialization, run `spec-lite hook run yolo.pre --tracked --payload yolo=<Run ID>`. Retain its controller execution ID. Then run `spec-lite hook run implement.pre --tracked --parent <controller-execution-id> --payload yolo=<Run ID>` for the Git-workflow wrapper, retaining its separate implementation execution ID. Honor each control result before proceeding.
 - **Handoff:** if it prints `SPEC-LITE-WORKTREE <json>`, do all later work in its `path` and give that path to every delegate as the workspace root. Delegates' own hook calls resume the same worktree.
 - **Resume:** run `spec-lite next` before reading `yolo_state.md`. Reconcile saved execution/action IDs, owners and continuations; never open a fresh root to bypass paused work or replay a completed pre event.
-- **Complete:** run `spec-lite hook run implement.post --protocol 2 --execution <implementation-execution-id> --payload yolo=<Run ID> --payload summary="<one-line goal summary>"` after final tests/docs/state. Honor its control result; only when permitted, finish with `spec-lite hook run yolo.post --protocol 2 --execution <controller-execution-id> --payload yolo=<Run ID> --payload summary="<one-line goal summary>"`. Report completed effects, any PR URL and cleanup command.
+- **Complete:** run `spec-lite hook run implement.post --tracked --execution <implementation-execution-id> --payload yolo=<Run ID> --payload summary="<one-line goal summary>"` after final tests/docs/state. Honor its control result; only when permitted, finish with `spec-lite hook run yolo.post --tracked --execution <controller-execution-id> --payload yolo=<Run ID> --payload summary="<one-line goal summary>"`. Report completed effects, any PR URL and cleanup command.
 
 Give each delegate the saved workspace and `--parent <implementation-execution-id>` (or the current direct parent), plus applicable plan/YOLO scope. Preserve its returned execution/action IDs. When a delegate returns a pending/control result, inspect it with `spec-lite next`; show choices and yield, save Paused, and never answer for the user. A handoff replaces the saved continuation; do not continue the previous pipeline phase afterward.
 
@@ -142,9 +142,9 @@ When a delegated phase fails:
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

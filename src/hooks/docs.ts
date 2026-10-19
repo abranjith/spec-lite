@@ -1,10 +1,11 @@
 /**
  * Renders the generated documentation blocks for the hook system.
  *
- * These are the single source of truth for what ends up in
- * docs/features/hooks.md between the marker comments. A test asserts the doc
- * matches what this produces, so the docs cannot drift from the resolver and
- * the event catalog.
+ * These are the single source of truth for what ends up between the marker
+ * comments in the hook pages under docs/features/ (GENERATED_BLOCKS says
+ * which block lives on which page). A test asserts the docs match what this
+ * produces, so they cannot drift from the resolver, the event catalog, or the
+ * builtins.
  */
 import { describeVars } from "./interpolation.js";
 import { EVENT_CATALOG } from "./events.js";
@@ -21,16 +22,34 @@ export const BUILTIN_HOOKS_END = "<!-- builtin-hooks-json:end -->";
 export const GIT_WORKFLOW_HOOKS_START =
   "<!-- git-workflow-hooks-json:start -->";
 export const GIT_WORKFLOW_HOOKS_END = "<!-- git-workflow-hooks-json:end -->";
-export const BUILTIN_OPTIONS_START = "<!-- builtin-options-table:start -->";
-export const BUILTIN_OPTIONS_END = "<!-- builtin-options-table:end -->";
+export const optionsTableStart = (group: string) =>
+  `<!-- builtin-options-table:${group}:start -->`;
+export const optionsTableEnd = (group: string) =>
+  `<!-- builtin-options-table:${group}:end -->`;
+
+/** The hook documentation pages, relative to the repository root. */
+export const HOOK_DOCS = {
+  main: "docs/features/hooks.md",
+  gitWorkflow: "docs/features/hooks-git-workflow.md",
+  control: "docs/features/hooks-gates-checkpoints.md",
+} as const;
+
+/** Builtins whose options are documented together, on the page that explains them. */
+export const OPTIONS_TABLES: Record<
+  string,
+  { file: string; hooks: readonly string[] }
+> = {
+  "git-workflow": { file: HOOK_DOCS.gitWorkflow, hooks: GIT_WORKFLOW_HOOKS },
+  checkpoint: { file: HOOK_DOCS.control, hooks: ["checkpoint"] },
+};
 
 const GROUP_LABELS: Record<string, string> = {
   base: "base — every event",
-  feature: "feature",
-  task: "task",
-  changes: "changes",
-  verdict: "verdict",
-  summary: "summary",
+  workflow: "workflow — tracked runs",
+  execution: "execution — tracked runs",
+  action: "action — optional",
+  decision: "decision — checkpoint events",
+  "decision-resolved": "decision-resolved — after an answer",
 };
 
 /** The `${...}` variable reference table, grouped, in catalog order. */
@@ -145,15 +164,74 @@ function optionType(schema: Record<string, unknown>): string {
   return String(schema.type);
 }
 
-/** Every builtin's options, from their declarations in builtins/options.ts. */
-export function renderBuiltinOptionsTable(): string {
-  const rows = ["| Hook | Option | Type | Meaning |", "|---|---|---|---|"];
-  for (const [hook, spec] of Object.entries(BUILTIN_OPTIONS)) {
-    for (const [name, option] of Object.entries(spec.options)) {
-      rows.push(
-        `| \`${hook}\` | \`${name}\` | ${optionType(option.schema)} | ${option.required ? "**Required.** " : ""}${option.description} |`
-      );
+/**
+ * Options of the given builtins, from their declarations in
+ * builtins/options.ts. A table for one builtin leaves out the Hook column.
+ */
+export function renderBuiltinOptionsTable(hooks: readonly string[]): string {
+  const single = hooks.length === 1;
+  const rows = single
+    ? ["| Option | Type | Meaning |", "|---|---|---|"]
+    : ["| Hook | Option | Type | Meaning |", "|---|---|---|---|"];
+  for (const hook of hooks) {
+    for (const [name, option] of Object.entries(
+      BUILTIN_OPTIONS[hook]?.options ?? {}
+    )) {
+      const cells = [
+        `\`${name}\``,
+        optionType(option.schema),
+        `${option.required ? "**Required.** " : ""}${option.description}`,
+      ];
+      if (!single) cells.unshift(`\`${hook}\``);
+      rows.push(`| ${cells.join(" | ")} |`);
     }
   }
   return rows.join("\n");
 }
+
+export interface GeneratedBlock {
+  label: string;
+  file: string;
+  start: string;
+  end: string;
+  render: () => string;
+}
+
+/** Every generated block in the hook docs, and the page it lives on. */
+export const GENERATED_BLOCKS: GeneratedBlock[] = [
+  {
+    label: "interpolation variable table",
+    file: HOOK_DOCS.main,
+    start: VARS_TABLE_START,
+    end: VARS_TABLE_END,
+    render: renderVarsTable,
+  },
+  {
+    label: "event catalog table",
+    file: HOOK_DOCS.main,
+    start: EVENTS_TABLE_START,
+    end: EVENTS_TABLE_END,
+    render: renderEventsTable,
+  },
+  {
+    label: "shipped builtin definitions",
+    file: HOOK_DOCS.main,
+    start: BUILTIN_HOOKS_START,
+    end: BUILTIN_HOOKS_END,
+    render: renderBuiltinHooksJson,
+  },
+  {
+    label: "Git workflow hook entries",
+    file: HOOK_DOCS.gitWorkflow,
+    start: GIT_WORKFLOW_HOOKS_START,
+    end: GIT_WORKFLOW_HOOKS_END,
+    render: renderGitWorkflowHooksJson,
+  },
+  ...Object.entries(OPTIONS_TABLES).map(([group, table]) => ({
+    label: `${group} options table`,
+    file: table.file,
+    start: optionsTableStart(group),
+    end: optionsTableEnd(group),
+    render: () => renderBuiltinOptionsTable(table.hooks),
+  })),
+];

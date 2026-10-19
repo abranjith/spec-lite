@@ -44,6 +44,7 @@ Use this navigator to choose a role. For ownership, precedence, naming, IDs, and
 | **Plan Critic** | Pressure-test a plan before implementation | `reviews/plan_critique_<scope>.md` |
 | **TODO** | Curate an explicit backlog item | `.spec-lite/TODO.md` |
 | **Tool Helper** | Create/update live-context shell tools | `.spec-lite/tools/<tool>.sh` |
+| **Hook Helper** | Add, change, or debug hooks, gates, and checkpoints | `.spec-lite/hooks.json` |
 | **Document** | Orchestrate full, update, or targeted documentation | Configured doc set |
 | **Document Design** | Describe current architecture with Mermaid | `<docs-dir>/architecture.md` |
 | **Document Feature** | Document one implemented user feature | `<docs-dir>/features/<feature>.md` |

@@ -76,7 +76,7 @@ Take a user's idea, requirement, or enhancement request and — through interact
 
 ### 1. Clarify & Scope
 
-Resolve a stable feature-planning name before allocating IDs; run `spec-lite hook run plan-feature.pre --protocol 2 --payload scope="feature-planning:{{name}}"` (see [Hooks](#hooks)) before starting. Reuse its execution context through output and completion.
+Resolve a stable feature-planning name before allocating IDs; run `spec-lite hook run plan-feature.pre --tracked --payload scope="feature-planning:{{name}}"` (see [Hooks](#hooks)) before starting. Reuse its execution context through output and completion.
 
 This is the **Planner-like** phase — interactive, iterative, and thorough.
 
@@ -143,7 +143,7 @@ Define tasks with TASK-IDs. A "vertical slice" is a thin, end-to-end implementat
 - **Present the draft spec** to the user for review before saving. Ask: "Here's the complete spec. Review it and let me know if anything needs adjustment."
 - Save the final spec to `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` (see the Output template below).
 - If you discovered potential enhancements that are out of scope, append them to `.spec-lite/TODO.md`.
-- Emit `feature.spec.post` as described in Output and honor its result first. Then run `spec-lite hook run plan-feature.post --protocol 2 --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` (see [Hooks](#hooks)) only if that continuation remains permitted.
+- Emit `feature.spec.post` as described in Output and honor its result first. Then run `spec-lite hook run plan-feature.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` (see [Hooks](#hooks)) only if that continuation remains permitted.
 
 ---
 
@@ -153,7 +153,7 @@ Do not expand the current scope. Append out-of-scope improvements to `.spec-lite
 
 ## Output: `.spec-lite/features/FEAT-<ID>-<name>/spec.md`
 
-Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --protocol 2 --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) **before** the final `plan-feature.post` command; honor each result before the next event.
+Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) **before** the final `plan-feature.post` command; honor each result before the next event.
 
 ### Output Template
 
@@ -271,9 +271,9 @@ If `.spec-lite/tools/` exists, list it, read each script's header comment, and r
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

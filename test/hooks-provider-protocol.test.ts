@@ -51,7 +51,7 @@ describe("installed portable control instructions", () => {
         read(yoloPaths.agent ?? yoloPaths.prompt),
       ]);
       for (const role of [plan, critic, yolo]) {
-        expect(role).toContain("--protocol 2");
+        expect(role).toContain("--tracked");
         expect(role).toContain("--execution");
         expect(role).toContain("--parent");
         expect(role).toContain("never consumes delivery");
@@ -60,7 +60,7 @@ describe("installed portable control instructions", () => {
         expect(role).not.toMatch(/--wait 4m|cache lifetime is five minutes/);
       }
       expect(plan).toContain("--payload plan=");
-      expect(critic).toContain("plan-critic.pre --protocol 2");
+      expect(critic).toContain("plan-critic.pre --tracked");
       expect(critic).toContain("verdictCode");
       expect(yolo).toContain("run `spec-lite next` before reading");
     },
@@ -75,10 +75,10 @@ describe("installed portable control instructions", () => {
       source("skills/implement/SKILL.md"),
     ]);
     expect(feature).toContain(
-      "feature.pre --protocol 2 --parent <your-execution-id> --feature FEAT-<ID>"
+      "feature.pre --tracked --parent <your-execution-id> --feature FEAT-<ID>"
     );
     expect(implement).toContain(
-      "--protocol 2 --parent <your-execution-id> --feature FEAT-<ID>"
+      "--tracked --parent <your-execution-id> --feature FEAT-<ID>"
     );
     for (const role of [feature, implement])
       expect(role).toContain("(never yours) on every later event");
@@ -101,7 +101,7 @@ describe("installed portable control instructions", () => {
     expect(output).toContain(
       "A GitHub reply does not restart a closed agent session"
     );
-    expect(output).toContain("--protocol 2");
+    expect(output).toContain("--tracked");
     expect(output).toContain("--parent");
     expect(output).toContain("not higher-priority authority");
     expect(output).toContain("decision cancel/reissue");

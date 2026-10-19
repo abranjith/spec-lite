@@ -1,4 +1,4 @@
-/** Durable protocol 2. The CLI records routing; role bodies are executed by the caller. */
+/** Tracked runs. The CLI records routing; role bodies are executed by the caller. */
 import path from "node:path";
 import fs from "fs-extra";
 import { refreshChanges } from "../payload.js";
@@ -54,7 +54,7 @@ const result = (
   status: ControlResult["status"],
   fields: Partial<ControlResult> = {}
 ): ControlResult => ({
-  protocol: 2,
+  tracked: true,
   status,
   exitCode: status === "blocked" ? 3 : 0,
   results: [],
@@ -71,7 +71,7 @@ export function controlFailure(error: unknown): ControlResult {
     error: { code: e.code, message: e.message, recovery: e.recovery },
   });
 }
-/** A legacy call cannot escape a previously saved barrier by dropping its context/version. */
+/** A manual (untracked) call cannot escape a pause saved by a tracked run by dropping its IDs. */
 export async function legacyBarrier(
   opts: RunEventOptions,
   payload: HookPayload
@@ -89,7 +89,7 @@ export async function legacyBarrier(
     return controlFailure(
       new ControlError(
         "reconciliation-required",
-        "Saved runtime transaction requires protocol 2 inspection before more work.",
+        "An interrupted state change was saved; inspect it before more work.",
         1,
         "spec-lite next"
       )
@@ -114,8 +114,8 @@ export async function legacyBarrier(
     );
   }
   let key: string | undefined;
-  // Unscoped legacy calls cannot name paused work, so unrelated barriers never block them.
-  // Durable hooks on such events still route through protocol 2 and its guard.
+  // Unscoped manual calls cannot name paused work, so unrelated pauses never block them.
+  // Durable hooks on such events still need a tracked run and its guard.
   try {
     key = scope(payload, store.workspace).key;
   } catch {
@@ -124,8 +124,8 @@ export async function legacyBarrier(
   if (workflows.some((w) => w.barrier && w.key === key))
     return controlFailure(
       new ControlError(
-        "protocol-required",
-        "This scope has a durable barrier. Carry protocol 2 and its saved execution/action IDs.",
+        "tracked-required",
+        "This work is paused in a tracked run. Continue it with the IDs that `spec-lite next` shows.",
         2,
         "spec-lite next"
       )
@@ -171,7 +171,7 @@ function eventResult(
 }
 export function startCommand(action: Action): string {
   if (action.target?.completion === "lifecycle")
-    return `spec-lite hook run ${action.target.logical}.pre --protocol 2 --action ${action.id}`;
+    return `spec-lite hook run ${action.target.logical}.pre --tracked --action ${action.id}`;
   return `spec-lite action start ${action.id}${action.choice.continue || action.choice.stop ? ` --execution ${action.execution}` : ""}`;
 }
 async function actionResult(
@@ -639,7 +639,7 @@ export async function startAction(
           2
         );
       const claimed = await claim(tx, action, store.workspace);
-      if ("protocol" in claimed) return claimed;
+      if ("tracked" in claimed) return claimed;
       const current = await tx.require("actions", action.id);
       const event = await tx.require("events", action.event);
       const origin = await tx.require("executions", action.execution);
@@ -769,10 +769,11 @@ export async function runControlledEvent(
   hooks: ResolvedHook[]
 ): Promise<ControlResult> {
   try {
-    if (String(opts.protocol) !== "2")
+    // A dry run saves nothing, so a manual preview may include gates and checkpoints.
+    if (!opts.tracked && !opts.dryRun)
       throw new ControlError(
-        "protocol-required",
-        "Gates, checkpoints and durable routing require --protocol 2; update the calling role instructions.",
+        "tracked-required",
+        "A gate, checkpoint or hand-off hook subscribes to this event. They only work in a tracked role run (--tracked); let the role fire the event, or skip those hooks with --skip <name>.",
         2
       );
     if (!getEvent(opts.event))
@@ -862,7 +863,7 @@ export async function runControlledEvent(
             store.workspace,
             payload.role
           );
-          if ("protocol" in claimed) return claimed;
+          if ("tracked" in claimed) return claimed;
           execution = claimed;
           started = true;
           workflow = await tx.require("workflows", execution.workflow);
@@ -1166,6 +1167,7 @@ export async function runControlledEvent(
                 retryAllowed: false,
                 message:
                   "Total check round budget exhausted; request explicit recovery.",
+                recovery: eventRecovery(event),
               });
             await guard(tx, workflow, event.id);
             event.status = "running";
@@ -1406,7 +1408,7 @@ async function dispatchEvent(
         return { event, hook };
       }
     );
-    if ("protocol" in next) return next;
+    if ("tracked" in next) return next;
     const { event, hook } = next;
     if (hook.enabled === false) continue;
     if (checkpoint(hook)) {
@@ -1658,6 +1660,7 @@ async function failEvent(
       exitCode: state === "blocked" ? 3 : outcome.contractError ? 2 : 1,
       retryAllowed: state === "blocked" && event.rounds < event.maxRounds,
       message: outcome.message,
+      recovery: eventRecovery(event),
     });
     event.result = output;
     tx.put("events", event);
@@ -1903,8 +1906,16 @@ export async function next(
           if (["ready", "running", "interrupted", "failed"].includes(a.status))
             items.push(await actionResult(tx, a));
         // Root executions have no action record; list them so an interrupted session can be resumed or stopped.
+        // One that is waiting at a question or a blocked gate is listed through that item instead.
+        const waiting = new Set(
+          (await tx.list("events"))
+            .filter((e) =>
+              ["pending", "blocked", "paused", "interrupted"].includes(e.status)
+            )
+            .map((e) => e.execution)
+        );
         for (const x of await tx.list("executions"))
-          if (x.status === "running" && !x.action)
+          if (x.status === "running" && !x.action && !waiting.has(x.id))
             items.push(executionResult(x));
         for (const e of await tx.list("events")) {
           if (
@@ -1929,6 +1940,7 @@ export async function next(
                 {
                   retryAllowed:
                     e.status === "blocked" && e.rounds < e.maxRounds,
+                  recovery: eventRecovery(e),
                 }
               )
             );
@@ -2364,6 +2376,21 @@ export async function pruneRuntime(
     }
     return pruned;
   });
+}
+/**
+ * The `hook recover` command for an event that needs a person's decision: a gate past its retry
+ * budget, an interrupted hook, or a paused chain. A gate still within budget is retried by the agent.
+ */
+function eventRecovery(event: EventRecord): string | undefined {
+  const base = `spec-lite hook recover ${event.id} --generation ${event.generation}`;
+  if (event.status === "blocked") {
+    if (event.rounds < event.maxRounds) return undefined;
+    const gates = event.hooks.filter((h) => h.gate).map((h) => h.name);
+    return `${base} --mode retry|stop|override --reason <user-instruction> (override needs --checks ${gates.join(",")})`;
+  }
+  if (event.status === "interrupted" || event.status === "paused")
+    return `${base} --mode retry|stop --reason <user-instruction>`;
+  return undefined;
 }
 function recoverCommand(execution: Execution): string {
   return execution.action

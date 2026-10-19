@@ -185,7 +185,9 @@ export async function validateTargets(
   const known = new Set(sources.map((s) => s.name.replace(/_/g, "-")));
   return Object.entries(choices).flatMap(([key, choice]) => {
     if (choice.prompt && choice.completion !== "reported")
-      return [`${key}: prompt targets require completion: reported.`];
+      return [
+        `${key}: a prompt hand-off needs "completion": "reported", so the agent records when it is done.`,
+      ];
     const logical = logicalTarget(choice);
     if (!logical) return [];
     if (instrumented.has(logical))
@@ -196,7 +198,7 @@ export async function validateTargets(
         : [];
     if (choice.completion !== "reported")
       return [
-        `${key}: external target ${logical} requires completion: reported.`,
+        `${key}: ${logical} is not a spec-lite role, so it needs "completion": "reported".`,
       ];
     return known.has(logical) || choice.completion === "reported"
       ? []
@@ -271,10 +273,7 @@ export function flowHookErrors(hook: HookDefinition): string[] {
   }
   return errors;
 }
-export function flowOrderErrors(
-  hooks: ResolvedHook[],
-  enforceStaticRouting = true
-): string[] {
+export function flowOrderErrors(hooks: ResolvedHook[]): string[] {
   const events = new Set(
     hooks.flatMap((hook) =>
       hook.events.flatMap((p) => resolvePattern(p).matched.map((e) => e.name))
@@ -292,22 +291,19 @@ export function flowOrderErrors(
     const routing = subscribed.filter(
       (h) => checkpoint(h) || ["skill", "agent", "prompt"].includes(h.type)
     );
-    if (
-      routing.length > 1 &&
-      (enforceStaticRouting || routing.some(checkpoint))
-    )
+    if (routing.length > 1)
       errors.push(
-        `${name}: competing routing authorities ${routing.map((h) => h.name).join(", ")}.`
+        `${name}: only one hand-off (skill, agent, prompt) or checkpoint hook may subscribe to an event, but ${routing.map((h) => h.name).join(", ")} do. Combine them into one checkpoint with a choice for each.`
       );
     let effects = false;
     for (const hook of subscribed) {
       if (hook.gate && effects)
         errors.push(
-          `${name}: gate ${hook.name} must precede effects and checkpoints.`
+          `${name}: gate ${hook.name} must run before checkpoints and before hooks that change things; lower its order.`
         );
       if (checkpoint(hook) && effects && hook.options?.afterEffects !== true)
         errors.push(
-          `${name}: checkpoint ${hook.name} follows effects and requires afterEffects: true.`
+          `${name}: checkpoint ${hook.name} runs after hooks that change things; lower its order, or set options.afterEffects: true.`
         );
       if (!repeatable(hook) && !hook.gate) effects = true;
     }

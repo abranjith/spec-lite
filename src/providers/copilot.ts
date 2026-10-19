@@ -286,6 +286,7 @@ export const AGENT_HANDOFFS: Record<string, Handoff[]> = {
       prompt: "Continue implementation using the project tool where relevant.",
     },
   ],
+  hook_help: [],
   todo: [],
 };
 

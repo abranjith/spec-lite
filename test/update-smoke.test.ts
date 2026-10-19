@@ -97,7 +97,7 @@ describe("legacy workspace update", () => {
 
       const config = await fs.readJson(path.join(root, ".spec-lite.json"));
       expect(config).toMatchObject({
-        version: "0.4.2",
+        version: "0.4.3",
         format: "v2",
         provider: "copilot",
         providers: ["copilot", "generic"],

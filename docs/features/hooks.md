@@ -1,77 +1,78 @@
 # Hooks
 
-Hooks are spec-lite's general extension mechanism. Every core role announces its
-lifecycle points as versioned **events** — `implement.pre`, `review.verdict`,
-`fix.post`, and so on — and a hook is anything you subscribe to one of them.
-What the hook does is entirely yours: run a linter, call a webhook, write a file,
-or tell the calling agent to invoke another skill.
+Hooks let you run your own automation at fixed points in the spec-lite workflow.
+Every hook-wired role announces its lifecycle points as **events**, such as
+`implement.pre`, `review.verdict`, and `fix.post`. A hook subscribes to one or
+more events and says what to do there: run a linter, call a webhook, hand off to
+another skill, stop for a check that must pass, or pause to ask you a question.
 
-Changeset capture — the `changeset.json` that Review uses as its file scope — is
-**not** the hook system. It is two ordinary hooks that happen to ship enabled by
-default, written against the same public contract as anything you add, and you
-can disable, replace, or ignore them without affecting any other hook.
+> **You don't run hooks; the roles do.** Brainstorm, Plan, Plan Feature, Feature,
+> Implement, Review, Fix, Plan Critic, and YOLO fire their events themselves. You
+> add hooks to `.spec-lite/hooks.json`, check them with `spec-lite hook
+> validate`, and they fire on the next run. See [Running hooks
+> yourself](#running-hooks-yourself) for the few times you'd call one by hand.
+
+Changeset capture, the `changeset.json` that Review uses as its file scope, is
+two ordinary hooks that ship enabled. You can disable or replace them like any
+other hook.
+
+**Pages in this guide**
+
+- **Hooks** (this page): concepts, adding and managing hooks, built-in hooks, and the reference.
+- [Git workflow hooks](hooks-git-workflow.md): a worktree, branch, commits, and a pull request for each piece of work.
+- [Gates and checkpoints](hooks-gates-checkpoints.md): checks that block the run, and questions that pause it for you.
+
+**On this page**
 
 - [Concepts](#concepts)
-- [The two kinds of hook](#the-two-kinds-of-hook)
-- [Add a hook](#add-a-hook)
-- [Inspect hooks](#inspect-hooks)
-- [Change or delete a hook](#change-or-delete-a-hook)
-- [More examples](#more-examples)
+- [How a hook run works](#how-a-hook-run-works)
+- [Quick start: run the linter after Implement](#quick-start-run-the-linter-after-implement)
+- [Choose a hook type](#choose-a-hook-type)
+- [Write each type](#write-each-type)
+- [Manage hooks](#manage-hooks)
+- [Running hooks yourself](#running-hooks-yourself)
 - [Built-in hooks](#built-in-hooks)
-- [Git workflow hooks](#git-workflow-hooks)
-- [Hook definition reference](#hook-definition-reference)
-- [Interpolation](#interpolation)
-- [Event catalog](#event-catalog)
-- [Gates and checkpoints](#gates-and-checkpoints)
-- [Failure handling and exit codes](#failure-handling-and-exit-codes)
-- [Audit log](#audit-log)
-- [Turning hooks off](#turning-hooks-off)
+- [Reference](#reference)
 - [Troubleshooting](#troubleshooting)
 
 ## Concepts
 
 | Term | Meaning |
 |---|---|
-| **Event** | A named lifecycle point, dotted and hierarchical (`implement.task.post`). A role reaches the point and runs `spec-lite hook run <event>`. |
-| **Hook** | One entry in the registry that subscribes to one or more events and says what to do. |
+| **Event** | A named lifecycle point, dotted and hierarchical: `implement.task.post` fires after each task. The [event catalog](#event-catalog) lists them all. |
+| **Hook** | One entry in the registry. It names the events it subscribes to and what to do there. |
 | **Registry** | The merged set of hooks: builtins, then `~/.spec-lite/hooks.json`, then `.spec-lite/hooks.json`. |
-| **Payload** | The JSON describing one event occurrence. Reachable from every hook through `${...}` templates, and delivered to `command`/`script` hooks on stdin and as `SPEC_LITE_*` environment variables. |
-| **Directive** | The `SPEC-LITE-DIRECTIVE` line an agentic hook prints for the calling role to carry out. |
+| **Payload** | The JSON describing one event: feature, task, changed files, summary, and more. Hooks read it through `${...}` [templates](#interpolation), and `command`/`script` hooks also get it on stdin and as [environment variables](#environment-variables). |
+| **Role run** | One run of a role, such as Implement working on FEAT-012. Roles fire their events as a **tracked run**: the CLI saves IDs for the run, so it can pause, hand off, and resume. |
+| **Manual run** | `spec-lite hook run` without `--tracked`, as you'd type it. It runs the hooks once and can't pause, so it refuses events that have gates, checkpoints, or hand-off hooks. |
+| **Hand-off** | A `skill`, `agent`, or `prompt` hook: when the event's hooks finish, the agent starts that skill, agent, or instruction instead of carrying on. |
+| **Gate** | A `command`/`script` hook marked `"gate": true`. If it blocks, the agent fixes the problem and the check runs again. See [Gates](hooks-gates-checkpoints.md#gates). |
+| **Checkpoint** | A builtin that pauses the run with a question for you, answered in chat or on GitHub. See [Checkpoints](hooks-gates-checkpoints.md#checkpoints). |
+
+## How a hook run works
 
 ```mermaid
 flowchart LR
   R["Role reaches a<br/>lifecycle point"] --> C["spec-lite hook run event"]
-  C --> M["Merge registry<br/>builtin, global, project"]
-  M --> P["Build payload<br/>and resolve templates"]
-  P --> D{"Hook kind"}
-  D -->|command, script, http, builtin| X["CLI executes it"]
-  D -->|skill, agent, prompt| E["Print SPEC-LITE-DIRECTIVE"]
-  E --> A["Calling agent carries it out"]
+  C --> M["Merge registry:<br/>builtin, global, project"]
+  M --> X["Run subscribed<br/>hooks in order"]
+  X --> O{"Result"}
+  O -->|continue| A["Role carries on"]
+  O -->|blocked| F["Agent fixes and<br/>retries the gate"]
+  O -->|pending| Q["Run pauses:<br/>question for you"]
+  O -->|ready| H["Agent starts<br/>the hand-off"]
+  O -->|stopped or error| S["Role stops<br/>and reports"]
 ```
 
-Hooks are dispatched in `order` (ascending, default `100`), ties broken by
-declaration order. A hook subscribed to a wildcard such as `implement.*` fires on
-every matching event; `*` matches one or more whole dotted segments.
+1. The role reaches a lifecycle point and runs `spec-lite hook run <event>`.
+2. The CLI merges the registry, builds the payload, and resolves every `${...}` template. A configuration problem stops the event here, before anything runs.
+3. Hooks run in `order`, lowest first (default `100`); ties go by declaration order. A hook subscribed to a wildcard such as `implement.*` fires on every matching event; `*` matches one or more whole dotted segments.
+4. The result tells the role what to do next. Usually that is **continue**. A gate can **block** it, a checkpoint can **pause** it, a hand-off can redirect it, and a failed hook with `"onFailure": "abort"` **stops** it.
 
-## The two kinds of hook
+## Quick start: run the linter after Implement
 
-These classes describe who performs the work. Legacy stateless calls emit best-effort directives; protocol 2 adds saved actions, start acknowledgment and explicit completion, described under [Gates and checkpoints](#gates-and-checkpoints).
-
-| Kind | `type` | Who runs it | Guarantee |
-|---|---|---|---|
-| **Deterministic** | `command`, `script`, `http`, `builtin` | The CLI itself, with a timeout, an exit code, and a failure policy | Ran, or reported a failure |
-| **Agentic** | `skill`, `agent`, `prompt` | Nobody — the CLI prints a `SPEC-LITE-DIRECTIVE` line and the calling agent acts on it | Best effort, by design |
-
-The split is deliberate. Anything that must happen — a formatter, a webhook, a
-guard that blocks the run — belongs in a deterministic kind. Anything that needs
-judgement (*"review this deeply"*, *"record that decision in memory"*) belongs in
-an agentic kind, where a model does the work and the CLI never pretends to
-control the outcome.
-
-## Add a hook
-
-The worked example: **run the linter after each implementation, and stop the run
-if it fails.**
+The goal: **run the linter after each implementation, and stop the run if it
+fails.**
 
 ### 1. Write the registry entry
 
@@ -94,9 +95,9 @@ Hooks live in `.spec-lite/hooks.json`. Create it if it does not exist:
 }
 ```
 
-`name` is the identity of the hook — the merge key across registry layers, the
+`name` is the hook's identity: the key for overriding it in another layer, the
 argument to `hook test`, and what appears in the audit log. `version` is the
-registry format version and is always `1`.
+file format version and is always `1`.
 
 > The file accepts only `version` and `hooks`; a `$schema` key is rejected. For
 > editor autocomplete, point your editor at the published
@@ -112,14 +113,15 @@ spec-lite hook validate
 Registry valid. 0 warning(s).
 ```
 
-Validation is a static check with no side effects: JSON schema, event names, and
-every `${...}` template against the variables its events guarantee. Run it in CI
-so a broken registry fails the build rather than a delivery run.
+Validation has no side effects. It checks the JSON schema, event names, every
+`${...}` template against the variables its events guarantee, and the ordering
+rules. Run it in CI so a broken registry fails the build rather than a delivery
+run.
 
-### 3. Test it in isolation
+### 3. Test it on its own
 
-`hook test` fires one hook against a synthetic payload without waiting for a role
-to reach the real lifecycle point. It runs the actual executor — a `command` hook
+`hook test` fires one hook against a synthetic payload, without waiting for a
+role to reach the lifecycle point. It runs the real hook, so a `command` hook
 really executes:
 
 ```bash
@@ -127,23 +129,19 @@ spec-lite hook test lint-after-implement --feature FEAT-012
 ```
 
 ```text
-Testing "lint-after-implement" against event implement.post
+REAL hook test: "lint-after-implement" against event implement.post
 
   ✓ lint-after-implement (command) [ok]
 ```
 
-### 4. Preview a whole event
+### 4. Preview the whole event
 
-`--dry-run` resolves every subscribed hook and prints what *would* run, with any
-`${env:...}` value redacted:
+`--dry-run` resolves every hook subscribed to an event and prints what *would*
+run, without running anything. `${env:...}` values are redacted:
 
 ```bash
 spec-lite hook run implement.post --feature FEAT-012 --dry-run
 ```
-
-`--feature` also accepts a preserved legacy Plan Feature ID such as
-`FEAT-FP-007`. It resolves the same directory, spec, changeset, and audit-log
-fields as a canonical `FEAT-###` ID; new features continue to use `FEAT-###`.
 
 ```text
   − capture-changeset (builtin) [skipped] — dry run — not executed
@@ -154,143 +152,78 @@ fields as a canonical `FEAT-###` ID; new features continue to use `FEAT-###`.
 
 ### 5. Let it fire
 
-Nothing else to wire up. The next time Implement finishes a feature it runs the
-event itself, and the hook goes with it:
+Nothing else to wire up. The next time Implement finishes a feature, it fires
+`implement.post` and your hook runs with it. If the linter fails, Implement stops
+and reports the failure. Each run is recorded in the feature's
+[audit log](#audit-log).
 
-```text
-  ✓ capture-changeset (builtin) [ok] — 2 file(s) in changeset (2 excluded)
-  ✓ lint-after-implement (command) [ok]
-```
+## Choose a hook type
 
-## Inspect hooks
+| You want to… | Use | What happens | Guarantee |
+|---|---|---|---|
+| Run a tool, script, or check | [`command` or `script`](#command-and-script) | The CLI runs it, with a timeout and a failure policy | Ran, or reported a failure |
+| Call a webhook | [`http`](#http) | The CLI sends the request | Same |
+| Stop the run until a check passes, and let the agent fix it | `command`/`script` with [`"gate": true`](hooks-gates-checkpoints.md#gates) | A block sends the agent back to fix and retry, within a budget | The agent can't skip it |
+| Ask yourself what should happen next | the [`checkpoint` builtin](hooks-gates-checkpoints.md#checkpoints) | The run pauses until you answer in chat or on GitHub | Nothing continues without an answer |
+| Start another skill or agent when this point is reached | [`skill` or `agent`](#hand-offs-skill-agent-and-prompt) | The agent starts it after the event's hooks finish | Start and finish are recorded; the work is the agent's |
+| Give the agent a free-text instruction | [`prompt`](#hand-offs-skill-agent-and-prompt) | Same as a hand-off | Same |
+| Change a shipped behavior | a [built-in hook](#built-in-hooks) | Configure it with a short entry | As for the builtin |
 
-| Command | Answers |
-|---|---|
-| `spec-lite hook list` | Which hooks are active, which layer defined them, what they subscribe to |
-| `spec-lite hook list --all` | Every resolved hook, including disabled hooks and their status |
-| `spec-lite hook list --event implement.post` | Which hooks would fire for one specific event |
-| `spec-lite hook events` | The full event catalog with `emitted`/`planned` status |
-| `spec-lite hook vars` | Every `${...}` variable, its group, and an example value |
-| `spec-lite hook validate` | Whether the merged registry is correct |
-| `spec-lite hook test <name>` | What one hook actually does |
+Anything that must happen, such as a formatter, a webhook, or a check, belongs in
+a CLI-run type (`command`, `script`, `http`, or a gate). Anything that needs
+judgement, such as *"review this deeply"*, belongs in a hand-off, where a model
+does the work.
 
-```bash
-spec-lite hook list
-```
+## Write each type
 
-```text
-capture-baseline (builtin) — builtin — enabled
-  events: implement.pre, implement.task.pre, fix.pre
-  Records HEAD and pre-existing dirt so later diffs are scoped to this run.
-capture-changeset (builtin) — builtin — enabled
-  events: implement.post, implement.task.post, fix.post
-  Diffs against the captured baseline and merges the result into changeset.json.
-lint-after-implement (project) — command — enabled
-  events: implement.post
-  Run the linter after implementation; block on failure.
-```
+### command and script
 
-The parenthesised word is provenance: `builtin`, `global`
-(`~/.spec-lite/hooks.json`), or `project` (`.spec-lite/hooks.json`). Later layers
-win **by name**, in one of two ways:
+The CLI runs `run` in a shell, from the workspace root (or `cwd`), with a
+timeout. Exit code `0` is success; anything else is a failure, handled by
+`onFailure`. Output on stdout becomes the result message.
 
-- **An entry with `type` replaces** the earlier hook of that name outright. That's
-  how you define a hook, or replace a builtin with your own.
-- **An entry without `type` configures** the earlier hook. It may set only
-  `enabled`, `options`, `order`, `timeoutMs`, and `onFailure`; everything else
-  comes from the layer that defines the hook. A configured builtin therefore keeps
-  receiving fixes when you update spec-lite. Its `options` replace the earlier
-  options as a whole.
+`command` and `script` behave identically. The distinction records intent: a
+`script` hook usually names a checked-in file, and a `command` hook is a
+one-liner. `shell` picks the shell: `auto` (bash on macOS and Linux, PowerShell
+on Windows), `bash`, or `pwsh`. `cmd.exe` is deliberately unsupported, because
+its quoting rules can't be applied safely.
 
-```json
-{ "name": "capture-changeset", "enabled": false }
-```
+The hook reads the event in any of three ways:
 
-`hook list` shows only active hooks. Add `--all` to include hooks set to
-`enabled: false`; they appear as disabled and remain excluded from dispatch.
-Combine it with `--event` to inspect disabled subscriptions for one event.
-
-## Change or delete a hook
-
-| Goal | Do this |
-|---|---|
-| Delete a hook you added | Remove its object from `.spec-lite/hooks.json` |
-| Keep it but stop it firing | `spec-lite hook disable <name>` |
-| Enable a disabled hook | `spec-lite hook enable <name>` |
-| Turn off a builtin | `spec-lite hook disable <name>` |
-| Configure a builtin | Add `{ "name": …, "enabled": …, "options": … }`; see [Built-in hooks](#built-in-hooks) |
-| Replace a builtin's behavior | Add an entry reusing the builtin's `name` with your own `type` and body |
-| Change it for one repository only | Edit `.spec-lite/hooks.json`; it wins over the global file |
-| Silence everything, everywhere | `"hooks": { "enabled": false }` in `.spec-lite.json` |
-
-Toggle a hook by name without editing JSON:
-
-```bash
-spec-lite hook list --all
-spec-lite hook disable capture-changeset
-spec-lite hook enable capture-changeset
-spec-lite hook disable capture-baseline --global
-```
-
-Both commands write to `.spec-lite/hooks.json` by default. `--global` writes to
-`~/.spec-lite/hooks.json`, resolving only the builtin and global layers;
-project overrides still take precedence. A project-only hook cannot be changed
-with `--global`.
-
-Each command writes only the `enabled` value: on the hook's existing entry in that
-file, or as a new `{ "name": …, "enabled": … }` entry that configures the hook
-defined by an earlier layer. Nothing else is copied, so builtins keep receiving
-updates. Unknown hook names and malformed registries exit `2` without writing. Enabling
-also checks the hook's event names and templates before saving; neither command
-executes the hook. The repository-wide `hooks.enabled: false` switch still wins
-over any individual hook's state.
-
-To add your own optional hook, include `"enabled": false` in its complete registry
-entry. It is discoverable through `hook list --all`; opt in with `hook enable
-<name>`, then preview the subscribed event with `hook run <event> --dry-run`.
-
-Deleting the linter hook is exactly what it sounds like — drop the object, then
-confirm it is gone:
-
-```bash
-spec-lite hook list --event implement.post
-```
-
-Turning off a shipped builtin without redefining it:
+- **Templates in `run`, `cwd`, and `env`.** Substituted values are shell-quoted, so `${feature.name}` always lands as one argument.
+- **stdin.** The full [payload](#payload) as JSON.
+- **Environment variables.** `SPEC_LITE_EVENT`, `SPEC_LITE_FEATURE_ID`, `SPEC_LITE_CHANGED_FILES`, and [more](#environment-variables).
 
 ```json
 {
-  "version": 1,
-  "hooks": [
-    { "name": "capture-changeset", "enabled": false }
-  ]
+  "name": "notify-release-channel",
+  "events": ["implement.post"],
+  "type": "script",
+  "run": "node scripts/notify.mjs --channel releases",
+  "env": { "NOTIFY_TOKEN": "${env:NOTIFY_TOKEN}" },
+  "onFailure": "warn"
 }
 ```
 
-After that, `spec-lite hook list` no longer shows `capture-changeset` and
-`implement.post` dispatches only your own hooks. Review then has no
-`changeset.json` for that feature and falls back to the spec's `Touched Files`
-list — see [Built-in hooks](#built-in-hooks).
-
-Replacing a builtin instead of disabling it — same name, different body:
-
-```json
-{
-  "version": 1,
-  "hooks": [
-    {
-      "name": "capture-changeset",
-      "events": ["implement.post"],
-      "type": "command",
-      "run": "node scripts/my-changeset.mjs ${feature.dir}"
-    }
-  ]
-}
+```js
+// scripts/notify.mjs: read the payload from stdin.
+let input = "";
+for await (const chunk of process.stdin) input += chunk;
+const payload = JSON.parse(input);
+console.log(`${payload.feature.id}: ${payload.changes.files.length} file(s)`);
 ```
 
-## More examples
+### http
 
-### Notify Slack when a review requests changes
+The CLI sends one request. Any `2xx` response is success; anything else, or no
+response within `timeoutMs`, is a failure.
+
+| Field | Default | Templates are… |
+|---|---|---|
+| `url` | required | Percent-encoded |
+| `method` | `POST` | — |
+| `headers` | `Content-Type: application/json` | Stripped of newlines, so a value can't add a header |
+| `bodyTemplate` | the full payload as JSON | JSON-escaped, so the body stays valid |
 
 Secrets never belong in a committed registry. `${env:NAME}` is the only channel
 for them, and its value is redacted from `--dry-run` output and the audit log:
@@ -306,80 +239,289 @@ for them, and its value is redacted from `--dry-run` output and the audit log:
 }
 ```
 
-### Hand off to another skill automatically
+### Hand-offs: skill, agent, and prompt
 
-An agentic hook does not run anything; it tells the calling agent what to do next:
+A hand-off hook doesn't run anything in the CLI. It tells the agent to start
+another skill (`skill`), agent (`agent`), or free-text instruction (`prompt`).
+Hand-offs are how one role chains into another automatically:
 
 ```json
 {
   "name": "review-after-implement",
   "events": ["implement.post"],
   "type": "skill",
-  "skill": "spec-review",
+  "skill": "review",
   "args": "review feature ${feature.name}"
 }
 ```
 
+In a role run, the event's other hooks run first. Then, instead of carrying on,
+the role gets a `ready` result with a start command, and the agent starts the
+hand-off:
+
 ```text
-  ✓ review-after-implement (skill) [emitted]
-    SPEC-LITE-DIRECTIVE {"hook":"review-after-implement","type":"skill","event":"implement.post","skill":"spec-review","args":"review feature user_management"}
+Start: spec-lite hook run review.pre --tracked --action a-79c0f1cd0198d58c2a57
 ```
 
-### Stamp every completed task into a log
+What to know:
 
-Substituted values are escaped for wherever they land, so a feature name
-containing a quote cannot break out of the command:
+- **It replaces the role.** The agent doesn't return to the role afterwards. On a `.post` event the role was finishing anyway; on a `.pre` event it never starts its own work.
+- **One per event.** An event can have only one hand-off or [checkpoint](hooks-gates-checkpoints.md#checkpoints). To offer several next steps, use one checkpoint with a choice for each. `hook validate` reports a second one as an error.
+- **Targets that aren't spec-lite roles need `"completion": "reported"`.** That includes every `prompt` hook and any skill or agent from outside spec-lite. The agent then records when it finished with `spec-lite action complete`. spec-lite roles (`review`, `plan-critic`, `fix`, and so on) report completion themselves.
+- **Loops are capped.** An automatic chain of hand-offs pauses after `hooks.maxChain` steps (default `8`), or as soon as the same hand-off would repeat. See [Loop limits](hooks-gates-checkpoints.md#automatic-answers-and-loop-limits).
+- **It needs a Git checkout**, where the CLI keeps the saved state.
+
+A `prompt` hook carries its instruction in `prompt`:
 
 ```json
 {
-  "name": "task-log",
-  "events": ["implement.task.post"],
-  "type": "command",
-  "run": "echo ${timestamp} ${feature.id} ${task.id} >> .work-log",
-  "order": 200
+  "name": "changelog-after-implement",
+  "events": ["implement.post"],
+  "type": "prompt",
+  "prompt": "Add a CHANGELOG.md entry for ${feature.id}: ${summary}",
+  "completion": "reported"
 }
 ```
 
-### Route hook failures somewhere visible
+In a [manual run](#running-hooks-yourself), a hand-off hook prints a
+`SPEC-LITE-DIRECTIVE {...}` line with the resolved target and arguments, and
+nothing is saved.
 
-`hook.error` fires after any hook fails, with a `${summary}` naming the failures.
-It never recurses into itself:
+### Passing settings to your own hook
+
+`options` is for [built-in hooks](#built-in-hooks) only; `hook validate` rejects
+it on any other type. Your own hook already has a field for each setting:
+
+| Type | Put settings in | Example |
+|---|---|---|
+| `command` / `script` | Arguments in `run`, or variables in `env` | `"run": "node scripts/notify.mjs --channel releases"`, `"env": { "CHANNEL": "releases" }` |
+| `http` | `url`, `headers`, `bodyTemplate` | `"bodyTemplate": "{\"channel\":\"releases\",\"text\":\"${summary}\"}"` |
+| `skill` / `agent` | `args` | `"args": "review feature ${feature.name}"` |
+| `prompt` | The `prompt` text | `"prompt": "Update CHANGELOG.md for ${feature.id}; keep entries short."` |
+
+Settings can use `${...}` templates for event data, and `${env:NAME}` for
+secrets. To reuse one script with different settings, add one hook entry per
+setting, each with its own `name`, `run` arguments, or `env`.
+
+## Manage hooks
+
+### Where hooks live
+
+| File | Scope | Shown by `hook list` as |
+|---|---|---|
+| Shipped with spec-lite | Every repository | `builtin` |
+| `~/.spec-lite/hooks.json` | All your repositories | `global` |
+| `.spec-lite/hooks.json` | This repository; commit it | `project` |
+
+Later layers win **by name**, in one of two ways:
+
+- **An entry with `type` replaces** the earlier hook of that name outright. That's how you define a hook, or replace a builtin with your own.
+- **An entry without `type` configures** the earlier hook. It may set only `enabled`, `options`, `order`, `timeoutMs`, and `onFailure`; everything else comes from the layer that defines the hook. A configured builtin therefore keeps receiving fixes when you update spec-lite. Its `options` replace the earlier options as a whole.
+
+### See what's active
+
+| Command | Answers |
+|---|---|
+| `spec-lite hook list` | Which hooks are active, which layer defined them, and what they subscribe to |
+| `spec-lite hook list --all` | The same, including disabled hooks |
+| `spec-lite hook list --event implement.post` | Which hooks fire for one event |
+| `spec-lite hook events` | The event catalog |
+| `spec-lite hook vars` | Every `${...}` variable, with an example |
+| `spec-lite hook validate` | Whether the merged registry is correct |
+
+```text
+capture-baseline (builtin) — builtin — enabled
+  events: implement.pre, implement.task.pre, fix.pre
+  Records HEAD and pre-existing dirt so later diffs are scoped to this run.
+capture-changeset (builtin) — builtin — enabled
+  events: implement.post, implement.task.post, fix.post
+  Diffs against the captured baseline and merges the result into changeset.json.
+lint-after-implement (project) — command — enabled
+  events: implement.post
+  Run the linter after implementation; block on failure.
+```
+
+### Change, disable, or delete
+
+| Goal | Do this |
+|---|---|
+| Stop a hook firing, but keep it | `spec-lite hook disable <name>` |
+| Turn it back on | `spec-lite hook enable <name>` |
+| Delete a hook you added | Remove its object from `.spec-lite/hooks.json` |
+| Configure a builtin | Add a short entry: `{ "name": …, "enabled": …, "options": … }` |
+| Replace a builtin's behavior | Add an entry with the builtin's `name` and your own `type` |
+| Change it for all your repositories | Use `~/.spec-lite/hooks.json`, or `--global` on `enable`/`disable` |
+| Skip hooks for one run only | See [Skipping hooks for one run](#skipping-hooks-for-one-run) |
+| Turn off every hook in a clone | `"hooks": { "enabled": false }` in `.spec-lite.json`; see [Project settings](#project-settings) |
+
+`hook enable` and `hook disable` write only the `enabled` value to
+`.spec-lite/hooks.json`: on the hook's own entry there, or as a new
+`{ "name": …, "enabled": … }` entry that configures a hook defined in an earlier
+layer. Nothing else is copied, so builtins keep receiving updates. `--global`
+writes `~/.spec-lite/hooks.json` instead; project entries still take precedence.
+Unknown names and invalid registries exit `2` without writing anything. Enabling
+also validates the hook; neither command runs it.
+
+```bash
+spec-lite hook disable capture-changeset
+spec-lite hook enable capture-changeset
+spec-lite hook disable capture-baseline --global
+```
+
+Replacing a builtin, same name with a different body:
 
 ```json
 {
-  "name": "hook-failures-to-slack",
-  "events": ["hook.error"],
-  "type": "http",
-  "url": "${env:SLACK_WEBHOOK_URL}",
-  "bodyTemplate": "{\"text\":\"spec-lite hook failure: ${summary}\"}"
+  "version": 1,
+  "hooks": [
+    {
+      "name": "capture-changeset",
+      "events": ["implement.post"],
+      "type": "command",
+      "run": "node scripts/my-changeset.mjs ${feature.dir}"
+    }
+  ]
 }
 ```
+
+To ship a hook your team can opt into, include `"enabled": false` in its
+definition. It shows in `hook list --all`, and `hook enable <name>` turns it on.
+
+## Running hooks yourself
+
+You rarely need `spec-lite hook run`: roles call it themselves at every
+lifecycle point, with `--tracked` and the IDs of their run. Call it yourself to:
+
+- **Preview** what an event would run, with no side effects:
+
+  ```bash
+  spec-lite hook run implement.post --feature FEAT-012 --dry-run
+  ```
+
+- **Fire events for work you do without an agent.** For example, to use the
+  [Git workflow hooks](hooks-git-workflow.md) for a fix you make by hand, run
+  `fix.pre` before you start. It creates the worktree and prints its path; make
+  your edits there. Then run `fix.post` from that worktree to commit, push, and
+  open the pull request:
+
+  ```bash
+  spec-lite hook run fix.pre --payload name=auth-issue
+  spec-lite hook run fix.post --payload name=auth-issue --payload summary="Fix token refresh"
+  ```
+
+- **Script it in CI.**
+
+These are manual runs: they run each hook once and can't pause. If a gate,
+checkpoint, or hand-off hook subscribes to the event, a manual run stops with
+exit `2` and says so. `--dry-run` still previews them. Every option is in the
+[CLI reference](../usage.md#hook-run-event).
+
+### Skipping hooks for one run
+
+No registry change is needed:
+
+| Where | How |
+|---|---|
+| A whole agent session | Start the agent from a shell with `SPEC_LITE_SKIP_HOOKS=create-pull-request` (comma-separated names, or `*` for all). Every hook call in that session skips them. |
+| One role run | Ask the agent: *"implement FEAT-020, but skip create-pull-request"*. It adds `--skip create-pull-request` to its hook calls for that run. |
+| One manual call | Add `--skip <name>`, repeated for several, or `--skip '*'` for all. |
+
+Skipped hooks aren't validated for that run; everything else still is. To work
+without the Git workflow for one run, skip all three of its hooks,
+`prepare-worktree,commit-progress,create-pull-request`. Skipping only
+`prepare-worktree` makes `commit-progress` fail, because it commits only inside
+the worktree that `prepare-worktree` creates.
 
 ## Built-in hooks
 
-Six builtins ship with the CLI. They are ordinary hooks, with the same registry,
-fields, and failure policy as yours. Two capture changesets and are on by default.
-One is an alternative capture strategy. Three run the
-[Git workflow](#git-workflow-hooks) and stay off until you enable them.
+Seven builtins ship with the CLI. They are ordinary hooks with the same fields
+and failure policy as yours, and they run in-process, without needing
+`spec-lite` on `PATH`.
 
-| Name | Events | Enabled | Does |
-|---|---|---|---|
-| `capture-baseline` | `implement.pre`, `implement.task.pre`, `fix.pre` | yes | Records HEAD and whatever is already dirty, so pre-existing edits are never attributed to this run |
-| `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the feature's `changeset.json` |
-| `changeset-from-pr` | — | no (opt-in) | Uses `gh pr diff --name-only` instead of a local git baseline, for PR-first teams |
-| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | no | Creates or resumes the work's worktree and branch; at a task, only resumes |
-| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits each task; commits the rest and pushes at completion |
-| `create-pull-request` | `implement.post`, `fix.post` | no | Opens or reuses the work's pull request |
+| Name | Subscribed to | On by default | Does | More |
+|---|---|---|---|---|
+| `capture-baseline` | `implement.pre`, `implement.task.pre`, `fix.pre` | yes | Records HEAD and whatever is already dirty, so pre-existing edits are never attributed to this run | [Changeset capture](#changeset-capture) |
+| `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the feature's `changeset.json` | [Changeset capture](#changeset-capture) |
+| `changeset-from-pr` | nothing until you subscribe it | no | Reads the changed files from the open pull request instead | [Changeset capture](#changeset-capture) |
+| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | no | Creates or resumes the work's worktree and branch | [Git workflow](hooks-git-workflow.md) |
+| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits each task; commits the rest and pushes at completion | [Git workflow](hooks-git-workflow.md) |
+| `create-pull-request` | `implement.post`, `fix.post` | no | Opens or reuses the work's pull request | [Git workflow](hooks-git-workflow.md) |
+| `checkpoint` | whatever you subscribe it to | — | Pauses the run with a question for you | [Checkpoints](hooks-gates-checkpoints.md#checkpoints) |
 
-Builtin handlers run in-process as native TypeScript. They invoke Git or provider
-CLIs when needed, without depending on `spec-lite` being on `PATH`.
+**Options.** Only `checkpoint` and the three Git workflow builtins take
+`options`. They are listed on the pages that explain them:
+[Git workflow options](hooks-git-workflow.md#options) and
+[checkpoint options](hooks-gates-checkpoints.md#checkpoint-options).
+`hook validate` rejects unknown options, and the published schema gives editors
+autocomplete for each builtin.
+
+**Configure, don't copy.** To turn a builtin on or off, or set its options, add
+a short entry with only those settings:
+
+```json
+{
+  "version": 1,
+  "hooks": [
+    { "name": "capture-changeset", "enabled": false }
+  ]
+}
+```
+
+### Changeset capture
+
+`capture-baseline` and `capture-changeset` produce
+`.spec-lite/features/FEAT-###-<name>/changeset.json`:
+
+```json
+{
+  "vcs": "git",
+  "featureId": "FEAT-012",
+  "baseline": {
+    "sha": "bc8bd13cb251b7e397cda10b561d2ed7611859a9",
+    "capturedAt": "2026-08-21T14:03:11.204Z",
+    "dirtyAtBaseline": []
+  },
+  "files": [
+    { "path": "src/auth/session.ts", "status": "M", "role": "implement" },
+    { "path": "src/auth/expiry.ts", "status": "U", "role": "implement" }
+  ],
+  "excluded": [".spec-lite/features/FEAT-012-user_management/changeset.json"]
+}
+```
+
+This is a **baseline-anchored diff, not git history**: it covers exactly the work
+done since the `*.pre` event. Review reads it as the authoritative scope for
+`review feature` and `review plan`, falling back to a spec's `Touched Files`
+section only for features created before hooks existed. See
+[Review](review.md).
+
+- **Generated output is filtered out:** `dist/`, `build/`, `out/`, `node_modules/`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and `.spec-lite/` itself.
+- **Commit `changeset.json` with the work**, because Review reads it. Its content changes only when the set of changed files does. Capture times are in the local [audit log](#audit-log).
+- **Without `--feature`** (an ad-hoc fix), capture is skipped with a note rather than failing.
+- **Outside a Git repository**, capture is disabled and reported; Review falls back to the manual list.
+- **Disabling both builtins** turns capture off. Every other hook keeps working.
+
+`changeset-from-pr` is an alternative for pull-request-first teams. It uses
+`gh pr diff --name-only` for the current branch's open pull request, so it needs
+`gh` on `PATH` and an open PR. It merges into the same `changeset.json`, so
+disable `capture-changeset` when you use it, unless you want both sources
+combined. It subscribes to nothing until you name the events:
+
+```json
+{
+  "name": "changeset-from-pr",
+  "events": ["implement.post"],
+  "type": "builtin",
+  "builtin": "changeset-from-pr"
+}
+```
 
 ### Shipped definitions
 
-For reference, this is how every builtin ships. You never copy these: to turn one
-on or off, or set its options, add a short entry with only those settings, such
-as `{ "name": "capture-changeset", "enabled": false }`. An entry with its own
-`type` replaces the builtin outright instead.
+For reference, this is how the builtins with fixed subscriptions ship. You
+never copy these; configure them with a short entry as shown above.
+`changeset-from-pr` and `checkpoint` are not listed because they ship
+unsubscribed.
 
 <!-- builtin-hooks-json:start -->
 ```json
@@ -463,495 +605,156 @@ as `{ "name": "capture-changeset", "enabled": false }`. An entry with its own
 ```
 <!-- builtin-hooks-json:end -->
 
-### Builtin options
+## Reference
 
-A builtin that has settings takes them in the `options` object of its entry.
-Other builtins, and hooks of other kinds, take no `options`; `hook validate`
-rejects unknown or misplaced options, and the published schema gives editors
-autocomplete for each builtin's options.
-
-<!-- builtin-options-table:start -->
-| Hook | Option | Type | Meaning |
-|---|---|---|---|
-| `checkpoint` | `question` | string | **Required.** Durable checkpoint question; see the Hook Protocol. |
-| `checkpoint` | `choices` | object | **Required.** Durable checkpoint choices; see the Hook Protocol. |
-| `checkpoint` | `attach` | string array | Durable checkpoint attach; see the Hook Protocol. |
-| `checkpoint` | `inputs` | string array | Durable checkpoint inputs; see the Hook Protocol. |
-| `checkpoint` | `rules` | object array | Durable checkpoint rules; see the Hook Protocol. |
-| `checkpoint` | `github` | object | Durable checkpoint github; see the Hook Protocol. |
-| `checkpoint` | `expiresIn` | string | Durable checkpoint expiresIn; see the Hook Protocol. |
-| `checkpoint` | `afterEffects` | boolean | Durable checkpoint afterEffects; see the Hook Protocol. |
-| `prepare-worktree` | `fromBranch` | string | Branch new worktrees start from: local (`develop`) or remote-tracking (`origin/develop`). Default: the main checkout's current branch; `validate` warns when unset. |
-| `prepare-worktree` | `fetch` | boolean | Fetch `fromBranch` from `remote` first and start from the remote's latest commit. Default: `false`. |
-| `prepare-worktree` | `remote` | string | Remote `fetch` reads from. Default: `origin`. |
-| `prepare-worktree` | `worktreeRoot` | string | Folder for worktrees, relative to the main checkout. Default: `.worktrees`. |
-| `commit-progress` | `remote` | string | Remote to push to. Recorded for `create-pull-request` and cleanup. Default: `origin`. |
-| `commit-progress` | `commitMessage` | string | Commit subject template using `${id}` (feature ID, or the branch), `${task}`, `${summary}`, and `${branch}`; `${task:-final}` sets a default. Default: `FEAT-020 TASK-003: <summary>`. |
-| `create-pull-request` | `provider` | `"github"`, `"azure-devops"`, `"command"` | **Required.** Where pull requests are opened; `command` runs your own adapter. |
-| `create-pull-request` | `targetBranch` | string | **Required.** Branch pull requests merge into. Never inferred. |
-| `create-pull-request` | `command` | string array | `command` provider: executable and arguments that create a PR. |
-| `create-pull-request` | `lookupCommand` | string array | `command` provider: executable and arguments that find existing PRs. |
-<!-- builtin-options-table:end -->
-
-`changeset-from-pr` ships but subscribes to nothing until you opt in. Name it
-through the `builtin` field and choose the events yourself:
-
-```json
-{
-  "name": "changeset-from-pr",
-  "events": ["implement.post"],
-  "type": "builtin",
-  "builtin": "changeset-from-pr"
-}
-```
-
-It is an alternative capture strategy, not an addition: it merges into the same
-`changeset.json`, so disable `capture-changeset` alongside it unless you really
-want both sources unioned. It requires `gh` on `PATH` and an open pull request
-for the current branch.
-
-### What they produce
-
-`.spec-lite/features/FEAT-###-<name>/changeset.json`:
-
-```json
-{
-  "vcs": "git",
-  "featureId": "FEAT-012",
-  "baseline": {
-    "sha": "bc8bd13cb251b7e397cda10b561d2ed7611859a9",
-    "capturedAt": "2026-08-21T14:03:11.204Z",
-    "dirtyAtBaseline": []
-  },
-  "files": [
-    { "path": "src/auth/session.ts", "status": "M", "role": "implement" },
-    { "path": "src/auth/expiry.ts", "status": "U", "role": "implement" }
-  ],
-  "excluded": [".spec-lite/features/FEAT-012-user_management/changeset.json"]
-}
-```
-
-This is a **baseline-anchored diff, not git history**: it is scoped to exactly
-the work done since the `*.pre` event, which is what a hand-maintained
-`Touched Files` list was always trying to approximate. Review reads it as the
-authoritative scope for `review feature` and `review plan`, falling back to a
-spec's `Touched Files` section only for features created before hooks existed.
-
-Generated output is filtered out automatically: `dist/`, `build/`, `out/`,
-`node_modules/`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and
-`.spec-lite/` itself.
-
-Commit `changeset.json` with the work, because Review reads it. It records no
-timestamps or HEAD, so its content changes only when the set of changed files
-does. Capture times are in the [audit log](#audit-log), which stays local.
-
-### When they do nothing
-
-- **No `--feature`.** Capture is skipped with a note rather than failing — an
-  ad-hoc Fix with no tracked feature is a normal case, not an error.
-- **Not a git repository.** Capture is disabled and reported; Review falls back
-  to the manual list.
-
-To use hooks without changeset capture at all, disable both builtins as shown in
-[Change or delete a hook](#change-or-delete-a-hook). Every other hook keeps
-working.
-
-## Git workflow hooks
-
-Three opt-in builtins give each piece of work its own branch and pull request:
-
-| Hook | Runs at | Does |
-|---|---|---|
-| `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | Creates or resumes the work's worktree and branch; at a task, only resumes |
-| `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | Commits each finished task; at completion, commits the rest and pushes |
-| `create-pull-request` | `implement.post`, `fix.post` | Opens the pull request, or reuses the existing one |
-
-They cover Implement (every mode) and Fix. A run goes like this:
-
-1. **Start.** At the start of an implementation or fix, a worktree is created at
-   `.worktrees/<name>` on a new branch from the configured start branch: one
-   worktree for the whole implementation, not one per task. The work's specs,
-   plan, and settings are copied in, including uncommitted ones, and the agent
-   works there from then on.
-2. **Each task.** Before a task, the feature's worktree is resumed if it exists,
-   so you can stop mid-feature, work on something else, and later pick up at the
-   next task. A task never creates a worktree. Each finished task is committed.
-3. **Completion.** Remaining changes are committed, the branch is pushed, and the
-   pull request is opened.
-4. **After you merge.** Run `spec-lite worktree cleanup <name>` in your main
-   checkout, then pull.
-
-### Requirements
-
-- Git 2.36 or newer.
-- Push access that never prompts: SSH, or HTTPS with a credential helper. Hooks
-  run with `GIT_TERMINAL_PROMPT=0`.
-- For pull requests, one of:
-  - **GitHub:** `gh` on `PATH` and signed in (`gh auth status`).
-  - **Azure DevOps:** `az` with `az extension add --name azure-devops`, signed in
-    with `az login` or `AZURE_DEVOPS_EXT_PAT`.
-  - **Anything else:** your own adapter. See [Custom PR provider](#custom-pr-provider).
-
-### Set up
-
-`spec-lite init` asks whether to set up these hooks. For each one, you choose to
-enable or skip it, and are asked only for the options it needs. A hook that needs
-one you skipped isn't offered. `spec-lite update` asks the same about any of these
-hooks you haven't decided on yet, such as one added in a newer release. Change
-your answers at any time with:
-
-```bash
-spec-lite hook setup                        # all three
-spec-lite hook setup create-pull-request    # just one
-```
-
-Without a terminal (CI), or with `--skip-hooks`, `init` and `update` don't ask.
-
-Setup writes short entries to `.spec-lite/hooks.json`. Each holds only your
-choices; the hook definitions stay in spec-lite and update with it. You can also
-write them by hand:
-
-<!-- git-workflow-hooks-json:start -->
-```json
-{
-  "version": 1,
-  "hooks": [
-    {
-      "name": "prepare-worktree",
-      "enabled": true,
-      "options": {
-        "fromBranch": "develop"
-      }
-    },
-    {
-      "name": "commit-progress",
-      "enabled": true
-    },
-    {
-      "name": "create-pull-request",
-      "enabled": true,
-      "options": {
-        "provider": "github",
-        "targetBranch": "develop"
-      }
-    }
-  ]
-}
-```
-<!-- git-workflow-hooks-json:end -->
-
-- **No pull request:** to stop at a pushed branch, leave out
-  `create-pull-request` or set it to `"enabled": false`.
-- **Dependencies:** `commit-progress` needs `prepare-worktree`, and
-  `create-pull-request` needs `commit-progress`.
-
-Then check, and preview what the next feature will do:
-
-```bash
-spec-lite hook validate
-spec-lite hook run implement.pre --feature FEAT-001 --dry-run
-```
-
-### Options
-
-Each hook's settings go in the `options` object of its own entry. Every option is
-listed in [Builtin options](#builtin-options).
-
-Each setting belongs to one hook only. Values that a later step needs are
-recorded in the workflow's saved state the first time they're used, so you never
-repeat a setting or keep two copies in sync:
-- `prepare-worktree` records the start branch and where the worktree is.
-- `commit-progress` records the remote it pushed to. `create-pull-request` and
-  `spec-lite worktree cleanup` use that same remote, which also lets you fetch
-  from one remote and push to another, such as a fork.
-- `spec-lite worktree cleanup` reads `targetBranch` and `provider` from the
-  `create-pull-request` entry, even when that hook is disabled.
-
-### What you can change
-
-A short entry may set these; everything else comes from spec-lite. Validation
-enforces the limits:
-
-| Property | Limits |
-|---|---|
-| `enabled` | Within the dependencies above. |
-| `options` | See [Builtin options](#builtin-options). |
-| `order` | `prepare-worktree` must run first on its events. `commit-progress` must run after `capture-changeset` (order `10`), and `create-pull-request` after `commit-progress`. Give your own checks, such as lint or tests, an order between `10` and `200` so they run before the commit. |
-| `timeoutMs` | None. It's the budget for each Git or provider command the hook runs: creating the worktree, a commit or push, or a PR call. |
-| `onFailure` | Must stay `"abort"`, so a failed step stops the run. |
-
-### Branches and worktrees
-
-| Work | Started by | Branch | Worktree |
-|---|---|---|---|
-| One feature | Implement | `ft/feat-020-execute-operations` | `.worktrees/feat-020-execute-operations` |
-| A whole plan | Implement, Plan Mode | `plan/orders` (from `plan_orders.md`) | `.worktrees/plan-orders` |
-| A fix | Fix | `fix/auth-issue` | `.worktrees/fix-auth-issue` |
-| Review findings | Implement, Review Mode | `review/checkout` (from `review_checkout.md`) | `.worktrees/review-checkout` |
-| A YOLO run | YOLO | `yolo/20261006-store` | `.worktrees/yolo-20261006-store` |
-
-- **Names are stable.** They come from the feature directory, the plan file, the
-  review report, or the YOLO Run ID, so a retry or a resumed session gets the same
-  branch. A fix uses the name the agent passes: your ticket ID when you give one.
-- **A plan or YOLO run is one branch.** Each feature builds on the previous ones,
-  and the pull request opens when the whole run completes. A feature implemented
-  on its own gets its own branch.
-- **Follow-up work joins its feature.** A fix or review remediation for a feature
-  whose worktree still exists goes onto that branch and updates its pull request.
-- **Name format.** Names use lowercase letters, digits, and hyphens. Names longer
-  than 60 characters end in a short hash.
-
-### After merging
-
-```bash
-spec-lite worktree list
-spec-lite worktree cleanup feat-020-execute-operations   # or --merged for all
-git pull
-```
-
-Run cleanup from the main checkout, before pulling. It first checks that the
-branch is merged into the PR's `targetBranch`, or into the start branch when
-there is no PR hook. For a squash merge, it
-asks the PR provider whether that exact commit merged. If the branch isn't
-merged, cleanup removes nothing. Otherwise it:
-
-1. Removes the worktree. This is never forced; Git refuses if there are
-   uncommitted changes.
-2. Deletes the local branch. Remote branches are left to your Git host.
-3. Resets specs copied from your main checkout while they were uncommitted, so
-   your identical local copies don't block `git pull`. Files you've changed since
-   are kept.
-4. Forgets the workflow. Starting the same work again creates a fresh branch from
-   the start branch's current commit.
-
-### What the hooks guarantee
-
-- **No duplicates.** Retrying any step reuses the same worktree, branch, and pull
-  request. There are no empty commits and no force-pushes.
-- **Each task is committed with its `changeset.json`.** Its content changes only
-  when the changed files do, so a retry commits nothing.
-- **Hook logs are never committed.** spec-lite adds `.spec-lite/**/hooks.log.jsonl`
-  and the worktree folder to `.git/info/exclude`, and edits no tracked file. A log
-  committed by an earlier version stays tracked until you `git rm --cached` it.
-- **Failures stop the run.** Each hook uses `onFailure: "abort"`. Your own hooks
-  ordered before `200`, such as lint or tests, run before the commit.
-- **Work in the wrong checkout is caught.** Committing outside a managed worktree
-  is refused, and the error names the worktree the work belongs to. A completion
-  with no changes outside `.spec-lite/` fails instead of pushing.
-- **New work never goes silently onto a merged PR.** If the branch's PR is merged
-  or closed and the branch has new commits, the PR step fails.
-- **Interrupted runs recover.** A rerun finishes an interrupted setup, and a lock
-  left by a killed process is taken over once that process has exited.
-
-### Limitations
-
-- **Tools scan the worktree folder.** `.worktrees/` is inside your checkout, and
-  test runners and compilers ignore `.gitignore`. Exclude it from them, for
-  example vitest `exclude: ["**/.worktrees/**"]`, jest `testPathIgnorePatterns`,
-  tsconfig `exclude`, or ESLint `ignores`. Alternatively, point
-  `prepare-worktree`'s `worktreeRoot` outside the checkout, if your agent is
-  allowed to write there.
-- **Dependencies aren't installed.** A new worktree has no `node_modules` and none
-  of your git-ignored files, such as `.env`. A `command` hook on `implement.pre`
-  and `fix.pre` with `order: 5` runs inside the new worktree and can install them.
-- **Only Implement and Fix are covered.** Document, test-writing, and DevOps roles
-  edit whichever checkout they run in.
-- **Completions can be slow.** Pushing and opening a PR can take minutes. Give your
-  agent's command timeout at least 5 minutes for `implement.post` and `fix.post`.
-- **One configuration per repository.** Every workflow in a repository uses the
-  same hook options. Entries in `~/.spec-lite/hooks.json` give all your
-  repositories a default, and a project entry replaces it.
-
-### Skipping for one run
-
-```bash
-spec-lite hook run implement.pre --feature FEAT-020 --skip prepare-worktree
-```
-
-Repeat `--skip`, pass `--skip '*'` for every hook, or set
-`SPEC_LITE_SKIP_HOOKS=prepare-worktree,commit-progress` for a process and its
-children. The registry is not changed. Skipping one hook doesn't skip validation
-of the others. YOLO runs the hooks like any other role.
-
-### Custom PR provider
-
-Choose `command` as the provider in `spec-lite hook setup`, or set it in the
-`create-pull-request` entry. Give both commands as literal executable/argument
-arrays. No shell is involved:
-
-```json
-{
-  "name": "create-pull-request",
-  "enabled": true,
-  "options": {
-    "provider": "command",
-    "targetBranch": "develop",
-    "command": ["node", "scripts/pr-adapter.cjs", "create"],
-    "lookupCommand": ["node", "scripts/pr-adapter.cjs", "lookup"]
-  }
-}
-```
-
-**Inputs.** Both commands receive `SPEC_LITE_PR_HEAD`, `SPEC_LITE_PR_BASE`,
-`SPEC_LITE_PR_TITLE`, `SPEC_LITE_PR_BODY_FILE`, `SPEC_LITE_PR_REMOTE`, and
-`SPEC_LITE_PR_REMOTE_URL`. Pull request text only ever arrives this way, never as
-arguments. In a `.cmd` adapter, don't expand `%SPEC_LITE_PR_TITLE%` unquoted; a
-Node or Python adapter avoids cmd.exe parsing altogether.
-
-**Lookup output.** Print JSON `null` when there is no PR, or an object (or an
-array of objects) for matching PRs, including closed and merged ones:
-- `url` — required.
-- `state` — `open`, `closed`, or `merged`. Without it, the PR is treated as open.
-- `headSha` — the PR's source commit. Cleanup needs it to confirm a squash merge.
-
-Fail with a non-zero exit on API or authentication errors; never print `null` for
-a failed lookup.
-
-**Create output.** Print `{"url": "https://..."}`.
-
-The commands inherit the process environment for credentials. Keep secrets out of
-the registry and out of command output.
-
-### How it works
-
-- **Handoff.** A subprocess can't change its caller's directory. So
-  `prepare-worktree` prints `SPEC-LITE-WORKTREE {"path": …, "branch": …}` (or
-  `payload.worktree` with `--json`), and Implement and Fix move to that path. The
-  remaining hooks of the same event already run there.
-- **Choosing the workflow.** The CLI checks these in order:
-  1. `--feature` given, and the feature has an open workflow: use it, wherever
-     the hook runs from. That is either the feature's own workflow, or a plan or
-     YOLO workflow whose plans list it. This is how a task resumes its feature,
-     even from another workflow's worktree.
-  2. Already inside a managed worktree: continue in it. Starting different work
-     there is an error; start it from the main checkout.
-  3. At `implement.task.pre`: stop. A task resumes a worktree but never creates
-     one.
-  4. Otherwise: create or resume the feature, plan (`--payload plan=<file>`),
-     YOLO (`--payload yolo=<Run ID>`), fix (`fix.pre --payload name=…`), or review
-     (`implement.pre --payload name=…`) workflow.
-- **State.** Workflow state and locks live in `.git/spec-lite/`, outside every
-  commit.
-- **Manual calls.** The skills make these calls themselves. By hand they look like:
-
-  ```bash
-  spec-lite hook run implement.pre --feature FEAT-020
-  spec-lite hook run implement.pre --payload plan=.spec-lite/plan_orders.md
-  spec-lite hook run fix.pre --payload name=auth-issue
-  ```
-
-### Git workflow troubleshooting
-
-| Message | What to do |
-|---|---|
-| `Another spec-lite hook is using this workflow` | Wait for the other run. If no spec-lite process is running, delete the lock file the message names. |
-| `… has no worktree, but branch … still exists` | If it was merged: `spec-lite worktree cleanup <name>`. If not: `git worktree add <path> <branch>` resumes it. |
-| `Branch … already exists outside this workflow` | Rename or delete that branch. |
-| `… has no changes outside .spec-lite` | The edits landed in another checkout. Move them into the worktree and rerun. |
-| `Pull request … is merged, and the branch has commits it does not contain` | Reopen the PR, or move those commits to a new workflow. |
-| `Cannot continue here: this worktree belongs to …` | Run that work from the main checkout. |
-| Push rejected | Someone else pushed to the branch. Pull in the worktree and rerun. |
-| Tests run twice in the main checkout | Exclude the worktree folder; see [Limitations](#limitations). |
-
-## Hook definition reference
+### Hook fields
 
 | Field | Applies to | Default | Meaning |
 |---|---|---|---|
-| `name` | all | — | **Required.** Unique identity and merge key across registry layers |
+| `name` | all | — | **Required.** Unique identity, and the key for overriding the hook in a later layer |
 | `events` | all | — | **Required.** Event names or wildcard patterns (`implement.*`) |
-| `type` | all | — | **Required.** `command`, `script`, `http`, `builtin`, `skill`, `agent`, `prompt` |
-| `description` | all | — | Human-readable note, shown by `hook list` |
-| `enabled` | all | `true` | `false` excludes the hook from dispatch and the default listing; `hook list --all` includes it |
-| `order` | all | `100` normally | Lower first, ties by declaration; durable flow enforces gate/checkpoint/effect boundaries (gate default 15, checkpoint 20) |
-| `gate` | command/script | `false` | Explicit rerunnable check; requires an abort policy and validated response file |
-| `maxRounds` | gates | `3` | Total rounds across the event's remediation episode |
-| `completion` | external skill/agent | — | Set `reported` for targets without spec-lite lifecycle acknowledgments |
-| `timeoutMs` | deterministic | `30000` | Wall-clock budget before the hook is killed and reported as failed |
-| `onFailure` | all | `warn` | `warn` (log and continue), `abort` (stop the chain, exit 1), `ignore` (silent) |
-| `once` | all | `false` | Skip if this hook already succeeded for this event on this feature |
-| `payloadSchema` | all | — | JSON Schema checked against the payload *before* invocation |
-| `builtin` | `builtin` | the hook's `name` | Handler id in the builtin registry |
-| `options` | `builtin` | — | Settings of a builtin that declares them; see [Builtin options](#builtin-options) |
-| `run` | `command`, `script` | — | Command line or script path. Interpolated |
-| `shell` | `command`, `script` | `auto` | `auto` (sh on POSIX, PowerShell on Windows), `bash`, `pwsh` |
-| `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root. Interpolated |
-| `env` | `command`, `script` | — | Extra environment variables. Values are interpolated |
-| `url` | `http` | — | Target URL. Interpolated and percent-encoded |
+| `type` | all | — | **Required** for a new hook: `command`, `script`, `http`, `builtin`, `skill`, `agent`, `prompt`. Leave it out to [configure](#where-hooks-live) an existing hook |
+| `description` | all | — | Shown by `hook list` |
+| `enabled` | all | `true` | `false` keeps the hook defined but never runs it |
+| `order` | all | `100` (gates `15`, checkpoints `20`) | Lower runs first; ties go by declaration order |
+| `onFailure` | all | `warn` | `warn` (log and continue), `abort` (stop the run, exit `1`), `ignore` (continue silently) |
+| `timeoutMs` | `command`, `script`, `http`, `builtin` | `30000` | Time budget before the hook is stopped and reported as failed |
+| `once` | all | `false` | Skip if the hook already succeeded on this event for the same feature (manual runs) or workflow (role runs) |
+| `payloadSchema` | all | — | JSON Schema the payload must match before the hook runs; a mismatch is a [contract error](#results-and-exit-codes) |
+| `run` | `command`, `script` | — | Command line or script path. Templates are shell-quoted |
+| `shell` | `command`, `script` | `auto` | `auto` (bash, or PowerShell on Windows), `bash`, `pwsh` |
+| `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root |
+| `env` | `command`, `script` | — | Extra environment variables; values support templates |
+| `gate` | `command`, `script` | `false` | Make the hook a [gate](hooks-gates-checkpoints.md#gates). Needs `onFailure: "abort"` |
+| `maxRounds` | gates | `3` | How many times a gate may run in one event, counting the first check (1–100) |
+| `url` | `http` | — | Target URL |
 | `method` | `http` | `POST` | HTTP method |
-| `headers` | `http` | `Content-Type: application/json` | Extra request headers. Values are interpolated and stripped of newlines |
-| `bodyTemplate` | `http` | full payload JSON | Request body. Interpolated and JSON-escaped |
-| `skill` / `agent` | `skill`, `agent` | — | Name carried in the emitted directive |
-| `prompt` | `prompt` | — | Literal instruction carried in the directive. Interpolated |
-| `args` | `skill`, `agent` | — | Arguments carried in the directive. Interpolated |
+| `headers` | `http` | `Content-Type: application/json` | Extra request headers |
+| `bodyTemplate` | `http` | the full payload as JSON | Request body |
+| `builtin` | `builtin` | the hook's `name` | Which builtin to run, for example `checkpoint` |
+| `options` | `builtin` | — | Settings of a builtin that takes them; see [Built-in hooks](#built-in-hooks) |
+| `skill` / `agent` | `skill`, `agent` | — | The skill or agent to hand off to |
+| `prompt` | `prompt` | — | The instruction to hand off |
+| `args` | `skill`, `agent` | — | Arguments for the target; supports templates |
+| `completion` | `skill`, `agent`, `prompt` | — | `"reported"`: the target isn't a spec-lite role, so the agent records completion itself. Required for `prompt` |
 
-`command` and `script` behave identically; the distinction records intent — a
-`script` hook usually names a checked-in file, a `command` hook is a one-liner.
-`cmd.exe` is deliberately unsupported: its quoting rules cannot be applied safely,
-and safe interpolation depends on correct quoting.
+### Environment variables
 
-`command` and `script` hooks also receive the payload on **stdin** and through
-these environment variables, which is often easier than templating:
-`SPEC_LITE_EVENT`, `SPEC_LITE_FEATURE_ID`, `SPEC_LITE_FEATURE_DIR`,
-`SPEC_LITE_CHANGED_FILES`, and `SPEC_LITE_PAYLOAD_FILE`.
+**Set by spec-lite for `command` and `script` hooks**
 
-## Interpolation
+| Variable | When set | Value |
+|---|---|---|
+| `SPEC_LITE_EVENT` | Always | Event name, such as `implement.post` |
+| `SPEC_LITE_FEATURE_ID` | The event has a feature | `FEAT-012` |
+| `SPEC_LITE_FEATURE_DIR` | The event has a feature | `.spec-lite/features/FEAT-012-user_management` |
+| `SPEC_LITE_CHANGED_FILES` | A changeset was captured | Changed paths, one per line |
+| `SPEC_LITE_PAYLOAD_FILE` | Always | A temporary file holding the payload JSON, the same content as stdin. Deleted after the hook |
+| `SPEC_LITE_RESPONSE_FILE` | Gates; empty for other hooks | Where a gate writes its [answer](hooks-gates-checkpoints.md#write-a-gate) |
+| `SPEC_LITE_EXECUTION_ID` | Role runs; empty in manual runs | The ID of the role run that fired the event |
+| `SPEC_LITE_HOOK_DEPTH`, `SPEC_LITE_HOOK_CHAIN` | Always | Loop guard: a hook that calls `spec-lite` again is stopped at depth 3. Don't set these yourself |
 
-`${...}` templates in `run`, `cwd`, `env`, `url`, `headers`, `bodyTemplate`,
-`args`, and `prompt` are resolved in a **single pass** — a substituted value is
-never re-scanned, so payload text cannot inject further references — then escaped
-for its destination:
+**Set by you**
+
+| Variable | Effect |
+|---|---|
+| `SPEC_LITE_SKIP_HOOKS` | Comma-separated hook names, or `*`, to skip in this process and its children. See [Skipping hooks for one run](#skipping-hooks-for-one-run) |
+
+A custom pull-request adapter gets its own `SPEC_LITE_PR_*` variables; see
+[Custom PR provider](hooks-git-workflow.md#custom-pr-provider).
+
+### Payload
+
+Every hook receives the same payload. Fields appear only when the event has
+them; see the [event catalog](#event-catalog) for what each event guarantees.
+
+```json
+{
+  "hooksVersion": 1,
+  "event": "implement.post",
+  "role": "implement",
+  "phase": "post",
+  "runId": "01J9F2K7M4",
+  "timestamp": "2026-08-21T14:03:11.204Z",
+  "cwd": "/repo",
+  "provider": "claude-code",
+  "feature": {
+    "id": "FEAT-012",
+    "name": "user_management",
+    "dir": ".spec-lite/features/FEAT-012-user_management",
+    "spec": ".spec-lite/features/FEAT-012-user_management/spec.md"
+  },
+  "changes": {
+    "source": "git",
+    "baseline": "bc8bd13",
+    "head": "4e1a9c0",
+    "files": [{ "path": "src/auth/session.ts", "status": "M", "role": "implement" }]
+  },
+  "summary": "Added session expiry handling"
+}
+```
+
+Other fields include `task`, `plan`, `report`, `verdict`, `verdictCode`, `name`
+(a fix's name), `worktree` (after `prepare-worktree`), and, in role runs,
+`workflow`, `execution`, and `eventId`. Any `--payload key=value` passed to
+`hook run` is added as a top-level field.
+
+### Interpolation
+
+`${...}` templates work in `run`, `cwd`, `env`, `url`, `headers`,
+`bodyTemplate`, `args`, and `prompt`, and in checkpoint options (`question`,
+`inputs`, `attach`, and choice `args`). Each is resolved in a **single pass**, so
+a substituted value is never re-scanned and payload text can't inject further
+references. It is then escaped for where it lands:
 
 | Field | Escaping |
 |---|---|
 | `run` | Shell-quoted, so a value always lands as exactly one argument |
 | `url` | Percent-encoded |
 | `bodyTemplate` | JSON-escaped, so the body stays parseable |
-| `headers` | Newlines collapsed to a space and control characters dropped, so a value cannot inject a second header |
-| `cwd`, `env`, `args`, `prompt` | Raw — no shell or wire format is involved |
-
-Resolution **fails closed**. A reference with no value is an error that stops the
-hook before it runs; it never becomes an empty string. Write `${task.id:-none}`
-wherever a value may legitimately be absent.
+| `headers` | Newlines become a space and control characters are dropped, so a value can't add a header |
+| `cwd`, `env`, `args`, `prompt`, checkpoint options | Raw: no shell or wire format is involved |
 
 ```text
-${name}                 a table variable
+${name}                 a variable from the table below
 ${name:-default}        with a fallback when it has no value
 ${env:NAME}             a process environment variable
 ${env:NAME:-default}    with a fallback
 $${                     a literal "${"
 ```
 
-Each event declares which variable **groups** it guarantees, so
-`spec-lite hook validate` rejects `${task.id}` on `implement.post` in CI rather
-than at fire time:
+Resolution **fails closed**. A reference with no value is an error that stops
+the hook before it runs; it never becomes an empty string. Each event declares
+which variable groups it guarantees, and `spec-lite hook validate` rejects a
+template that relies on a group its events don't guarantee:
 
 ```text
-[error] bad-var: ${task.id} has no guaranteed value on review.post.
-        Subscribe to an event that provides "task", or write ${task.id:-default}.
+[error] "bad-var": ${task.id} has no guaranteed value on implement.post. Subscribe to an event that provides "task", or write ${task.id:-default}.
 ```
 
-`${env:NAME}` reads only the real process environment and is redacted from
-`--dry-run` output and `hooks.log.jsonl`. It is the only place a secret belongs —
-an `Authorization` header is written as `"Bearer ${env:API_TOKEN}"`, never as the
-token itself.
+Write `${task.id:-none}` wherever a value may legitimately be absent.
+
+`${env:NAME}` reads only the real process environment, and its value is redacted
+from `--dry-run` output and `hooks.log.jsonl`. It is the only place a secret
+belongs: write an `Authorization` header as `"Bearer ${env:API_TOKEN}"`, never as
+the token itself.
 
 <!-- hook-vars-table:start -->
 | Variable | Group | Meaning | Example |
 |---|---|---|---|
-| `${plan.file}` | plan | Canonical source plan path (source-plan modes only). | `.spec-lite/plan_orders.md` |
-| `${plan.name}` | plan | Source plan name. | `orders` |
-| `${report.file}` | report | Report-producing event's output path. | `.spec-lite/reviews/review_orders.md` |
-| `${verdict.code}` | verdict | Stable structured verdict code. | `ready` |
-| `${workflow.id}` | workflow | Durable workflow identity (protocol 2). | `w-1234` |
-| `${execution.id}` | execution | Lifetime role owner identity (protocol 2). | `x-1234` |
-| `${action.id}` | action | Owning action, when present; otherwise use a fallback. | `a-1234` |
-| `${decision.id}` | decision | Checkpoint id; URL is optional. | `d-1234` |
-| `${decision.question}` | decision | Checkpoint question; URL is optional. | `question` |
-| `${decision.status}` | decision | Checkpoint status; URL is optional. | `status` |
-| `${decision.url}` | decision | Checkpoint url; URL is optional. | `url` |
-| `${decision.choice}` | decision-resolved | Checkpoint choice; URL is optional. | `choice` |
-| `${decision.actor}` | decision-resolved | Checkpoint actor; URL is optional. | `actor` |
-| `${decision.feedbackFile}` | decision-resolved | Checkpoint feedbackFile; URL is optional. | `feedbackFile` |
+| `${plan.file}` | plan | Workspace-relative path of the plan the role works on. | `.spec-lite/plan_orders.md` |
+| `${plan.name}` | plan | Plan name: the plan file name without `plan_` and `.md`. | `orders` |
+| `${report.file}` | report | Workspace-relative path of the report the role wrote. | `.spec-lite/reviews/review_orders.md` |
+| `${verdict.code}` | verdict | Machine-readable verdict: Plan Critic `ready`, `revisions` or `replan`; Review `pass`, `changes-required` or `blocked`. | `ready` |
+| `${workflow.id}` | workflow — tracked runs | ID of the saved workflow (one per feature, plan, fix, review or YOLO run). Tracked runs only. | `w-1234` |
+| `${execution.id}` | execution — tracked runs | ID of the role run that fired the event. Tracked runs only. | `x-1234` |
+| `${action.id}` | action — optional | ID of the saved action this role run was started from, if any; write `${action.id:-none}`. | `a-1234` |
+| `${decision.id}` | decision — checkpoint events | Checkpoint ID, as used by `spec-lite decide`. | `d-1234` |
+| `${decision.question}` | decision — checkpoint events | The checkpoint question, with templates resolved. | `Plan orders is ready. What next?` |
+| `${decision.status}` | decision — checkpoint events | `pending`, `answered`, `expired`, `cancelled` or `superseded`. | `pending` |
+| `${decision.url}` | decision — checkpoint events | Link to the GitHub comment, when the checkpoint was posted there; write `${decision.url:-}`. | `https://github.com/acme/app/issues/7#issuecomment-1` |
+| `${decision.choice}` | decision-resolved — after an answer | The chosen choice ID. | `critique` |
+| `${decision.actor}` | decision-resolved — after an answer | Who answered: `local-session`, `configured-rule`, or a GitHub login. | `local-session` |
+| `${decision.feedbackFile}` | decision-resolved — after an answer | Absolute path of a file holding the answer's free-text feedback. | `/repo/.git/spec-lite/decisions/d-1234/feedback.md` |
 | `${event}` | base — every event | Full dotted event name. | `implement.post` |
 | `${role}` | base — every event | Agent or skill that emitted the event. | `implement` |
 | `${phase}` | base — every event | Lifecycle position: pre, post, or signal. | `post` |
@@ -977,14 +780,17 @@ token itself.
 <!-- hook-vars-table:end -->
 
 `${provider}` reads `provider` (then the first entry of `providers`) from
-`.spec-lite.json`, and resolves to `unknown` when neither is configured — so it
-never needs a `:-default`.
+`.spec-lite.json`, and resolves to `unknown` when neither is set, so it never
+needs a `:-default`.
 
-## Event catalog
+### Event catalog
 
-Only the core pipeline is wired today. Events marked `planned` are declared so
-that subscribing to them validates with a warning rather than an unknown-event
-error; they begin firing in a later release.
+`emitted` events fire today. `planned` events are declared so that subscribing to
+them validates with a warning instead of an unknown-event error; they begin
+firing in a later release. **Guarantees** lists the [variable groups](#interpolation)
+each event always provides. A group not listed may still be present at run time
+(a Fix often maps to a feature), but a template relying on it needs a
+`${name:-default}`.
 
 <!-- hook-events-table:start -->
 | Event | Role | Status | Guarantees |
@@ -1037,207 +843,38 @@ error; they begin firing in a later release.
 | `checkpoint.resolved` | * | emitted | `decision`, `decision-resolved`, `workflow`, `summary` |
 <!-- hook-events-table:end -->
 
-Guarantee groups are what `validate` checks templates against. A group absent
-from an event may still be present at runtime — a Fix often does map to a feature
-— but a template relying on it must supply a `${name:-default}`.
+`checkpoint.pending` and `checkpoint.resolved` fire when a checkpoint asks and is
+answered; use them for notifications. Only CLI-run hooks (`command`, `script`,
+`http`) run on them. See [Notifications](hooks-gates-checkpoints.md#notifications).
 
-## Gates and checkpoints
-
-Control protocol 2 adds durable pause/resume to any coding agent that can run CLI commands and follow the role instructions. Update installed/exported prompts before using it. Registry format remains `version: 1`; gate/checkpoint invocations require `--protocol 2`.
-
-Durable state needs a Git checkout. Outside one, protocol-2 events that only have stateless hooks (`command`, `script`, `http`, builtins) run exactly as before and return no execution ID, so roles keep working in a folder that is not yet a repository. Gates, checkpoints and routing hooks fail visibly there instead.
-
-```mermaid
-flowchart LR
-  H["hook run"] --> P["Save question; command exits"]
-  P --> U["User chooses in chat or GitHub"]
-  U --> D["decide / next records answer"]
-  D --> A["next shows saved action"]
-  A --> S["Explicit start acknowledgment"]
-  S --> R["Agent executes target"]
-```
-
-`decide` records your choice; `next` shows what can happen. Reading an action never consumes it. The agent follows its returned start command before executing it.
-
-### Gates
-
-Declare a check as a gate; it must be safe to rerun and must not publish or notify:
+`hook.error` fires after a hook fails, with a `${summary}` naming the failures,
+and never recurses into itself:
 
 ```json
 {
-  "version": 1,
-  "hooks": [
-    {
-      "name": "verify",
-      "events": ["implement.post"],
-      "type": "script",
-      "gate": true,
-      "maxRounds": 3,
-      "onFailure": "abort",
-      "run": "node scripts/check-gate.mjs"
-    }
-  ]
+  "name": "hook-failures-to-slack",
+  "events": ["hook.error"],
+  "type": "http",
+  "url": "${env:SLACK_WEBHOOK_URL}",
+  "bodyTemplate": "{\"text\":\"spec-lite hook failure: ${summary}\"}"
 }
 ```
 
-The script reads the usual payload and writes one explicit response to the environment-provided file:
+### Results and exit codes
 
-```js
-import fs from "node:fs";
-fs.writeFileSync(
-  process.env.SPEC_LITE_RESPONSE_FILE,
-  JSON.stringify({ decision: "block", reason: "Fix the failing verification." })
-);
-// Write { decision: "continue" } when the condition passes.
-```
-
-A failed process, missing/invalid response or oversized response stops the event. The response limit is 64 KiB. A block exits 3 and prevents later effects. Three rounds means the initial check plus at most two automatic fix/retry cycles across the event's gates. The cap remains blocking even if an ordinary hook would warn.
-
-Retry only the returned event ID while `retryAllowed` is true. Completed notifications, commands and publication are not replayed. At the cap, the agent reports the block and returns control to you. Explicit recovery can start a new bounded episode, stop, or override named checks; an override is recorded as such.
-
-### Local checkpoint
-
-```json
-{
-  "version": 1,
-  "hooks": [
-    {
-      "name": "plan-ready",
-      "events": ["plan.post"],
-      "type": "builtin",
-      "builtin": "checkpoint",
-      "options": {
-        "question": "Plan ${plan.name} is ready. What next?",
-        "inputs": ["${plan.file}"],
-        "choices": {
-          "critique": {
-            "description": "Run Plan Critic",
-            "skill": "plan-critic",
-            "args": "${plan.file}"
-          },
-          "continue": {
-            "description": "Finish the current role",
-            "continue": true
-          },
-          "stop": {
-            "description": "Stop here",
-            "stop": true
-          }
-        }
-      }
-    }
-  ]
-}
-```
-
-Run the normal role lifecycle with the resolved scope and retain its context:
-
-```bash
-spec-lite hook run plan.pre --protocol 2 --payload plan=.spec-lite/plan_orders.md --json
-# After writing the plan, reuse the returned execution ID:
-spec-lite hook run plan.post --protocol 2 --execution <execution-id> --json
-spec-lite next
-spec-lite decide <decision-id> critique
-spec-lite next <decision-id>
-# Follow the exact start command returned for the selected action.
-```
-
-`inputs` hashes artifacts without publishing them. `attach` additionally selects content to publish when a remote channel is configured. Snapshots include effective choices/targets and relevant artifacts; material changes require reissue. Unrelated edits do not invalidate the approval.
-
-Continue resumes the saved event suffix and original role. Stop ends it without undoing effects. A skill/agent/prompt action replaces it: remaining hooks are cancelled, and there is no automatic return. Checkpoints run before ordinary effects by default; opt-in `afterEffects: true` requires appropriate explicit ordering and displays what already happened.
-
-Logical role names work across providers. External targets must declare `completion: "reported"`; prompt actions use the same explicit start/complete wrapper. A lifecycle acknowledgment or reported result is not proof of semantic correctness.
-
-### Rules and loop limits
-
-Rules are optional explicit authorization for automatic routing:
-
-```json
-{
-  "if": { "verdict.code": "ready" },
-  "choose": "continue"
-}
-```
-
-Place rules only on an event that guarantees their inputs, for example a `plan-critic.post` checkpoint with a declared `continue` choice. The `plan.post` checkpoint above does not provide a verdict. Each `choose` must name a declared choice. First exact match wins after trimming/case folding. No match asks you. Plan Critic reports `ready`, `revisions` or `replan`; Review reports `pass`, `changes-required` or `blocked`, separately from display text.
-
-Automatic chains default to eight role hops. Repeated routing visibly pauses; repeated automatic checkpoints ask a person. Only an actual user answer/instruction starts a new chain. Resolver scripts and terminal human-verification prompts are deferred.
-
-### Answering from GitHub
-
-Add `github` to checkpoint options, for example:
-
-```json
-{
-  "github": {
-    "repo": "example/private-decisions",
-    "target": "issue",
-    "approvers": ["example-user"]
-  },
-  "attach": ["${plan.file}"]
-}
-```
-
-The CLI needs authenticated `gh` only for this channel. An explicit repo is authoritative; it never silently migrates to a public source PR. Public posting requires `allowPublic: true` at every destination. Attachments are explicit, workspace-confined files; a collapsed attachment still publishes its content. Runtime/credential paths are excluded. An attachment whose path comes from a payload variable (such as `${plan.file}`) is published only when it resolves inside `.spec-lite/`; otherwise its hash still binds the approval and the comment lists it as withheld. List a file literally in `attach` to publish it from elsewhere.
-
-Reply with both choice and decision ID:
-
-```text
-/critique d-0123456789
-/revise d-0123456789 merge features 4 and 5
-/stop d-0123456789
-```
-
-Only configured approver IDs count. Without `approvers`, the authenticated `gh` account is the only approver; the coding agent can post with that same account, so `hook validate` warns. Name a different account when approval must come from someone other than the agent. Edited comments require a new reply. Old IDs, prefix collisions, expired or already-answered questions cannot redirect newer work. The first locally accepted valid chat/remote answer wins. An accepted reply gets a 👍 reaction; an approver's command that names the decision but cannot answer it (unknown choice, edited, expired) gets 😕 once. Publication/reaction failures never silently approve work or erase a local answer.
-
-The whole rendered comment has a 48 KiB UTF-8 budget, including metadata. Attachment display may be truncated with a note; the full content hash remains bound to the approval. Notifications can be ordinary hooks on `checkpoint.pending`; no background poller is installed automatically.
-
-### Waiting and resuming
-
-The hook itself never waits for a person: it saves a checkpoint and exits. The default agent behavior is to show choices and yield. A chat answer runs `decide`; a phone answer is collected by the next inspection.
-
-An optional `spec-lite next <id> --wait <duration>` watches for a valid saved answer for a finite, host-appropriate duration, capped at 60 seconds per call. A local answer is noticed within about a second; GitHub polling defaults to 30 seconds and respects errors/rate limits. A timeout stays pending. Do not repeat waits automatically or depend on vendor cache lifetimes.
-
-Automatic continuation needs a live host integration that can deliver completion to an agent. No such capability is required for the portable flow, and a remote comment cannot reopen a closed session. Start a live session and ask it to resume.
-
-Runtime state is shared by the same clone's linked worktrees, not across machines/clones. Delegates return checkpoint/control results to the parent instead of waiting independently.
-
-### Recovery and security
-
-Use `next` to inspect pending/ready/running/interrupted state; `next --all` adds terminal history. Expired questions need explicit reissue; cancellation keeps work paused until replacement or stop. The deadline defaults to 72 hours and applies to both local and remote acceptance.
-
-An acknowledged owner is not silently reassigned after a crash. Stop/reconcile the old agent, then use the returned generation and recovery command. A role's own execution has no action record: when its session ends, `next` lists it as running with an `execution recover` command. `--mode resume` returns its context so a new session can carry the same execution ID; `--mode stop` ends it so the scope can start again. A resumed ID is not fenced against a process that is still running, so stop the earlier session first. Uncertain external effects need reconciliation rather than blind replay.
-
-If an interrupted lock prevents inspection, follow the CLI's exact diagnostic: stop all spec-lite processes, inspect the named lock, and remove only a confirmed orphan. Unknown or live lock owners are never automatically displaced.
-
-Feedback remains scoped task input. TTY prompts and executor-owned credentials do not independently verify a human. Permission controls and the user's authorized scope stay in effect. The [CLI recovery reference](../usage.md#action-and-decision-management) lists commands.
-
-### Control results and publication
-
-JSON exposes protocol, status, IDs, context/continuation, outcomes/effects and saved action. Text has context/worktree lines and one final control marker. Results omit stored approval snapshots and options; add `--verbose` to `hook run` or `next` to include them. Exit 0 includes pending and terminal state; proceed only when the status explicitly permits the continuation. Exits 1/2/3/4 mean operational failure, contract error, blocked gate and retryable busy.
-
-Decisions, feedback, counters, chains, owners, snapshots and diagnostics live in `<git-common-dir>/spec-lite/` (directories `0700`, files `0600` where the platform supports modes). A workflow whose records are all terminal and untouched for 30 days is pruned, at most once a day, when a role starts or `next` lists state; paused, blocked, interrupted or running work and parents of other workflows are kept. Temporary files expire after a day. Existing feature audit logs retain their specific local exclusion and commit guard. Track plans/specs/changesets normally; do not ignore an entire project's artifact directory to hide logs.
-
-Automatic commits refuse forced-staged feature hook logs and copied runtime records (identified by their generated IDs); ordinary project paths such as `docs/decisions/`, `tmp/` or `events/` are never treated as runtime state. Git ignores do not untrack files. Package release checks inspect actual npm contents, including included subdirectories. GitHub posting is an independent publication boundary. Dry runs write no state, locks, temp/payload files, logs, worktrees or remote content.
-
-## Failure handling and exit codes
-
-The following 0–2 table describes legacy stateless calls. Protocol 2 also returns blocked/busy exits 3/4 and requires inspecting the final status even on exit 0; see [Control results](#control-results-and-publication).
-
-`spec-lite hook run` exits:
-
-| Code | When | Effect on the calling role |
+| Exit | Meaning | What the role does |
 |---|---|---|
-| `0` | Every hook succeeded, or a failure was policied `warn`/`ignore` | Continue |
-| `1` | A hook with `onFailure: "abort"` failed | Stop and report |
-| `2` | A **contract error** | Stop and fix the configuration |
+| `0` | The event finished. In a role run, read the **status**: it may also be paused, handed off, or stopped | Follows the status |
+| `1` | A hook with `onFailure: "abort"` failed, a gate failed to answer, or an operation failed | Stops and reports |
+| `2` | A **contract error**; see below | Stops; fix the configuration |
+| `3` | A gate blocked (role runs) | Fixes the problem and retries the gate |
+| `4` | Busy: another spec-lite process holds the state lock (role runs) | Retries shortly |
 
-A contract error means the event could not be dispatched as specified: the event
-name is not in the catalog, the registry failed validation, a `${...}` reference
-had no value, or the payload failed a hook's `payloadSchema`. Contract errors
-bypass `onFailure` entirely and stop the chain *before* anything with side
-effects runs — a misconfigured registry is a stop-and-fix situation, not a
-runtime hiccup.
+A **contract error** means the event couldn't run as configured: the event name
+isn't in the catalog, the registry failed validation, a `${...}` had no value,
+the payload failed a hook's `payloadSchema`, or the call was missing something
+it needs, such as scope or IDs. Contract errors bypass `onFailure` and stop the
+event *before* anything with side effects runs.
 
 ```text
   ✗ needs-summary (command) [failed] — ${summary} has no value on event "fix.post".
@@ -1245,58 +882,75 @@ runtime hiccup.
 exit 2
 ```
 
-An event name outside the catalog exits `2` without dispatching anything, so a
-typo in a role or a script is loud rather than silently skipping every hook the
-intended event would have run. Firing a *catalog* event that nothing subscribes
-to is a normal no-op with exit `0`.
+Firing a catalog event that nothing subscribes to is a normal no-op with exit
+`0`. An event name outside the catalog exits `2`, so a typo is loud instead of
+silently skipping every hook.
 
-The repository kill switch still wins: with `hooks.enabled: false`, even an
-unknown event reports that hooks are disabled and exits `0`.
+Role runs report a **status** alongside the exit code, which the role follows:
 
-Reentrancy is capped. A hook that invokes spec-lite, which fires another event, is
-tracked through `SPEC_LITE_HOOK_DEPTH` and `SPEC_LITE_HOOK_CHAIN`; the chain
-aborts at depth 3, and the same hook cannot fire twice within one chain.
+| Status | Meaning |
+|---|---|
+| `continue` | Carry on |
+| `blocked` | A gate blocked; fix and retry |
+| `pending` | A checkpoint is waiting for an answer |
+| `ready` | A hand-off or chosen action is ready to start |
+| `stopped` | The run was told to stop |
+| `error` | Something failed; the result says what and how to recover |
 
-## Audit log
+In text output, each result ends with one `SPEC-LITE-<STATUS> {json}` line,
+preceded by `SPEC-LITE-CONTEXT` (the run's IDs) and, after `prepare-worktree`,
+`SPEC-LITE-WORKTREE` (where to work). `--json` prints the JSON alone. These
+lines are for the agent; `spec-lite next` shows the same state for people.
 
-Every dispatch for a feature is appended to
+### Project settings
+
+In `.spec-lite.json`:
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `hooks.enabled` | `true` | `false` turns off every hook in this clone, such as for CI, a fork, or a bisect, without editing the registry. Roles keep working; nothing runs. |
+| `hooks.maxChain` | `8` | How many automatic hand-offs one chain may take (1–100). See [Loop limits](hooks-gates-checkpoints.md#automatic-answers-and-loop-limits). |
+
+```json
+{ "hooks": { "enabled": false } }
+```
+
+### Audit log
+
+Every hook run for a feature is appended to
 `.spec-lite/features/FEAT-###-<name>/hooks.log.jsonl`, one JSON object per line:
 
 ```json
 {"at":"2026-08-21T14:03:11.445Z","name":"capture-baseline","event":"implement.pre","kind":"builtin","status":"ok","durationMs":165,"message":"baseline bc8bd13 captured (0 pre-dirty)"}
 ```
 
-This is also what `once: true` reads to decide whether a hook has already run.
-The log is local: the first time a clone writes one, spec-lite adds
-`.spec-lite/**/hooks.log.jsonl` to `.git/info/exclude`, so ordinary staging excludes it. Already-tracked or force-staged logs still require a staged-log guard; automatic commits refuse those changes.
-To make that rule visible to your team, add the same line to `.gitignore`.
-
-## Turning hooks off
-
-To silence every hook for a whole clone — CI, a fork, a bisect run — without
-editing the registry, set `hooks.enabled` to `false` in `.spec-lite.json`:
-
-```json
-{ "hooks": { "enabled": false } }
-```
-
-Every `hook run` then reports that hooks are disabled and dispatches nothing.
+`once: true` reads it in manual runs. The log is local diagnostics: the first
+time a clone writes one, spec-lite adds `.spec-lite/**/hooks.log.jsonl` to
+`.git/info/exclude`, and automatic commits refuse to include it. To make the
+rule visible to your team, add the same line to `.gitignore`. A log committed by
+an earlier version stays tracked until you `git rm --cached` it.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Hook never fires | Not subscribed to the event you think | `spec-lite hook list --event <name>` |
+| Hook never fires | Not subscribed to the event you think, or disabled | `spec-lite hook list --all --event <name>` |
 | Nothing happens, exit `0` | No hook subscribes to that event | `spec-lite hook list --event <name>` |
-| `unknown event`, exit `2` | The event name is not in the catalog | `spec-lite hook events` to check the spelling |
+| `unknown event`, exit `2` | The event name isn't in the catalog | `spec-lite hook events` to check the spelling |
 | Exit `2` before anything ran | Registry error, or a `${...}` with no value | `spec-lite hook validate` |
-| `${env:X}` warning at validate time | Variable not set in the current shell | Export it wherever hooks run, or add `:-default` |
-| Builtin still active after disabling | Entry name does not match the builtin exactly | Reuse the exact name (`capture-changeset`); `list --all` intentionally still shows disabled hooks |
-| Changeset empty | No `--feature`, no baseline, or not a git repository | Check the `capture-baseline` line in `hooks.log.jsonl` |
-| Agentic hook ignored | Directives are best-effort by design | Use a deterministic kind if it must happen |
+| `only builtin hooks take options` | `options` on your own hook | Use `run`/`env`, `args`, or the type's own fields; see [Passing settings](#passing-settings-to-your-own-hook) |
+| `only one hand-off … or checkpoint hook may subscribe` | Two hand-offs, or a hand-off and a checkpoint, on one event | Combine them into one checkpoint with a choice each |
+| `needs "completion": "reported"` | A `prompt` hook, or a target outside spec-lite | Add `"completion": "reported"` |
+| `tracked-required` on a manual `hook run` | The event has a gate, checkpoint, or hand-off | Let the role fire it, add `--dry-run` to preview, or `--skip` those hooks |
+| `${env:X}` warning at validate time | The variable isn't set in this shell | Set it wherever hooks run, or add `:-default` |
+| Builtin still active after disabling | The entry name doesn't match exactly | Reuse the exact name, such as `capture-changeset` |
+| Changeset empty | No `--feature`, no baseline, or not a Git repository | Check the `capture-baseline` line in `hooks.log.jsonl` |
+| A hand-off didn't start | The run has no Git checkout, or the chain limit was reached | Run `spec-lite next` to see the saved state |
 
 ## Related
 
-- [CLI reference](../usage.md#hook) — every `spec-lite hook` command and option
-- [Review](review.md) — how `changeset.json` becomes review scope
-- [Architecture](../architecture.md) — where hooks sit in the overall design
+- [Git workflow hooks](hooks-git-workflow.md): a worktree, branch, and pull request per piece of work
+- [Gates and checkpoints](hooks-gates-checkpoints.md): checks that block the run, and questions that pause it
+- [CLI reference](../usage.md#hook): every `spec-lite hook` command and option
+- [Review](review.md): how `changeset.json` becomes review scope
+- [Architecture](../architecture.md): where hooks sit in the overall design

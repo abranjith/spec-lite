@@ -66,7 +66,7 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 
 ### 1. Ingest & Clarify
 
-- Resolve the intended plan path first (the selected existing plan, a named output, or `.spec-lite/plan.md`). Run `spec-lite hook run plan.pre --protocol 2 --payload plan="{{plan-file}}"` (see [Hooks](#hooks)) before authoring; retain this path and returned context.
+- Resolve the intended plan path first (the selected existing plan, a named output, or `.spec-lite/plan.md`). Run `spec-lite hook run plan.pre --tracked --payload plan="{{plan-file}}"` (see [Hooks](#hooks)) before authoring; retain this path and returned context.
 - Read the `.spec-lite/brainstorm.md` (if available) or listen to the user's description.
 - **Ask clarifying questions early and often.** If a requirement is vague, nail it down:
   - "Make it secure" → Ask: "What does secure mean here? Authentication? Encryption at rest? Role-based access? All of the above?"
@@ -100,7 +100,7 @@ Transform a brainstorm vision or user requirements into a **complete, unambiguou
 - Every section must be specific enough that an unfamiliar developer could implement it.
 - Allocate the first feature ID using [Deterministic Feature IDs](#deterministic-feature-ids), then assign consecutive IDs to the remaining rows before any feature subagents run. The Feature skill fills `Spec File`; only Implement changes `Status`.
 - **Before finalizing**, present the draft plan to the user for review. Ask: "Here's the complete plan. Review it and let me know if anything needs adjustment — I'll revise before we lock it in."
-- Once saved, run `spec-lite hook run plan.post --protocol 2 --execution {{execution-id}} --payload plan="{{plan-file}}" --payload summary="{{one-line description of the plan}}"` (see [Hooks](#hooks)).
+- Once saved, run `spec-lite hook run plan.post --tracked --execution {{execution-id}} --payload plan="{{plan-file}}" --payload summary="{{one-line description of the plan}}"` (see [Hooks](#hooks)).
 
 ## Deterministic Feature IDs
 
@@ -142,9 +142,9 @@ If `.spec-lite/tools/` exists, list it, read each script's header comment, and r
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

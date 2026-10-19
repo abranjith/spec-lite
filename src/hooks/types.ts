@@ -5,9 +5,10 @@
  *
  *  - **Deterministic** (`command`, `script`, `http`) — executed by this CLI,
  *    in-process, with exit codes, timeouts, and a failure policy.
- *  - **Agentic** (`skill`, `agent`, `prompt`) — NOT executed here. They are
- *    emitted to stdout as `SPEC-LITE-DIRECTIVE` lines for the calling harness
- *    to carry out, and are therefore best-effort.
+ *  - **Agentic** (`skill`, `agent`, `prompt`) — NOT executed here. In a
+ *    tracked run they become a saved action (a hand-off) that the calling
+ *    agent starts; in a manual run they are emitted to stdout as
+ *    `SPEC-LITE-DIRECTIVE` lines. Either way the agent does the work.
  */
 
 /** Lifecycle position of an event relative to the role that emits it. */
@@ -124,13 +125,17 @@ export interface HookDefinition {
   timeoutMs?: number;
   /** Default "warn". */
   onFailure?: HookFailurePolicy;
-  /** When true, skip if this hook already ran for the current runId. */
+  /**
+   * When true, skip if this hook already succeeded on this event: for the
+   * feature (manual runs, from its hooks.log.jsonl) or for the workflow
+   * (tracked runs).
+   */
   once?: boolean;
-  /** Explicitly rerunnable check; requires protocol 2 and abort-on-failure. */
+  /** Explicitly rerunnable check; requires a tracked run and abort-on-failure. */
   gate?: boolean;
   /** Total check rounds in one saved remediation episode (initial round included). */
   maxRounds?: number;
-  /** External targets acknowledge completion through the reported wrapper. */
+  /** Hand-offs to prompts or non-spec-lite targets report completion with `action complete`. */
   completion?: "reported";
   /** Optional JSON Schema validated against the payload BEFORE invocation. */
   payloadSchema?: Record<string, unknown>;

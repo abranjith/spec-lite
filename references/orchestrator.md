@@ -53,7 +53,7 @@ flowchart LR
 | `.spec-lite/TODO.md` | TODO plus roles tracking out-of-scope work | Backlog only, never implicit current scope |
 | `README.md`, configured docs | Document writer family | Human-facing current state |
 | `.spec-lite/yolo_state.md` | YOLO | Resume after reconciling durable `spec-lite next` control state |
-| `<git-common-dir>/spec-lite/` decisions/actions/events | CLI control protocol | Local runtime state shared by linked worktrees; never commit, package or attach by default |
+| `<git-common-dir>/spec-lite/` decisions/actions/events | CLI (tracked runs) | Local runtime state shared by linked worktrees; never commit, package or attach by default |
 
 ## Precedence and Conflicts
 
@@ -124,7 +124,7 @@ At task end, Implement, Fix, Feature, Plan, Plan Feature, Review, Brainstorm, an
 
 ## Hook Protocol
 
-Hook-wired roles are Brainstorm, Plan, Plan Feature, Feature, Implement, Review, Fix, Plan Critic and YOLO. They call `spec-lite hook run <event> --protocol 2` at their marked boundaries. Registry format remains version 1. Legacy stateless calls retain their original behavior; gates/checkpoints require control protocol 2 before any effect.
+Hook-wired roles are Brainstorm, Plan, Plan Feature, Feature, Implement, Review, Fix, Plan Critic and YOLO. They call `spec-lite hook run <event> --tracked` at their marked boundaries. A tracked run saves IDs, so it can pause for a gate or checkpoint, hand off and resume. A manual call without `--tracked` dispatches once and cannot pause, so it refuses events that have gates, checkpoints or hand-off hooks.
 
 ### Registry and suppression
 
@@ -152,7 +152,7 @@ Do not loop on foreground waits. Optional `next <id> --wait <duration>` requires
 
 ### Results, gates and continuations
 
-Text and JSON results share protocol-2 statuses. Inspect the final control result before doing more work:
+Text and JSON results of tracked runs share these statuses. Inspect the final control result before doing more work:
 
 | Status | Agent behavior |
 |---|---|
@@ -165,7 +165,7 @@ Text and JSON results share protocol-2 statuses. Inspect the final control resul
 | running, completed, interrupted, expired, cancelled, superseded, paused | Report/inspect state and permitted recovery; do not infer permission. |
 | error | Stop and report cause and exact recovery guidance. |
 
-Exit 0 means a valid result, including pending/terminal states, not permission to work. Exit 1 is operational/guard/approval failure; 2 invalid contract/configuration/protocol; 3 blocked gate; 4 retryable busy. Use bounded busy retries only.
+Exit 0 means a valid result, including pending/terminal states, not permission to work. Exit 1 is operational/guard/approval failure; 2 invalid contract/configuration/flags; 3 blocked gate; 4 retryable busy. Use bounded busy retries only.
 
 An opted-in `gate: true` check must explicitly write valid continue/block JSON to `SPEC_LITE_RESPONSE_FILE`. Gates abort on process/response failure and remain blocked at their total-round cap. Remediation uses the same event ID, not a fresh role invocation; it never replays earlier non-repeatable effects. A user may explicitly request bounded recovery, named override or stop, with recorded provenance. Overrides are not passes.
 

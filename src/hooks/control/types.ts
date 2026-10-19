@@ -234,7 +234,7 @@ export interface Records {
   threads: Thread;
 }
 export interface ControlResult {
-  protocol: 2;
+  tracked: true;
   status: ControlStatus;
   exitCode: 0 | 1 | 2 | 3 | 4;
   workflowId?: string;

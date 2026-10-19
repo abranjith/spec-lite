@@ -40,7 +40,8 @@ import { Store } from "./control/store.js";
 const MAX_HOOK_DEPTH = 3;
 
 export interface RunEventOptions extends BuildPayloadOptions {
-  protocol?: string | number;
+  /** Tracked run: saved IDs let the run pause, hand off and resume. Role prompts always pass it. */
+  tracked?: boolean;
   execution?: string;
   action?: string;
   retry?: string;
@@ -56,7 +57,7 @@ export interface RunEventReport {
   payload: HookPayload;
   results: HookResult[];
   exitCode: 0 | 1 | 2 | 3 | 4;
-  protocol?: 2;
+  tracked?: true;
   status?: ControlResult["status"];
   registryIssues: string[];
   /** True when `.spec-lite.json` has `hooks.enabled: false` — nothing dispatched. */
@@ -119,7 +120,7 @@ async function alreadyRanOnce(
 }
 
 export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
-  if (opts.protocol !== undefined)
+  if (opts.tracked)
     opts = {
       ...opts,
       root: await git(opts.root, ["rev-parse", "--show-toplevel"]).catch(
@@ -136,20 +137,9 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   opts = { ...opts, skip };
   const { depth, chain } = currentChain();
   const payload = await buildPayload(opts);
-  if (opts.protocol !== undefined && String(opts.protocol) !== "2")
-    return {
-      ...controlFailure(
-        new ControlError(
-          "protocol-version",
-          "Supported control protocol: 2. Update the caller before running hooks.",
-          2
-        )
-      ),
-      payload,
-    };
 
   if (depth >= MAX_HOOK_DEPTH) {
-    if (opts.protocol !== undefined)
+    if (opts.tracked)
       return {
         ...controlFailure(
           new ControlError(
@@ -178,7 +168,7 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   }
 
   if (await hooksDisabled(opts.root)) {
-    if (opts.protocol !== undefined) {
+    if (opts.tracked) {
       // Outside Git there is no durable store and nothing to route: a disabled kill switch stays a no-op.
       if (!(await durableStoreAvailable(opts.root)))
         return {
@@ -213,7 +203,7 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   // subscribed to the event that was meant. The kill switch above still wins,
   // so a clone with hooks disabled never fails on one.
   if (!getEvent(opts.event)) {
-    if (opts.protocol !== undefined)
+    if (opts.tracked)
       return {
         ...controlFailure(
           new ControlError("unknown-event", `Unknown event ${opts.event}.`, 2)
@@ -250,7 +240,7 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   // firing a partially-valid registry is how side effects happen against a
   // config the user has not actually got right yet.
   if (issues.some((i) => i.level === "error")) {
-    if (opts.protocol !== undefined)
+    if (opts.tracked)
       return {
         ...controlFailure(
           new ControlError("registry-invalid", registryIssues.join("\n"), 2)
@@ -262,14 +252,14 @@ export async function runEvent(opts: RunEventOptions): Promise<RunEventReport> {
   }
 
   if (
-    opts.protocol !== undefined ||
+    opts.tracked ||
     subscribed.some((hook) => hook.gate || checkpoint(hook))
   ) {
     const active = subscribed.filter((h) => !hookIsSkipped(h, skip));
     // Durable context needs a Git store. Without one, stateless hooks keep their original behavior;
     // gates, checkpoints and routing still fail visibly in the engine.
     if (
-      opts.protocol !== undefined &&
+      opts.tracked &&
       !active.some(durableHook) &&
       !(await durableStoreAvailable(opts.root))
     ) {
@@ -315,14 +305,14 @@ async function durableStoreAvailable(root: string): Promise<boolean> {
   }
 }
 
-/** Protocol-2 envelope for a stateless dispatch: no IDs, because no durable context exists. */
+/** Tracked-run envelope for a stateless dispatch: no IDs, because no durable context exists. */
 function statelessControl(
   report: RunEventReport
 ): RunEventReport & ControlResult {
   const failed = report.exitCode !== 0;
   return {
     ...report,
-    protocol: 2,
+    tracked: true,
     status: failed ? "error" : "continue",
     exitCode: report.exitCode,
     message:

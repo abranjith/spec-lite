@@ -51,7 +51,7 @@ const call = async (event: string, opts: Record<string, unknown> = {}) =>
   (await runEvent({
     root,
     event,
-    protocol: 2,
+    tracked: true,
     extra: { plan: ".spec-lite/plan.md" },
     ...opts,
   })) as unknown as ControlResult;
@@ -81,7 +81,7 @@ afterEach(async () => {
   await fs.remove(root);
 });
 
-describe("REV-001 protocol 2 outside Git", () => {
+describe("REV-001 tracked runs outside Git", () => {
   it("continues statelessly with no hooks, with hooks disabled, and runs stateless hooks", async () => {
     const plain = await call("plan.pre");
     expect(plain.status).toBe("continue");
@@ -113,6 +113,16 @@ describe("REV-001 protocol 2 outside Git", () => {
 
 describe("in a Git checkout", () => {
   beforeEach(initRepo);
+
+  it("lists a role run waiting at a checkpoint through its question, without a recover command", async () => {
+    await hooks([cp]);
+    const pre = await call("plan.pre");
+    const post = await call("plan.post", { execution: pre.executionId });
+    expect(post.status).toBe("pending");
+    const listed = await next(root);
+    expect(listed.items?.map((i) => i.status)).toEqual(["pending"]);
+    expect(listed.items?.some((i) => i.recovery)).toBe(false);
+  });
 
   it("REV-002 lists an abandoned execution and resumes or stops it on instruction", async () => {
     await hooks([]);
@@ -191,7 +201,7 @@ describe("in a Git checkout", () => {
       event: "plan.pre",
       extra: { plan: ".spec-lite/plan.md" },
     })) as unknown as ControlResult;
-    expect(scoped.error?.code).toBe("protocol-required");
+    expect(scoped.error?.code).toBe("tracked-required");
   });
 
   it("REV-006 hides terminal history by default and prunes old terminal workflows", async () => {

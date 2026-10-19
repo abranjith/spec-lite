@@ -101,7 +101,7 @@ Feature specification follows a **two-phase lifecycle**: Exploration and Task Cr
 
 Before writing any tasks, explore and understand the full scope:
 
-- Resolve the source before exploring: Plan Mode runs `spec-lite hook run feature.pre --protocol 2 --payload plan="{{plan-file}}"`; single Feature Mode uses `--feature FEAT-{{ID}}` or `--payload scope="{{source-spec-path}}"`. See [Hooks](#hooks). A delegated item passes `--parent {{parent-execution-id}}` and receives its own context; keep the parent plan context on batch events.
+- Resolve the source before exploring: Plan Mode runs `spec-lite hook run feature.pre --tracked --payload plan="{{plan-file}}"`; single Feature Mode uses `--feature FEAT-{{ID}}` or `--payload scope="{{source-spec-path}}"`. See [Hooks](#hooks). A delegated item passes `--parent {{parent-execution-id}}` and receives its own context; keep the parent plan context on batch events.
 - **Clear prior feature context**: If you have been working on a different feature in this conversation, reset your working context now. Do not carry forward any assumptions, models, or decisions from other features. Re-read the plan and memory fresh for this feature.
 - Read the relevant section of the plan (`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`).
 - Read `.spec-lite/memory.md` for standing coding standards, architecture principles, testing conventions, and logging rules. Then read the plan for any plan-specific overrides. Adhere to both strictly.
@@ -161,8 +161,8 @@ Before spawning, apply the deterministic ID rule to every queued legacy row. The
 1. The absolute path to the plan file and the **specific FEAT-ID** to break down (only that one).
 2. An instruction to read this skill file (`<repo>/skills/feature/SKILL.md`) and follow its Feature Mode workflow end-to-end for that single feature.
 3. An instruction to read all relevant context files: `.spec-lite/memory.md`, `.spec-lite/data_model.md`, `.spec-lite/feature-summary.md`, and the plan file itself (each only if present).
-4. Its hook context: your execution ID as the parent. The subagent starts with `spec-lite hook run feature.pre --protocol 2 --parent <your-execution-id> --feature FEAT-<ID>` and carries the execution ID that call returns (never yours) on every later event.
-5. The mandatory deliverables: (a) create `.spec-lite/features/FEAT-<ID>-<name>/spec.md` and run `spec-lite hook run feature.spec.post --protocol 2 --execution <its-execution-id> --feature FEAT-<ID>`, (b) update the parent plan's `Spec File` cell for this FEAT-ID to point to the created file, and (c) do NOT touch the plan's `Status` column.
+4. Its hook context: your execution ID as the parent. The subagent starts with `spec-lite hook run feature.pre --tracked --parent <your-execution-id> --feature FEAT-<ID>` and carries the execution ID that call returns (never yours) on every later event.
+5. The mandatory deliverables: (a) create `.spec-lite/features/FEAT-<ID>-<name>/spec.md` and run `spec-lite hook run feature.spec.post --tracked --execution <its-execution-id> --feature FEAT-<ID>`, (b) update the parent plan's `Spec File` cell for this FEAT-ID to point to the created file, and (c) do NOT touch the plan's `Status` column.
 6. A request to return a **brief one-line summary** of what was created (e.g., `"FEAT-002 spec created at .spec-lite/features/FEAT-002-order_processing/spec.md (8 tasks)"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
 
 **Do not run multiple feature subagents in parallel** — feature specs must be created sequentially so that the parent plan's `Spec File` column is updated cleanly without merge conflicts on the plan file.
@@ -172,7 +172,7 @@ Before spawning, apply the deterministic ID rule to every queued legacy row. The
 After all subagents have returned:
 
 - For each FEAT-ID in the queue, verify the expected feature spec file exists on disk and the parent plan row has been updated.
-- Run `spec-lite hook run feature.post --protocol 2 --execution {{execution-id}} --payload plan="{{plan-file}}" --payload summary="{{n}}/{{total}} features generated"` (see [Hooks](#hooks)) once, for the whole batch.
+- Run `spec-lite hook run feature.post --tracked --execution {{execution-id}} --payload plan="{{plan-file}}" --payload summary="{{n}}/{{total}} features generated"` (see [Hooks](#hooks)) once, for the whole batch.
 - Print a **concise one-line-per-feature** summary, e.g.:
   ```
   ✅ FEAT-002 → features/FEAT-002-order_processing/spec.md
@@ -240,7 +240,7 @@ Do not expand the current scope. Append out-of-scope improvements to `.spec-lite
 
 Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` (e.g., `.spec-lite/features/FEAT-001-user_management/spec.md`).
 
-Once the spec file exists, run `spec-lite hook run feature.spec.post --protocol 2 --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) — this fires once per spec written, including once per Plan Mode subagent. In Feature Mode (a single spec), also run `spec-lite hook run feature.post --protocol 2 --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` once the plan sync below is complete.
+Once the spec file exists, run `spec-lite hook run feature.spec.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) — this fires once per spec written, including once per Plan Mode subagent. In Feature Mode (a single spec), also run `spec-lite hook run feature.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` once the plan sync below is complete.
 
 Before finishing, also save the parent plan update described above so both artifacts are synchronized:
 
@@ -264,9 +264,9 @@ Use [feature spec template](assets/feature-spec-template.md) for structuring the
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

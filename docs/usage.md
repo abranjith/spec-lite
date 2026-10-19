@@ -18,8 +18,8 @@ Every command supports `-h, --help`; the root command also supports
 | [`list`](#list) | Print every available agent, skill, reference, output, and stack baseline |
 | [`export`](#export) | Build one self-contained Markdown bundle from selected roles and references |
 | [`hook`](#hook) | Run and inspect lifecycle hooks |
-| [`next` / `decide`](#next-and-decide) | Inspect durable checkpoints and record user choices |
-| [`action` / `decision`](#action-and-decision-management) | Acknowledge and recover saved workflow actions |
+| [`next` / `decide`](#next-and-decide) | See what's waiting, and answer checkpoints |
+| [`action` / `decision` / `execution`](#action-and-decision-management) | Start, complete, and recover saved work; mostly run by agents |
 | [`worktree`](#worktree) | List and clean up worktrees made by the Git workflow hooks |
 
 ## init
@@ -121,8 +121,8 @@ frontmatter.
 ## hook
 
 Run and inspect lifecycle hooks. Roles call `hook run` themselves at their
-lifecycle points; the other subcommands are for authoring and debugging your own
-hooks. For concepts and worked examples see [Hooks](features/hooks.md).
+lifecycle points; the other subcommands are for writing, checking, and debugging
+hooks. For concepts and worked examples, see [Hooks](features/hooks.md).
 
 ```text
 spec-lite hook run <event> [options]
@@ -134,60 +134,60 @@ spec-lite hook events
 spec-lite hook vars
 spec-lite hook validate
 spec-lite hook test <name> [options]
+spec-lite hook recover <event-id> --generation <n> --mode <retry|stop|override> --reason <text> [--checks <names>]
 ```
 
 | Subcommand | Behavior |
 |---|---|
-| [`run <event>`](#hook-run-event) | Fire one event, dispatching every subscribed hook in order |
+| [`run <event>`](#hook-run-event) | Fire one event, running every subscribed hook in order. Roles call it; you rarely need to |
 | [`list`](#hook-list) | List resolved hooks after merging builtin → global → project |
 | [`enable <names...>` / `disable <names...>`](#hook-enable--disable-names) | Change hooks' enabled state in the project or global registry |
 | [`setup [names...]`](#hook-setup-names) | Enable or skip the optional hooks and answer their options |
 | [`events`](#hook-events) | Print the full event catalog with emitted/planned status |
 | [`vars`](#hook-vars) | Print the `${...}` interpolation variable table |
-| [`validate`](#hook-validate) | Validate the merged registry — schema, event names, templates |
-| [`test <name>`](#hook-test-name) | Run one hook in isolation against a synthetic or supplied payload |
+| [`validate`](#hook-validate) | Validate the merged registry: schema, event names, templates, ordering |
+| [`test <name>`](#hook-test-name) | Run one hook on its own against a synthetic or supplied payload |
+| [`recover <event-id>`](#action-and-decision-management) | Retry, stop, or override a blocked, paused, or interrupted event, on your instruction |
 
 ### hook run \<event\>
 
-Updated role prompts use `--protocol 2`, keep `--execution <id>` and optional `--action <id>` after pre, and use `--parent <id>` for fresh delegates. Gate retries use the returned `--retry <event-id>`. Resolve root work with feature, plan, fix name, review scope, artifact or YOLO ID. Legacy examples below remain stateless; a gate/checkpoint requires protocol 2. See [next and decide](#next-and-decide).
+You rarely need this: roles run it at every lifecycle point. Use it to preview an
+event, to fire events for work you do without an agent, or from CI. See
+[Running hooks yourself](features/hooks.md#running-hooks-yourself).
 
 ```bash
-spec-lite hook run implement.post --feature FEAT-012 --payload summary="Added expiry"
 spec-lite hook run implement.post --feature FEAT-012 --dry-run
-spec-lite hook run review.verdict --payload verdict="Request changes" --json
+spec-lite hook run fix.pre --payload name=auth-issue
+spec-lite hook run fix.post --payload name=auth-issue --payload summary="Fix token refresh"
 ```
 
 | Option | Default | Summary |
 |---|---|---|
-| `--feature <id>` | none | Feature ID, e.g. `FEAT-012` or legacy `FEAT-FP-007`; resolves the feature directory, spec, and changeset into the payload |
-| `--task <id>` | none | Task ID, e.g. `TASK-003` |
-| `--payload <kv>` | none | Additional payload `key=value`; repeat for several (`--payload summary=... --payload verdict=...`) |
-| `--run-id <id>` | generated | Reuse one `runId` across multiple `hook run` calls |
-| `--dry-run` | `false` | Resolve and print what would run, without executing; `${env:...}` values are redacted |
-| `--json` | `false` | Machine-readable report on stdout instead of the human summary |
-| `--skip <name>` | none | Suppress a hook for this invocation; repeat for multiple names or use `*` for all |
+| `--feature <id>` | none | Feature ID, such as `FEAT-012` or legacy `FEAT-FP-007`; adds the feature directory, spec, and changeset to the payload |
+| `--task <id>` | none | Task ID, such as `TASK-003` |
+| `--payload <kv>` | none | Additional payload `key=value`; repeat for several. `plan=<file>`, `name=<fix name>`, and `yolo=<Run ID>` choose the work for the [Git workflow hooks](features/hooks-git-workflow.md) |
+| `--dry-run` | `false` | Resolve and print what would run, without running anything; `${env:...}` values are redacted. Previews gates and checkpoints too |
+| `--json` | `false` | Machine-readable report instead of the human summary |
+| `--skip <name>` | none | Skip a hook for this call; repeat for several, or use `*` for all. `SPEC_LITE_SKIP_HOOKS` does the same for a whole process |
+| `--run-id <id>` | generated | Reuse one `runId` across several `hook run` calls |
+| `--tracked` | `false` | Run as a tracked role run, which saves IDs so the run can pause, hand off, and resume. The roles pass it; you don't need it |
+| `--execution <id>`, `--action <id>`, `--parent <id>`, `--retry <event-id>` | none | Tracked runs only: the IDs a role carries from one event to the next |
+| `--verbose` | `false` | Tracked runs only: include stored approval snapshots and options |
 
-Exit codes: `0` success (including failures policied `warn`/`ignore`), `1` a hook
-with `onFailure: "abort"` failed, `2` a contract error — the event name is not in
-the catalog, the registry failed validation, a `${...}` reference had no value,
-or the payload failed a hook's `payloadSchema`. Firing a catalog event that
-nothing subscribes to is a no-op with exit `0`.
+Without `--tracked`, a call is a manual run: it runs each hook once and can't
+pause. An event with a gate, checkpoint, or hand-off hook needs a tracked run, so
+a manual call stops with exit `2` and names the hooks, unless you add `--dry-run`
+or `--skip` them. A hand-off hook in a manual run prints a
+`SPEC-LITE-DIRECTIVE {...}` line instead of saving an action.
 
-Agentic hooks (`skill`, `agent`, `prompt`) are never executed. They print a
-`SPEC-LITE-DIRECTIVE` line for the calling role to carry out:
+When `prepare-worktree` runs, the CLI prints `SPEC-LITE-WORKTREE <json>`; use its
+`path` for every later edit, test, and hook call. With `--json`, read
+`payload.worktree`.
 
-```text
-  ✓ review-after-implement (skill) [emitted]
-    SPEC-LITE-DIRECTIVE {"hook":"review-after-implement","type":"skill","event":"implement.post","skill":"spec-review","args":"review feature user_management"}
-```
-
-`SPEC_LITE_SKIP_HOOKS` accepts comma-separated names for process-scoped
-suppression. When `prepare-worktree` runs, the CLI prints
-`SPEC-LITE-WORKTREE <json>`; use its `path` for every later edit, test, and hook
-call. With `--json`, read `payload.worktree`. The Git workflow hooks also read
-`--payload name=…`, `--payload plan=<plan file>`, and `--payload yolo=<Run ID>`
-to choose the workflow. See [Git workflow hooks](features/hooks.md#git-workflow-hooks)
-for setup, provider requirements, and retry behavior.
+Exit codes are listed in [Results and exit codes](features/hooks.md#results-and-exit-codes):
+`0` done (in a tracked run, also read the status), `1` a hook failed with
+`onFailure: "abort"`, `2` a contract error, `3` a gate blocked, `4` busy. Firing a
+catalog event that nothing subscribes to is a no-op with exit `0`.
 
 ### hook list
 
@@ -278,9 +278,11 @@ spec-lite hook validate
 ```
 
 Static check of the merged registry with no side effects: JSON schema, event
-names, and every `${...}` template against the variables its subscribed events
-guarantee. Exits `0` when valid (warnings allowed) and `2` when any error is
-found. Suitable for CI. No options.
+names, every `${...}` template against the variables its subscribed events
+guarantee, builtin options, and ordering rules, such as gates before hooks
+that change things, and one hand-off or checkpoint per event. Exits `0` when
+valid (warnings allowed) and `2` when any error is found. Suitable for CI. No
+options.
 
 ### hook test \<name\>
 
@@ -294,35 +296,58 @@ spec-lite hook test notify-slack --event review.verdict --payload ./payload.json
 |---|---|---|
 | `--event <name>` | the hook's first subscribed event | Event to simulate |
 | `--payload <file>` | none | JSON file whose top-level keys become payload values |
-| `--feature <id>` | none | Feature ID, e.g. `FEAT-012` |
-| `--task <id>` | none | Task ID, e.g. `TASK-003` |
+| `--feature <id>` | none | Feature ID, such as `FEAT-012` |
+| `--task <id>` | none | Task ID, such as `TASK-003` |
+| `--tracked`, `--execution <id>`, `--action <id>`, `--parent <id>` | none | Test a hook inside a tracked run |
+| `--publish` | `false` | Confirm real publication when testing a checkpoint with `github` options |
 
-`hook test` runs the real executor — a `command` hook really executes and an
-`http` hook really posts. Use `hook run --dry-run` when you want resolution
-without side effects.
+`hook test` runs the real hook: a `command` hook really executes and an `http`
+hook really posts. Use `hook run --dry-run` to see resolution without side
+effects.
 
-Durable tests also accept `--protocol 2`, `--execution`, `--action` and `--parent`.
-Checkpoint tests require explicit test scope/context; a post-event test first
-needs a scoped pre event and its returned execution ID. Testing a configured
-GitHub checkpoint also requires `--publish` because it creates real remote
-content. Prefer a disposable test repository or a dry-run preview.
+Gates and checkpoints only run inside a tracked role run, so preview them with
+`hook run <event> --dry-run` instead. To try a gate's script, run it directly
+with `SPEC_LITE_RESPONSE_FILE` set to a scratch file. Testing a checkpoint with
+`github` options needs `--publish`, because it posts real content; prefer a
+disposable repository.
 
 ## next and decide
 
-Durable control works through short CLI calls across providers. A checkpoint saves state and exits; the agent displays its choices and yields. See [Gates and checkpoints](features/hooks.md#gates-and-checkpoints).
+The commands for [checkpoints](features/hooks-gates-checkpoints.md#checkpoints):
+`next` shows what's waiting, and `decide` answers a question. Usually the agent
+shows you the question in chat and runs `decide` for you; use these yourself to
+answer from another terminal or to check on paused work.
 
 ```text
 spec-lite next [<decision-id>] [--wait <duration>] [--all] [--json] [--verbose]
 spec-lite decide <decision-id> <choice> [--feedback <text> | --feedback-file <path>]
 ```
 
-`next` lists/inspects state, including running executions whose session may have ended, and can ingest authorized GitHub replies. `--all` adds terminal history; `--verbose` includes stored snapshots. It never chooses, consumes, starts or completes an action. `decide` records a user's actual selection, leaving delivery intact. Follow the returned start command before invoking the target.
+```bash
+spec-lite next
+spec-lite decide d-0123456789 critique --feedback "focus on the data model"
+spec-lite next d-0123456789 --wait 60s
+```
 
-Wait requires an ID and finite duration of at most 60 seconds, within the host's call budget. Timeout stays pending; repeated foreground waiting is not the default. Remote answers do not restart closed agent sessions.
+| Command | Behavior |
+|---|---|
+| `next` | Lists waiting questions, ready actions, blocked gates, and paused or interrupted runs, each with the command that moves it on. Collects eligible GitHub replies. Never starts, answers, or uses up anything |
+| `next <decision-id>` | Shows one question and its state |
+| `next <decision-id> --wait <duration>` | Waits for an answer for up to the given time, at most `60s`. A timeout leaves the question pending |
+| `next --all` | Also lists finished history: answered, expired, cancelled, and superseded questions |
+| `decide <decision-id> <choice>` | Records your answer. It doesn't start the work; the agent picks it up when it next checks. `--feedback` or `--feedback-file` adds free-text feedback |
 
-Root `hook run --protocol 2` resolves scope before effects; later events retain its execution/action IDs. Delegates use `--parent <execution-id>`. An instrumented target acknowledges at its returned `.pre --action` command; external reported targets use `action start/complete`.
+A GitHub reply can't restart a closed agent session: it's recorded, and it takes
+effect when a session next checks. See
+[Waiting and resuming](features/hooks-gates-checkpoints.md#waiting-and-resuming).
 
 ## action and decision management
+
+These commands move saved work forward or recover it. Agents run the `action`
+commands as part of a run. Run the recovery commands, or let the agent run them,
+only when you decide to: each needs a `--reason`, which is recorded, and the
+`--generation` that `spec-lite next` shows, which rejects a command based on an
+out-of-date view.
 
 ```text
 spec-lite action start <id> [--execution <origin-id>]
@@ -334,19 +359,24 @@ spec-lite decision reissue <id> --reason <text>
 spec-lite hook recover <event-id> --generation <n> --mode <retry|stop|override> --reason <text> [--checks <names>]
 ```
 
-`action start` applies continue/stop controls or claims an external reported target; instrumented roles normally use their returned pre command. Continue resumes the event suffix, stop ends it, and a handoff replaces it without automatic return.
+| Command | Use it when |
+|---|---|
+| `action start` | Starting a chosen action: continue, stop, or a target outside spec-lite. A spec-lite role starts with the `hook run <role>.pre --tracked --action <id>` command the result shows instead |
+| `action complete` | A target outside spec-lite finished; records its outcome. spec-lite roles record completion themselves |
+| `action recover` | A started action was interrupted: `retry` or `stop` it |
+| `execution recover` | The agent's session ended mid-run: `resume` returns the run's IDs to a new session; `stop` frees the work to start again. Stop the old session first |
+| `decision cancel` | Withdraw a question. The run stays paused until you reissue it or stop |
+| `decision reissue` | Ask a question again with a new ID, after it expired or its files changed |
+| `hook recover` | A gate used all its rounds (`retry`, `stop`, or `override --checks <gates>`), a chain paused, or a hook was cut off mid-way (`retry` or `stop`). An override is recorded as such, never as a pass |
 
-`action complete` records external completion without claiming independent verification. Instrumented completion must match the owning lifecycle context.
-
-Cancel keeps the workflow paused. Reissue creates a new ID/snapshot and rejects running actions. Recovery needs an actual user instruction, current generation and reason; stop/reconcile an old executor before takeover. `execution recover` handles a role's own execution after its session ended: `resume` returns the context to carry, `stop` releases the scope. A named check override is distinct from a pass.
-
-State is local to the clone and linked worktrees under the Git common directory, never committed or packaged; terminal workflows are pruned after 30 days. Outside a Git checkout, events with only stateless hooks run without durable context. Use `next` for exact IDs and recovery guidance rather than editing runtime files.
-
-Protocol-2 exit codes: 0 valid result requiring status inspection, 1 operational/guard failure, 2 contract error, 3 blocked gate, 4 retryable busy. Timeout is a valid pending result. Existing authorization and permission settings still apply.
+Saved state lives in Git's internal directory, shared by the clone's worktrees,
+never committed or packaged. Finished workflows are pruned after 30 days. See
+[When something is stuck](features/hooks-gates-checkpoints.md#when-something-is-stuck)
+and [Under the hood](features/hooks-gates-checkpoints.md#under-the-hood).
 
 ## worktree
 
-List and clean up the worktrees made by the [Git workflow hooks](features/hooks.md#git-workflow-hooks).
+List and clean up the worktrees made by the [Git workflow hooks](features/hooks-git-workflow.md).
 
 ```text
 spec-lite worktree list [--json]

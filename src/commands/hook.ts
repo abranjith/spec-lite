@@ -47,7 +47,7 @@ async function runAction(
     runId?: string;
     only?: string;
     skip?: string[];
-    protocol?: string;
+    tracked?: boolean;
     execution?: string;
     action?: string;
     retry?: string;
@@ -65,14 +65,17 @@ async function runAction(
     dryRun: options.dryRun,
     only: options.only,
     skip: options.skip,
-    protocol: options.protocol,
+    tracked: options.tracked,
     execution: options.execution,
     action: options.action,
     retry: options.retry,
     parent: options.parent,
   });
 
-  if (report.protocol === 2) {
+  // A manual dry run reads as the usual list, even when gates or checkpoints are previewed.
+  const manualPreview =
+    options.dryRun && !options.tracked && report.status !== "error";
+  if (report.tracked && !manualPreview) {
     renderControl(
       report as unknown as ControlResult,
       options.json,
@@ -247,7 +250,7 @@ async function testAction(
     payload?: string;
     feature?: string;
     task?: string;
-    protocol?: string;
+    tracked?: boolean;
     execution?: string;
     action?: string;
     parent?: string;
@@ -331,7 +334,7 @@ async function testAction(
     task: options.task,
     payload: Object.entries(extra).map(([k, v]) => `${k}=${v}`),
     only: name,
-    protocol: options.protocol,
+    tracked: options.tracked,
     execution: options.execution,
     action: options.action,
     parent: options.parent,
@@ -375,19 +378,23 @@ export function registerHookCommand(program: Command): void {
       []
     )
     .option("--run-id <id>", "Reuse a runId across multiple hook run calls")
-    .option("--protocol <version>", "Durable control protocol (2)")
-    .option("--execution <id>", "Lifetime execution context")
-    .option("--action <id>", "Selected action to start/advance")
-    .option("--retry <event-id>", "Retry the saved blocked event boundary")
+    .option(
+      "--tracked",
+      "Tracked run with saved IDs, as the spec-lite roles call it (needed for gates, checkpoints and hand-offs)",
+      false
+    )
+    .option("--execution <id>", "Tracked: the role run this event belongs to")
+    .option("--action <id>", "Tracked: the saved action being started")
+    .option("--retry <event-id>", "Tracked: re-run a blocked gate's event")
     .option(
       "--parent <execution-id>",
-      "Explicit parent execution for child scope"
+      "Tracked: the parent role run of a delegated child"
     )
     .option("--dry-run", "Resolve and print without executing", false)
     .option("--json", "Machine-readable output", false)
     .option(
       "--verbose",
-      "Protocol 2: include stored approval snapshots and options",
+      "Tracked: include stored approval snapshots and options",
       false
     )
     .option(
@@ -479,7 +486,7 @@ export function registerHookCommand(program: Command): void {
     )
     .option("--feature <id>", "Feature ID, e.g. FEAT-012")
     .option("--task <id>", "Task ID, e.g. TASK-003")
-    .option("--protocol <version>", "Durable control protocol (2)")
+    .option("--tracked", "Run as a tracked role run", false)
     .option("--execution <id>", "Existing explicit test execution")
     .option("--action <id>", "Owning action")
     .option("--parent <execution-id>", "Parent test execution")

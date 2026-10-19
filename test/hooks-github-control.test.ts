@@ -203,13 +203,13 @@ async function checkpoint(
   const pre = (await runEvent({
     root,
     event: "plan.pre",
-    protocol: 2,
+    tracked: true,
     extra: { plan: ".spec-lite/plan.md" },
   })) as unknown as ControlResult;
   return (await runEvent({
     root,
     event: "plan.post",
-    protocol: 2,
+    tracked: true,
     execution: pre.executionId,
     extra: { plan: ".spec-lite/plan.md" },
   })) as unknown as ControlResult;

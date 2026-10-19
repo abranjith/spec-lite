@@ -132,7 +132,7 @@ When the user's idea has issues, address them constructively:
 
 ### 1. Understand the Core Idea
 
-- Run `spec-lite hook run brainstorm.pre --protocol 2 --payload artifact=.spec-lite/brainstorm.md` (see [Hooks](#hooks)) before starting.
+- Run `spec-lite hook run brainstorm.pre --tracked --payload artifact=.spec-lite/brainstorm.md` (see [Hooks](#hooks)) before starting.
 - **Listen first**. What is the user actually trying to achieve?
 - If `.spec-lite/brainstorm.md` exists, **read it** and summarize the current state: "Here's where we left off — [summary]. What would you like to explore, change, or add?"
 - If the idea is vague (e.g., "I want to track expenses"), ask probing questions:
@@ -192,7 +192,7 @@ This step distinguishes a great brainstorm from a generic one. Before diving int
 - Read back the vision and goals to the user for confirmation.
 - If there are open questions that the Planner agent needs to resolve (e.g., specific tech stack), note them explicitly with enough context for the Planner to make an informed decision.
 - If this is a continuation session, clearly mark what changed from the previous version.
-- Once saved, run `spec-lite hook run brainstorm.post --protocol 2 --execution {{execution-id}} --payload artifact=.spec-lite/brainstorm.md --payload summary="{{one-line description of the vision}}"` (see [Hooks](#hooks)).
+- Once saved, run `spec-lite hook run brainstorm.post --tracked --execution {{execution-id}} --payload artifact=.spec-lite/brainstorm.md --payload summary="{{one-line description of the vision}}"` (see [Hooks](#hooks)).
 
 ---
 
@@ -215,9 +215,9 @@ Use the [brainstorm output template](assets/brainstorm-output-template.md) for t
 
 At each marked lifecycle point, run:
 
-    spec-lite hook run <event> --protocol 2 [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
+    spec-lite hook run <event> --tracked [--execution <id>] [--action <id>] [--parent <parent-execution-id>] [--feature <FEAT-ID>] [--task <TASK-ID>] [--payload key=value ...]
 
-Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID.
+Use the scope named at that point. When invoked by a saved action, use its returned start command instead of opening another root execution. Retain the returned execution/action IDs on every later event. A fresh delegate uses `--parent <parent-execution-id>` and receives its own execution ID. If the user asks to skip a hook for this run, add `--skip <hook-name>` to every hook call of the run.
 
 Process context and `SPEC-LITE-WORKTREE` updates first; use the returned workspace for all subsequent reads, edits, tests and hook calls. Then inspect the final control result:
 

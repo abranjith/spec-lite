@@ -116,9 +116,12 @@ Implement Critical and High findings from .spec-lite/reviews/review_checkout.md
 ## Automating what happens next
 
 Review emits `review.post` and `review.verdict` as lifecycle events, and
-`review.verdict` carries `${verdict}` and `${summary}`. That is the routing
-signal — subscribe to it to notify a channel, open an issue, or hand off to Fix
-automatically. See [Hooks](hooks.md#more-examples).
+`review.verdict` carries `${verdict}`, `${verdict.code}` (`pass`,
+`changes-required`, or `blocked`), and `${summary}`. That is the routing
+signal: subscribe to it to notify a channel, hand off to another role, or ask
+what to do next with a checkpoint that answers itself when the review passes.
+See [Hooks](hooks.md#write-each-type) and
+[Gates and checkpoints](hooks-gates-checkpoints.md#automatic-answers-and-loop-limits).
 
 ## Related
 
