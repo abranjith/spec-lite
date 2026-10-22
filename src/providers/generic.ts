@@ -2,6 +2,7 @@ import path from "path";
 import fs from "fs-extra";
 import type { Provider, PromptMeta } from "./base.js";
 import { getPromptOutputName } from "../utils/prompts.js";
+import { hasSpecPrefix, legacySpecName, toSpecName } from "../utils/naming.js";
 
 /**
  * Generic provider — for manual usage or unsupported AI tools.
@@ -18,9 +19,16 @@ export class GenericProvider implements Provider {
   supportsGlobal = false;
 
   getOutputPaths(promptName: string): { prompt: string } {
-    const outName = getPromptOutputName(promptName);
+    const outName = toSpecName(getPromptOutputName(promptName));
     return {
-      prompt: path.join(".spec-lite", "prompts", `spec.${outName}.md`),
+      prompt: path.join(".spec-lite", "prompts", `${outName}.md`),
+    };
+  }
+
+  getLegacyOutputPaths(promptName: string): { prompt: string } {
+    const outName = legacySpecName(getPromptOutputName(promptName));
+    return {
+      prompt: path.join(".spec-lite", "prompts", `${outName}.md`),
     };
   }
 
@@ -40,7 +48,7 @@ export class GenericProvider implements Provider {
     if (await fs.pathExists(dir)) {
       const files = await fs.readdir(dir);
       for (const f of files) {
-        if (f.startsWith("spec.") && f.endsWith(".md")) {
+        if (hasSpecPrefix(f) && f.endsWith(".md")) {
           existing.push(path.join(".spec-lite", "prompts", f));
         }
       }

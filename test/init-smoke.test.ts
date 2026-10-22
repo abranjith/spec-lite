@@ -3,6 +3,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import { describe, expect, it, vi } from "vitest";
 import { initCommand } from "../src/commands/init.js";
+import { getPackageVersion } from "../src/utils/package-version.js";
 
 async function allTextFiles(root: string): Promise<string> {
   const chunks: string[] = [];
@@ -24,22 +25,31 @@ describe("fresh provider initialization", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     const expected: Record<string, string[]> = {
       copilot: [
-        ".github/agents/spec.planner.agent.md",
-        ".github/prompts/spec.help.prompt.md",
+        ".github/agents/spec-planner.agent.md",
+        ".github/agents/spec-feature-planner.agent.md",
+        ".github/prompts/spec-help.prompt.md",
         ".github/skills/spec-review/SKILL.md",
       ],
       "claude-code": [
-        ".claude/agents/spec.planner.md",
-        ".claude/commands/spec.help.md",
+        ".claude/agents/spec-planner.md",
+        ".claude/agents/spec-feature-planner.md",
+        ".claude/commands/spec-help.md",
+        ".claude/commands/spec-plan-feature.md",
+        ".claude/skills/spec-review/SKILL.md",
+        ".claude/skills/spec-plan-critic/SKILL.md",
       ],
       codex: [
-        ".codex/agents/spec.planner.toml",
+        ".codex/agents/spec-planner.toml",
         ".agents/skills/spec-review/SKILL.md",
       ],
-      pi: [".pi/prompts/spec.plan.md", ".pi/skills/spec-review/SKILL.md"],
+      pi: [
+        ".pi/prompts/spec-plan.md",
+        ".pi/prompts/spec-plan-feature.md",
+        ".pi/skills/spec-review/SKILL.md",
+      ],
       generic: [
-        ".spec-lite/prompts/spec.plan.md",
-        ".spec-lite/prompts/spec.orchestrator.md",
+        ".spec-lite/prompts/spec-plan.md",
+        ".spec-lite/prompts/spec-orchestrator.md",
       ],
     };
 
@@ -58,7 +68,7 @@ describe("fresh provider initialization", () => {
         }
 
         const config = await fs.readJson(path.join(target, ".spec-lite.json"));
-        expect(config.version).toBe("0.4.3");
+        expect(config.version).toBe(getPackageVersion());
         expect(config.documentation).toEqual({
           directory: "docs",
           level: "technical",
@@ -71,12 +81,24 @@ describe("fresh provider initialization", () => {
 
       expect(
         await fs.pathExists(
-          path.join(root, "claude-code", ".claude", "agents", "spec.help.md")
+          path.join(root, "claude-code", ".claude", "agents", "spec-help.md")
         )
       ).toBe(false);
       expect(
         await fs.pathExists(
-          path.join(root, "codex", ".codex", "agents", "spec.help.toml")
+          path.join(root, "codex", ".codex", "agents", "spec-help.toml")
+        )
+      ).toBe(false);
+      // Claude Code skills are native skill directories, not command files.
+      expect(
+        await fs.pathExists(
+          path.join(
+            root,
+            "claude-code",
+            ".claude",
+            "commands",
+            "spec-review.md"
+          )
         )
       ).toBe(false);
     } finally {

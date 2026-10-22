@@ -1,28 +1,25 @@
 import path from "path";
 import os from "os";
 import fs from "fs-extra";
-import type { Provider, PromptMeta } from "./base.js";
+import type { Provider, PromptMeta, OutputScope } from "./base.js";
 import {
   getAgentOutputName,
   getPromptOutputName,
   hasPromptName,
   isPromptOnly,
 } from "../utils/prompts.js";
+import {
+  hasSpecPrefix,
+  legacySpecName,
+  toSpecName,
+  yamlFrontmatter,
+} from "../utils/naming.js";
 import { detectHarnessMarkers } from "../utils/harness-detection.js";
-
-/**
- * Convert an internal skill name to its native Agent Skills output directory name.
- * Replaces underscores with hyphens and adds `spec-` prefix.
- * e.g., "implement" → "spec-implement", "document_feature" → "spec-document-feature"
- */
-export function getSkillDirName(name: string): string {
-  return `spec-${name.replace(/_/g, "-")}`;
-}
 
 // ---------------------------------------------------------------------------
 // Handoffs map — derived from the orchestrator pipeline.
 // Each key is an *internal* prompt name and the value is an ordered list of
-// suggested next-step handoffs.  The `agent` field uses the "spec.<agentName>"
+// suggested next-step handoffs.  The `agent` field uses the "spec-<agentName>"
 // convention (noun-form, matching the .agent.md file).
 // ---------------------------------------------------------------------------
 
@@ -38,12 +35,12 @@ export const AGENT_HANDOFFS: Record<string, Handoff[]> = {
   brainstorm: [
     {
       label: "Create Plan",
-      agent: "spec.planner",
+      agent: "spec-planner",
       prompt: "Create a technical plan from this brainstorm.",
     },
     {
       label: "Capture Conventions",
-      agent: "spec.memorize",
+      agent: "spec-memorize",
       prompt:
         "Capture durable project conventions discovered during brainstorming.",
     },
@@ -51,193 +48,193 @@ export const AGENT_HANDOFFS: Record<string, Handoff[]> = {
   plan: [
     {
       label: "Critique Plan",
-      agent: "spec.plan_critic",
+      agent: "spec-plan-critic",
       prompt: "Critique this plan before implementation.",
     },
     {
       label: "Break Down Features",
-      agent: "spec.feature",
+      agent: "spec-feature",
       prompt: "Create feature specifications for this plan.",
     },
     {
       label: "Design Architecture",
-      agent: "spec.architect",
+      agent: "spec-architect",
       prompt: "Design the infrastructure architecture for this plan.",
     },
     {
       label: "Design Data Model",
-      agent: "spec.data_model_builder",
+      agent: "spec-data-model-builder",
       prompt: "Design the relational data model for this plan.",
     },
   ],
   plan_critic: [
     {
       label: "Revise Plan",
-      agent: "spec.planner",
+      agent: "spec-planner",
       prompt: "Revise the plan using this critique.",
     },
     {
       label: "Break Down Features",
-      agent: "spec.feature",
+      agent: "spec-feature",
       prompt: "Create feature specifications after applying the critique.",
     },
   ],
   architect: [
     {
       label: "Design Data Model",
-      agent: "spec.data_model_builder",
+      agent: "spec-data-model-builder",
       prompt: "Design the data model for this architecture.",
     },
     {
       label: "Set Up Infrastructure",
-      agent: "spec.devops",
+      agent: "spec-devops",
       prompt: "Implement the infrastructure design.",
     },
   ],
   feature: [
     {
       label: "Implement Feature",
-      agent: "spec.implementer",
+      agent: "spec-implementer",
       prompt: "Implement this feature specification.",
     },
     {
       label: "Write Unit Tests",
-      agent: "spec.unit_tester",
+      agent: "spec-unit-tester",
       prompt: "Design unit tests for this feature specification.",
     },
   ],
   plan_feature: [
     {
       label: "Implement Feature",
-      agent: "spec.implementer",
+      agent: "spec-implementer",
       prompt: "Implement this focused feature specification.",
     },
   ],
   implement: [
     {
       label: "Review Implementation",
-      agent: "spec.reviewer",
+      agent: "spec-reviewer",
       prompt:
         "Review this implemented feature for correctness, security, and performance.",
     },
     {
       label: "Write Integration Tests",
-      agent: "spec.integration_tester",
+      agent: "spec-integration-tester",
       prompt: "Write integration tests for this implementation.",
     },
     {
       label: "Update Documentation",
-      agent: "spec.documenter",
+      agent: "spec-documenter",
       prompt: "Update documentation for the implemented feature.",
     },
   ],
   write_unit_tests: [
     {
       label: "Review Implementation",
-      agent: "spec.reviewer",
+      agent: "spec-reviewer",
       prompt: "Review the implementation and tests.",
     },
     {
       label: "Write Integration Tests",
-      agent: "spec.integration_tester",
+      agent: "spec-integration-tester",
       prompt: "Add integration coverage at component boundaries.",
     },
   ],
   review: [
     {
       label: "Fix Findings",
-      agent: "spec.fixer",
+      agent: "spec-fixer",
       prompt: "Fix the actionable REV findings in this review.",
     },
     {
       label: "Document Changes",
-      agent: "spec.documenter",
+      agent: "spec-documenter",
       prompt: "Update documentation for the reviewed implementation.",
     },
   ],
   write_integration_tests: [
     {
       label: "Review Covered Code",
-      agent: "spec.reviewer",
+      agent: "spec-reviewer",
       prompt: "Review the code covered by these integration tests.",
     },
     {
       label: "Update Documentation",
-      agent: "spec.documenter",
+      agent: "spec-documenter",
       prompt: "Update documentation with verified integration behavior.",
     },
   ],
   fix: [
     {
       label: "Review Fix",
-      agent: "spec.reviewer",
+      agent: "spec-reviewer",
       prompt: "Review this fix for regressions, security, and performance.",
     },
     {
       label: "Write Regression Tests",
-      agent: "spec.unit_tester",
+      agent: "spec-unit-tester",
       prompt: "Add unit regression coverage for this fix.",
     },
     {
       label: "Update Documentation",
-      agent: "spec.documenter",
+      agent: "spec-documenter",
       prompt: "Update documentation affected by this fix.",
     },
   ],
   memorize: [
     {
       label: "Create Plan",
-      agent: "spec.planner",
+      agent: "spec-planner",
       prompt: "Create a plan using the captured conventions.",
     },
     {
       label: "Document Project",
-      agent: "spec.documenter",
+      agent: "spec-documenter",
       prompt: "Document the project using the captured conventions.",
     },
   ],
   document: [
     {
       label: "Document Design",
-      agent: "spec.design_documenter",
+      agent: "spec-design-documenter",
       prompt: "Update the architecture documentation.",
     },
     {
       label: "Document Usage",
-      agent: "spec.usage_documenter",
+      agent: "spec-usage-documenter",
       prompt: "Update verified quickstart and usage documentation.",
     },
     {
       label: "Update README",
-      agent: "spec.readme_writer",
+      agent: "spec-readme-writer",
       prompt: "Update the README and documentation index.",
     },
   ],
   document_feature: [
     {
       label: "Update README",
-      agent: "spec.readme_writer",
+      agent: "spec-readme-writer",
       prompt: "Refresh the README index for this feature documentation.",
     },
   ],
   document_design: [
     {
       label: "Update README",
-      agent: "spec.readme_writer",
+      agent: "spec-readme-writer",
       prompt: "Refresh the README architecture links.",
     },
   ],
   document_usage: [
     {
       label: "Update README",
-      agent: "spec.readme_writer",
+      agent: "spec-readme-writer",
       prompt: "Refresh the README quickstart and usage links.",
     },
   ],
   document_readme: [
     {
       label: "Review Documentation",
-      agent: "spec.reviewer",
+      agent: "spec-reviewer",
       prompt:
         "Review the documented commands and examples against the implementation.",
     },
@@ -245,44 +242,44 @@ export const AGENT_HANDOFFS: Record<string, Handoff[]> = {
   devops: [
     {
       label: "Review Infrastructure",
-      agent: "spec.reviewer",
+      agent: "spec-reviewer",
       prompt:
         "Review the infrastructure configuration for correctness, security, and performance.",
     },
     {
       label: "Document Deployment",
-      agent: "spec.documenter",
+      agent: "spec-documenter",
       prompt: "Update deployment and operations documentation.",
     },
   ],
   build_data_model: [
     {
       label: "Break Down Features",
-      agent: "spec.feature",
+      agent: "spec-feature",
       prompt: "Create feature specs using this data model.",
     },
     {
       label: "Implement Data Layer",
-      agent: "spec.implementer",
+      agent: "spec-implementer",
       prompt: "Implement the data layer from this model.",
     },
   ],
   yolo: [
     {
       label: "Resume YOLO",
-      agent: "spec.yolo",
+      agent: "spec-yolo",
       prompt: "Resume the autonomous pipeline from its saved state.",
     },
     {
       label: "Check Pipeline Status",
-      agent: "spec.help",
+      agent: "spec-help",
       prompt: "Show the current pipeline and available roles.",
     },
   ],
   tool_help: [
     {
       label: "Implement With Tool",
-      agent: "spec.implementer",
+      agent: "spec-implementer",
       prompt: "Continue implementation using the project tool where relevant.",
     },
   ],
@@ -296,27 +293,49 @@ export const AGENT_HANDOFFS: Record<string, Handoff[]> = {
  */
 function buildAgentFrontmatter(meta: PromptMeta): string {
   const handoffs = AGENT_HANDOFFS[meta.name] ?? [];
-  const lines: string[] = ["---", `description: ${meta.description}`];
+  return yamlFrontmatter({
+    name: toSpecName(agentFileName(meta.name)),
+    description: meta.description || meta.title,
+    ...(handoffs.length > 0 ? { handoffs } : {}),
+  });
+}
 
-  if (handoffs.length > 0) {
-    lines.push("handoffs:");
-    for (const h of handoffs) {
-      lines.push(`  - label: ${h.label}`);
-      lines.push(`    agent: ${h.agent}`);
-      lines.push(`    prompt: ${h.prompt}`);
-    }
-  }
+/** Prompt-only items keep the verb name for their agent file (to preserve handoff support). */
+function agentFileName(promptName: string): string {
+  return isPromptOnly(promptName)
+    ? getPromptOutputName(promptName)
+    : getAgentOutputName(promptName);
+}
 
-  lines.push("---", "");
-  return lines.join("\n");
+type NameFormatter = (name: string) => string;
+
+/** Agent + prompt paths under `root`; `format` picks the current or legacy naming. */
+function outputPaths(
+  root: string,
+  promptName: string,
+  format: NameFormatter
+): { agent: string; prompt: string } {
+  return {
+    agent: path.join(
+      root,
+      "agents",
+      `${format(agentFileName(promptName))}.agent.md`
+    ),
+    prompt: path.join(
+      root,
+      "prompts",
+      `${format(getPromptOutputName(promptName))}.prompt.md`
+    ),
+  };
 }
 
 /**
  * GitHub Copilot provider.
  *
  * Writes two sets of files per prompt:
- *  - `.github/agents/spec.<agentName>.agent.md`  — custom agent files (noun-form, with frontmatter + handoffs)
- *  - `.github/prompts/spec.<promptName>.prompt.md` — prompt files (verb-form, plain markdown, for slash-command use)
+ *  - `.github/agents/spec-<agentName>.agent.md`  — custom agent files (noun-form, with frontmatter + handoffs)
+ *  - `.github/prompts/spec-<promptName>.prompt.md` — prompt files (verb-form, plain markdown, for slash-command use)
+ *  - `.github/skills/spec-<name>/SKILL.md` — native Agent Skills (replace the prompt file for skills)
  *
  * For prompt-only items, both files use the verb-form name (to preserve handoff support).
  *
@@ -331,51 +350,33 @@ export class CopilotProvider implements Provider {
   supportsGlobal = true;
 
   getOutputPaths(promptName: string): { agent: string; prompt: string } {
-    const agentName = isPromptOnly(promptName)
-      ? getPromptOutputName(promptName) // prompt-only: use verb name for agent file too
-      : getAgentOutputName(promptName); // agent+prompt: use noun name
-    const promptOutName = getPromptOutputName(promptName);
-
-    return {
-      agent: path.join(".github", "agents", `spec.${agentName}.agent.md`),
-      prompt: path.join(
-        ".github",
-        "prompts",
-        `spec.${promptOutName}.prompt.md`
-      ),
-    };
+    return outputPaths(".github", promptName, toSpecName);
   }
 
   getGlobalOutputPaths(promptName: string): { agent: string; prompt: string } {
-    const homeDir = os.homedir();
-    const agentName = isPromptOnly(promptName)
-      ? getPromptOutputName(promptName)
-      : getAgentOutputName(promptName);
-    const promptOutName = getPromptOutputName(promptName);
+    return outputPaths(
+      path.join(os.homedir(), ".copilot"),
+      promptName,
+      toSpecName
+    );
+  }
 
-    return {
-      agent: path.join(
-        homeDir,
-        ".copilot",
-        "agents",
-        `spec.${agentName}.agent.md`
-      ),
-      prompt: path.join(
-        homeDir,
-        ".copilot",
-        "prompts",
-        `spec.${promptOutName}.prompt.md`
-      ),
-    };
+  getLegacyOutputPaths(
+    promptName: string,
+    scope: OutputScope
+  ): { agent: string; prompt: string } {
+    const root =
+      scope === "global" ? path.join(os.homedir(), ".copilot") : ".github";
+    return outputPaths(root, promptName, legacySpecName);
   }
 
   getSkillOutputDir(skillName: string): string {
-    return path.join(".github", "skills", getSkillDirName(skillName));
+    return path.join(".github", "skills", toSpecName(skillName));
   }
 
   getGlobalSkillOutputDir(skillName: string): string {
     const homeDir = os.homedir();
-    return path.join(homeDir, ".copilot", "skills", getSkillDirName(skillName));
+    return path.join(homeDir, ".copilot", "skills", toSpecName(skillName));
   }
 
   /** Transform content into an agent file: YAML frontmatter + prompt body. */
@@ -401,7 +402,7 @@ export class CopilotProvider implements Provider {
     if (await fs.pathExists(agentsDir)) {
       const files = await fs.readdir(agentsDir);
       for (const f of files) {
-        if (f.startsWith("spec.") && f.endsWith(".agent.md")) {
+        if (hasSpecPrefix(f) && f.endsWith(".agent.md")) {
           existing.push(path.join(".github", "agents", f));
         }
       }
@@ -412,7 +413,7 @@ export class CopilotProvider implements Provider {
     if (await fs.pathExists(promptsDir)) {
       const files = await fs.readdir(promptsDir);
       for (const f of files) {
-        if (f.startsWith("spec.") && f.endsWith(".prompt.md")) {
+        if (hasSpecPrefix(f) && f.endsWith(".prompt.md")) {
           existing.push(path.join(".github", "prompts", f));
         }
       }
@@ -475,13 +476,13 @@ export class CopilotProvider implements Provider {
       "",
       "📋 GitHub Copilot setup complete!",
       "",
-      "  Agent files  : .github/agents/spec.<name>.agent.md  (noun-form — e.g. spec.planner)",
+      "  Agent files  : .github/agents/spec-<name>.agent.md  (noun-form — e.g. spec-planner)",
       "  Skill dirs   : .github/skills/spec-<name>/SKILL.md  (auto-discovered by Copilot)",
-      "  Prompt files : .github/prompts/spec.<name>.prompt.md (verb-form — e.g. spec.plan)",
+      "  Prompt files : .github/prompts/spec-<name>.prompt.md (verb-form — e.g. spec-plan)",
       "",
       "  How to use:",
       "  1. Open GitHub Copilot Chat in VS Code",
-      "  2. Select an agent from the agents dropdown (e.g., spec.planner)",
+      "  2. Select an agent from the agents dropdown (e.g., spec-planner)",
       "     — or — reference a prompt file with #file or type / to browse",
       "  3. Skills are auto-discovered — just describe the task and Copilot activates the right skill",
       "  4. Agent files include handoff buttons to guide you through the pipeline",
@@ -495,9 +496,9 @@ export class CopilotProvider implements Provider {
       "",
       "📋 GitHub Copilot global install complete!",
       "",
-      `  Agent files  : ~/.copilot/agents/spec.<name>.agent.md`,
+      `  Agent files  : ~/.copilot/agents/spec-<name>.agent.md`,
       `  Skill dirs   : ~/.copilot/skills/spec-<name>/SKILL.md`,
-      `  Prompt files : ~/.copilot/prompts/spec.<name>.prompt.md`,
+      `  Prompt files : ~/.copilot/prompts/spec-<name>.prompt.md`,
       "",
       "  These are available across all your workspaces in Copilot Chat.",
       "",
@@ -539,12 +540,8 @@ export function generateSpecLiteBlock(
   ];
 
   for (const name of installedPrompts) {
-    const agentName = isPromptOnly(name)
-      ? getPromptOutputName(name)
-      : getAgentOutputName(name);
-    lines.push(
-      `- [spec.${agentName}](.github/agents/spec.${agentName}.agent.md)`
-    );
+    const agentName = toSpecName(agentFileName(name));
+    lines.push(`- [${agentName}](.github/agents/${agentName}.agent.md)`);
   }
 
   if (nativeSkills.length > 0) {
@@ -555,7 +552,7 @@ export function generateSpecLiteBlock(
     );
 
     for (const name of nativeSkills) {
-      const dirName = getSkillDirName(name);
+      const dirName = toSpecName(name);
       lines.push(`- [${dirName}](.github/skills/${dirName}/SKILL.md)`);
     }
   }
@@ -568,10 +565,8 @@ export function generateSpecLiteBlock(
     );
 
     for (const name of promptFileNames) {
-      const promptName = getPromptOutputName(name);
-      lines.push(
-        `- [spec.${promptName}](.github/prompts/spec.${promptName}.prompt.md)`
-      );
+      const promptName = toSpecName(getPromptOutputName(name));
+      lines.push(`- [${promptName}](.github/prompts/${promptName}.prompt.md)`);
     }
   }
 
@@ -580,9 +575,9 @@ export function generateSpecLiteBlock(
       "",
       "Suggested manual checkpoint after planning:",
       "",
-      "- `/spec.plan_critic .spec-lite/plan.md`",
-      "- `/spec.plan_critic .spec-lite/plan_<name>.md .spec-lite/brainstorm.md`",
-      "- `/spec.plan_critic .spec-lite/plan_<name>.md .spec-lite/features/feature_<name>.md`"
+      "- `/spec-plan-critic .spec-lite/plan.md`",
+      "- `/spec-plan-critic .spec-lite/plan_<name>.md .spec-lite/brainstorm.md`",
+      "- `/spec-plan-critic .spec-lite/plan_<name>.md .spec-lite/features/feature_<name>.md`"
     );
   }
 

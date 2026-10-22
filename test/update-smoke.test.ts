@@ -5,6 +5,7 @@ import inquirer from "inquirer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { updateCommand } from "../src/commands/update.js";
 import { loadAllSources } from "../src/utils/prompts.js";
+import { getPackageVersion } from "../src/utils/package-version.js";
 
 describe("legacy workspace update", () => {
   afterEach(() => {
@@ -71,7 +72,7 @@ describe("legacy workspace update", () => {
 
       expect(
         await fs.pathExists(
-          path.join(root, ".github", "agents", "spec.architect.agent.md")
+          path.join(root, ".github", "agents", "spec-architect.agent.md")
         )
       ).toBe(true);
       expect(
@@ -81,23 +82,23 @@ describe("legacy workspace update", () => {
       ).toBe(true);
       expect(
         await fs.pathExists(
-          path.join(root, ".github", "prompts", "spec.plan.prompt.md")
+          path.join(root, ".github", "prompts", "spec-plan.prompt.md")
         )
       ).toBe(true);
       expect(
         await fs.pathExists(
-          path.join(root, ".github", "prompts", "spec.help.prompt.md")
+          path.join(root, ".github", "prompts", "spec-help.prompt.md")
         )
       ).toBe(true);
       expect(
         await fs.pathExists(
-          path.join(root, ".spec-lite", "prompts", "spec.document.md")
+          path.join(root, ".spec-lite", "prompts", "spec-document.md")
         )
       ).toBe(true);
 
       const config = await fs.readJson(path.join(root, ".spec-lite.json"));
       expect(config).toMatchObject({
-        version: "0.4.3",
+        version: getPackageVersion(),
         format: "v2",
         provider: "copilot",
         providers: ["copilot", "generic"],

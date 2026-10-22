@@ -259,7 +259,7 @@ export const PROMPT_CATALOG: Record<
   memorize: {
     title: "Memorize",
     description:
-      "Stores standing instructions that all agents and skills enforce. Use `/spec.memorize bootstrap` to auto-generate from project analysis.",
+      "Stores standing instructions that all agents and skills enforce. Use `/spec-memorize bootstrap` to auto-generate from project analysis.",
     output: ".spec-lite/memory.md",
   },
   document: {

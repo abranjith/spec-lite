@@ -55,8 +55,8 @@ Brainstorm → Plan → Feature × N → Implement → Review → Integration Te
 
 | Step | Select | Say something like |
 |---|---|---|
-| 1 | `spec.brainstormer` | "Turn this shared grocery-list idea into a concise product vision." |
-| 2 | `spec.planner` | "Plan the app from `.spec-lite/brainstorm.md` using TypeScript, React, and PostgreSQL." |
+| 1 | `spec-brainstormer` | "Turn this shared grocery-list idea into a concise product vision." |
+| 2 | `spec-planner` | "Plan the app from `.spec-lite/brainstorm.md` using TypeScript, React, and PostgreSQL." |
 | 3 | `spec-feature` | "Create feature specs for every incomplete feature in `.spec-lite/plan.md`." |
 | 4 | `spec-implement` | "Implement `.spec-lite/features/FEAT-001-shared_lists/spec.md` and verify every task." |
 | 5 | `spec-review` | "Review feature `shared_lists` after implementation." |
@@ -94,8 +94,8 @@ harnesses.
 A handoff does not depend on copying a chat transcript. Each role reads the
 relevant repository artifacts again:
 
-1. Use `spec.brainstormer` in Claude Code to write `.spec-lite/brainstorm.md`.
-2. Open the same repository in Codex and use `spec.planner`; it reads the
+1. Use `spec-brainstormer` in Claude Code to write `.spec-lite/brainstorm.md`.
+2. Open the same repository in Codex and use `spec-planner`; it reads the
    brainstorm and shared memory, then writes `.spec-lite/plan.md`.
 3. Use the `spec-feature` skill in Pi to create a feature spec under
    `.spec-lite/features/`.

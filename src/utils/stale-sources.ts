@@ -1,5 +1,7 @@
 import path from "node:path";
-import type { Provider, SourceItem } from "../providers/base.js";
+import fs from "fs-extra";
+import type { OutputScope, Provider, SourceItem } from "../providers/base.js";
+import { extractProjectContext } from "./prompts.js";
 
 export interface RemovedSource {
   internalName: string;
@@ -57,6 +59,11 @@ function protectedOutputPaths(
     const paths = provider.getOutputPaths(source.name);
     if (paths.prompt) protectedPaths.add(portable(paths.prompt));
     if (paths.agent) protectedPaths.add(portable(paths.agent));
+    // Pre-0.5.0 names of current sources are migrated by resolveLegacyRenames,
+    // which carries their Project Context over before removing them.
+    const legacy = provider.getLegacyOutputPaths?.(source.name, "project");
+    if (legacy?.prompt) protectedPaths.add(portable(legacy.prompt));
+    if (legacy?.agent) protectedPaths.add(portable(legacy.agent));
     if (
       source.kind === "skill" &&
       provider.supportsNativeSkills &&
@@ -103,4 +110,68 @@ export async function resolveStaleOutputPaths(
   }
 
   return [...stale].sort();
+}
+
+export interface LegacyRename {
+  /** Pre-0.5.0 dotted path: relative to the workspace for project scope, absolute for global. */
+  legacyPath: string;
+  /** Path that replaces it, in the same form: an agent/prompt file or a native skill directory. */
+  newPath: string;
+  /** Project Context block from the legacy file, so it survives the rename. */
+  contextBlock: string | null;
+}
+
+/**
+ * Find pre-0.5.0 `spec.<name>` outputs of the given sources that now live under
+ * Agent Skills–compliant `spec-<name>` paths. Only files that exist are returned.
+ */
+export async function resolveLegacyRenames(
+  workspaceRoot: string,
+  provider: Provider,
+  sources: SourceItem[],
+  scope: OutputScope
+): Promise<LegacyRename[]> {
+  if (!provider.getLegacyOutputPaths) return [];
+  const renames = new Map<string, LegacyRename>();
+
+  for (const source of sources) {
+    // Codex has no native primitive for prompt-only reference docs.
+    if (provider.alias === "codex" && source.kind === "reference") continue;
+
+    const legacy = provider.getLegacyOutputPaths(source.name, scope);
+    const current =
+      scope === "global"
+        ? (provider.getGlobalOutputPaths?.(source.name) ?? {})
+        : provider.getOutputPaths(source.name);
+    const skillDir =
+      scope === "global"
+        ? provider.getGlobalSkillOutputDir?.(source.name)
+        : provider.getSkillOutputDir?.(source.name);
+    const isNativeSkill =
+      source.kind === "skill" &&
+      !!source.frontmatter &&
+      provider.supportsNativeSkills &&
+      !!skillDir;
+
+    const pairs: Array<[string | undefined, string | undefined]> = [
+      [legacy.agent, current.agent],
+      [legacy.prompt, isNativeSkill ? skillDir : current.prompt],
+    ];
+    for (const [legacyPath, newPath] of pairs) {
+      if (!legacyPath || !newPath || renames.has(legacyPath)) continue;
+      const absolute =
+        scope === "global" ? legacyPath : path.join(workspaceRoot, legacyPath);
+      if (!(await fs.pathExists(absolute))) continue;
+      const content = await fs.readFile(absolute, "utf-8");
+      renames.set(legacyPath, {
+        legacyPath,
+        newPath,
+        contextBlock: extractProjectContext(content),
+      });
+    }
+  }
+
+  return [...renames.values()].sort((a, b) =>
+    a.legacyPath.localeCompare(b.legacyPath)
+  );
 }

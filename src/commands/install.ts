@@ -12,6 +12,7 @@ import {
 } from "../utils/prompts.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
 import { getPackageVersion } from "../utils/package-version.js";
+import { resolveLegacyRenames } from "../utils/stale-sources.js";
 
 interface InstallOptions {
   ai?: string | string[];
@@ -46,13 +47,13 @@ function parseProviderAliases(input?: string | string[]): string[] {
 function getPlanCriticNote(providerAlias: string): string | undefined {
   switch (providerAlias) {
     case "copilot":
-      return "  💡 Optional checkpoint after planning: /spec.plan_critic .spec-lite/plan.md";
+      return "  💡 Optional checkpoint after planning: /spec-plan-critic .spec-lite/plan.md";
     case "claude-code":
-      return "  💡 Optional checkpoint after planning: use spec.plan_critic against .spec-lite/plan.md in Claude Code.";
+      return "  💡 Optional checkpoint after planning: /spec-plan-critic .spec-lite/plan.md in Claude Code.";
     case "codex":
-      return "  💡 Optional checkpoint after planning: ask Codex to use spec.plan_critic against .spec-lite/plan.md.";
+      return "  💡 Optional checkpoint after planning: ask Codex to use the spec-plan-critic skill against .spec-lite/plan.md.";
     case "pi":
-      return "  💡 Optional checkpoint after planning: /spec.plan_critic .spec-lite/plan.md";
+      return "  💡 Optional checkpoint after planning: /skill:spec-plan-critic .spec-lite/plan.md";
     default:
       return undefined;
   }
@@ -259,6 +260,58 @@ export async function installCommand(options: InstallOptions): Promise<void> {
       await fs.writeFile(agentsMdPath, merged, "utf-8");
       written++;
       console.log(chalk.green(`  ✓ ${agentsMdPath}`));
+    }
+  }
+
+  // 4b. Pre-0.5.0 installs used dotted `spec.<name>` files; their renamed
+  // replacements are now written, so offer to remove the originals.
+  const renamedOutputs = (
+    await Promise.all(
+      providers.map(async (provider) =>
+        (await resolveLegacyRenames(homeDir, provider, sources, "global")).map(
+          (rename) => ({ provider: provider.name, ...rename })
+        )
+      )
+    )
+  ).flat();
+  if (renamedOutputs.length > 0) {
+    console.log(
+      chalk.yellow(
+        "\n  Global outputs renamed to Agent Skills names (https://agentskills.io/specification):"
+      )
+    );
+    for (const rename of renamedOutputs) {
+      console.log(
+        chalk.yellow(
+          `    - [${rename.provider}] ${rename.legacyPath}  →  ${rename.newPath}`
+        )
+      );
+    }
+
+    let removeLegacy = !!options.force;
+    if (!options.force) {
+      const answer = await inquirer.prompt<{ removeLegacy: boolean }>([
+        {
+          type: "confirm",
+          name: "removeLegacy",
+          message: "Remove the old global files?",
+          default: true,
+        },
+      ]);
+      removeLegacy = answer.removeLegacy;
+    }
+
+    if (removeLegacy) {
+      for (const { legacyPath } of renamedOutputs) {
+        const relativeCheck = path.relative(homeDir, legacyPath);
+        if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
+          throw new Error(
+            `Refusing to remove path outside the home directory: ${legacyPath}`
+          );
+        }
+        await fs.remove(legacyPath);
+        console.log(chalk.green(`  ✓ ${legacyPath} (removed old name)`));
+      }
     }
   }
 

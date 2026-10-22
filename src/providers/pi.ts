@@ -1,9 +1,14 @@
 import path from "path";
 import os from "os";
 import fs from "fs-extra";
-import type { Provider, PromptMeta } from "./base.js";
+import type { Provider, PromptMeta, OutputScope } from "./base.js";
 import { getPromptOutputName } from "../utils/prompts.js";
-import { getSkillDirName } from "./copilot.js";
+import {
+  hasSpecPrefix,
+  legacySpecName,
+  toSpecName,
+  yamlFrontmatter,
+} from "../utils/naming.js";
 import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
@@ -14,9 +19,9 @@ import { detectHarnessMarkers } from "../utils/harness-detection.js";
  * and `/skill:<name>` commands.
  *
  * Paths:
- *  - Project prompts:  `.pi/prompts/spec.<verb>.md`
+ *  - Project prompts:  `.pi/prompts/spec-<verb>.md`
  *  - Project skills:   `.pi/skills/spec-<name>/SKILL.md`
- *  - Global prompts:   `~/.pi/agent/prompts/spec.<verb>.md`
+ *  - Global prompts:   `~/.pi/agent/prompts/spec-<verb>.md`
  *  - Global skills:    `~/.pi/agent/skills/spec-<name>/SKILL.md`
  */
 export class PiProvider implements Provider {
@@ -28,50 +33,43 @@ export class PiProvider implements Provider {
   supportsGlobal = true;
 
   getOutputPaths(promptName: string): { prompt: string } {
-    const outName = getPromptOutputName(promptName);
+    const outName = toSpecName(getPromptOutputName(promptName));
     return {
-      prompt: path.join(".pi", "prompts", `spec.${outName}.md`),
+      prompt: path.join(".pi", "prompts", `${outName}.md`),
     };
   }
 
   getGlobalOutputPaths(promptName: string): { prompt: string } {
-    const homeDir = os.homedir();
-    const outName = getPromptOutputName(promptName);
+    const outName = toSpecName(getPromptOutputName(promptName));
     return {
-      prompt: path.join(
-        homeDir,
-        ".pi",
-        "agent",
-        "prompts",
-        `spec.${outName}.md`
-      ),
+      prompt: path.join(globalRoot(), "prompts", `${outName}.md`),
     };
   }
 
+  getLegacyOutputPaths(
+    promptName: string,
+    scope: OutputScope
+  ): { prompt: string } {
+    const root = scope === "global" ? globalRoot() : ".pi";
+    const outName = legacySpecName(getPromptOutputName(promptName));
+    return { prompt: path.join(root, "prompts", `${outName}.md`) };
+  }
+
   getSkillOutputDir(skillName: string): string {
-    return path.join(".pi", "skills", getSkillDirName(skillName));
+    return path.join(".pi", "skills", toSpecName(skillName));
   }
 
   getGlobalSkillOutputDir(skillName: string): string {
-    const homeDir = os.homedir();
-    return path.join(
-      homeDir,
-      ".pi",
-      "agent",
-      "skills",
-      getSkillDirName(skillName)
-    );
+    return path.join(globalRoot(), "skills", toSpecName(skillName));
   }
 
   transformPrompt(content: string, meta: PromptMeta): string {
     // Pi uses YAML frontmatter with a description field
-    const frontmatter = [
-      "---",
-      `description: ${meta.description}`,
-      "---",
-      "",
-    ].join("\n");
-    return frontmatter + content;
+    return (
+      yamlFrontmatter({ description: meta.description || meta.title }) +
+      "\n" +
+      content
+    );
   }
 
   async detectExisting(workspaceRoot: string): Promise<string[]> {
@@ -82,7 +80,7 @@ export class PiProvider implements Provider {
     if (await fs.pathExists(dir)) {
       const files = await fs.readdir(dir);
       for (const f of files) {
-        if (f.startsWith("spec.") && f.endsWith(".md")) {
+        if (hasSpecPrefix(f) && f.endsWith(".md")) {
           existing.push(path.join(".pi", "prompts", f));
         }
       }
@@ -124,7 +122,7 @@ export class PiProvider implements Provider {
       "",
       "📋 Pi setup complete!",
       "",
-      "  Prompt files : .pi/prompts/spec.<name>.md    (for agents & references)",
+      "  Prompt files : .pi/prompts/spec-<name>.md    (for agents & references)",
       "  Skill dirs   : .pi/skills/spec-<name>/SKILL.md  (auto-discovered by Pi)",
       "",
       "  How to use:",
@@ -141,11 +139,16 @@ export class PiProvider implements Provider {
       "",
       "📋 Pi global install complete!",
       "",
-      `  Prompt files : ~/.pi/agent/prompts/spec.<name>.md`,
+      `  Prompt files : ~/.pi/agent/prompts/spec-<name>.md`,
       `  Skill dirs   : ~/.pi/agent/skills/spec-<name>/SKILL.md`,
       "",
       "  These are available across all your workspaces in Pi Chat.",
       "",
     ].join("\n");
   }
+}
+
+/** Pi's user-level directory. */
+function globalRoot(): string {
+  return path.join(os.homedir(), ".pi", "agent");
 }

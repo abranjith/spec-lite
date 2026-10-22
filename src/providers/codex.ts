@@ -1,14 +1,14 @@
 import path from "path";
 import os from "os";
 import fs from "fs-extra";
-import type { Provider, PromptMeta } from "./base.js";
+import type { Provider, PromptMeta, OutputScope } from "./base.js";
 import {
   getAgentOutputName,
   getPromptOutputName,
   hasPromptName,
   isPromptOnly,
 } from "../utils/prompts.js";
-import { getSkillDirName } from "./copilot.js";
+import { hasSpecPrefix, legacySpecName, toSpecName } from "../utils/naming.js";
 import { detectHarnessMarkers } from "../utils/harness-detection.js";
 
 /**
@@ -24,7 +24,7 @@ import { detectHarnessMarkers } from "../utils/harness-detection.js";
  *    `references/`, `assets/`, `scripts/` subdirectories.
  *
  * Strategy:
- *  - Source agents → TOML subagents at `.codex/agents/spec.<agentName>.toml`
+ *  - Source agents → TOML subagents at `.codex/agents/spec-<agentName>.toml`
  *    (noun-form). The full markdown body is embedded in `developer_instructions`.
  *  - Source skills → `.agents/skills/spec-<name>/SKILL.md` (native Agent Skills).
  *  - Reference items (help, orchestrator) are skipped — Codex has no
@@ -52,30 +52,44 @@ export class CodexProvider implements Provider {
       prompt: path.join(
         ".codex",
         "agents",
-        `spec.${this.subagentFileName(promptName)}.toml`
+        `${toSpecName(subagentFileName(promptName))}.toml`
       ),
     };
   }
 
   getGlobalOutputPaths(promptName: string): { prompt: string } {
-    const homeDir = os.homedir();
     return {
       prompt: path.join(
-        homeDir,
+        os.homedir(),
         ".codex",
         "agents",
-        `spec.${this.subagentFileName(promptName)}.toml`
+        `${toSpecName(subagentFileName(promptName))}.toml`
+      ),
+    };
+  }
+
+  getLegacyOutputPaths(
+    promptName: string,
+    scope: OutputScope
+  ): { prompt: string } {
+    const root =
+      scope === "global" ? path.join(os.homedir(), ".codex") : ".codex";
+    return {
+      prompt: path.join(
+        root,
+        "agents",
+        `${legacySpecName(subagentFileName(promptName))}.toml`
       ),
     };
   }
 
   getSkillOutputDir(skillName: string): string {
-    return path.join(".agents", "skills", getSkillDirName(skillName));
+    return path.join(".agents", "skills", toSpecName(skillName));
   }
 
   getGlobalSkillOutputDir(skillName: string): string {
     const homeDir = os.homedir();
-    return path.join(homeDir, ".agents", "skills", getSkillDirName(skillName));
+    return path.join(homeDir, ".agents", "skills", toSpecName(skillName));
   }
 
   /**
@@ -88,7 +102,7 @@ export class CodexProvider implements Provider {
    * `spec-lite update`.
    */
   transformPrompt(content: string, meta: PromptMeta): string {
-    const subagentName = `spec.${this.subagentFileName(meta.name)}`;
+    const subagentName = toSpecName(subagentFileName(meta.name));
     const lines = [
       `# spec-lite | ${meta.name}`,
       `# DO NOT EDIT below the project-context block — managed by spec-lite`,
@@ -111,7 +125,7 @@ export class CodexProvider implements Provider {
     if (await fs.pathExists(agentsDir)) {
       const files = await fs.readdir(agentsDir);
       for (const f of files) {
-        if (f.startsWith("spec.") && f.endsWith(".toml")) {
+        if (hasSpecPrefix(f) && f.endsWith(".toml")) {
           existing.push(path.join(".codex", "agents", f));
         }
       }
@@ -167,13 +181,13 @@ export class CodexProvider implements Provider {
       "",
       "📋 OpenAI Codex setup complete!",
       "",
-      "  Subagents : .codex/agents/spec.<name>.toml  (noun-form — e.g. spec.planner)",
+      "  Subagents : .codex/agents/spec-<name>.toml  (noun-form — e.g. spec-planner)",
       "  Skills    : .agents/skills/spec-<name>/SKILL.md (auto-discovered by Codex)",
       "  Root      : AGENTS.md (Codex reads it automatically as project context)",
       "",
       "  How to use:",
       "  1. Codex automatically loads AGENTS.md for project instructions",
-      "  2. Invoke a subagent by name (e.g., 'use spec.planner to draft a plan')",
+      "  2. Invoke a subagent by name (e.g., 'use spec-planner to draft a plan')",
       "  3. Skills are auto-discovered — describe the task and Codex activates the right skill",
       "  4. Customize the Project Context block in each file for your project",
       "",
@@ -185,7 +199,7 @@ export class CodexProvider implements Provider {
       "",
       "📋 OpenAI Codex global install complete!",
       "",
-      `  Subagents : ~/.codex/agents/spec.<name>.toml`,
+      `  Subagents : ~/.codex/agents/spec-<name>.toml`,
       `  Skills    : ~/.agents/skills/spec-<name>/SKILL.md`,
       `  Root      : ~/.codex/AGENTS.md (Codex reads it automatically as global context)`,
       "",
@@ -193,13 +207,13 @@ export class CodexProvider implements Provider {
       "",
     ].join("\n");
   }
+}
 
-  /** Pick verb-form for prompt-only items, noun-form otherwise. */
-  private subagentFileName(internalName: string): string {
-    return isPromptOnly(internalName)
-      ? getPromptOutputName(internalName)
-      : getAgentOutputName(internalName);
-  }
+/** Pick verb-form for prompt-only items, noun-form otherwise. */
+function subagentFileName(internalName: string): string {
+  return isPromptOnly(internalName)
+    ? getPromptOutputName(internalName)
+    : getAgentOutputName(internalName);
 }
 
 // ---------------------------------------------------------------------------
@@ -246,18 +260,16 @@ export function generateCodexAgentsBlock(
 
   if (subagentNames.length > 0) {
     lines.push(
-      `**Subagents** (\`${subagentsDir}\`) — invoke by name (e.g., \`use spec.planner\`):`,
+      `**Subagents** (\`${subagentsDir}\`) — invoke by name (e.g., \`use spec-planner\`):`,
       ""
     );
     for (const name of subagentNames) {
-      const subagent = isPromptOnly(name)
-        ? getPromptOutputName(name)
-        : getAgentOutputName(name);
-      const subagentPath = `${subagentsDir}spec.${subagent}.toml`;
+      const subagent = toSpecName(subagentFileName(name));
+      const subagentPath = `${subagentsDir}${subagent}.toml`;
       lines.push(
         isGlobal
-          ? `- \`spec.${subagent}\` (${subagentPath})`
-          : `- [spec.${subagent}](${subagentPath})`
+          ? `- \`${subagent}\` (${subagentPath})`
+          : `- [${subagent}](${subagentPath})`
       );
     }
   }
@@ -269,7 +281,7 @@ export function generateCodexAgentsBlock(
       ""
     );
     for (const name of skillNames) {
-      const dirName = getSkillDirName(name);
+      const dirName = toSpecName(name);
       const skillPath = `${skillsDir}${dirName}/SKILL.md`;
       lines.push(
         isGlobal
@@ -284,7 +296,7 @@ export function generateCodexAgentsBlock(
       "",
       "Suggested manual checkpoint after planning:",
       "",
-      "- Use `spec.plan_critic` against `.spec-lite/plan.md` to pressure-test feasibility before implementation."
+      "- Use the `spec-plan-critic` skill against `.spec-lite/plan.md` to pressure-test feasibility before implementation."
     );
   }
 

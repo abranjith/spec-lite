@@ -19,7 +19,11 @@ import { mergeCopilotInstructions } from "../providers/copilot.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
 import { collectDocumentationSettings } from "../utils/documentation.js";
 import { getStackSnippetInfo } from "../utils/stacks.js";
-import { resolveStaleOutputPaths } from "../utils/stale-sources.js";
+import {
+  resolveLegacyRenames,
+  resolveStaleOutputPaths,
+  type LegacyRename,
+} from "../utils/stale-sources.js";
 import { buildGroupedSourceChoices } from "../utils/source-selection.js";
 import { getPackageVersion } from "../utils/package-version.js";
 import {
@@ -38,7 +42,7 @@ function normalizePromptToken(value: string): string {
   return value
     .trim()
     .toLowerCase()
-    .replace(/^spec\./, "")
+    .replace(/^spec[.-]/, "")
     .replace(/\.agent\.md$|\.prompt\.md$|\.md$/, "");
 }
 
@@ -80,10 +84,23 @@ async function updateFile(
   absPath: string,
   relPath: string,
   newContent: string,
-  force: boolean
+  force: boolean,
+  seedContext: string | null = null
 ): Promise<{ updated: number; preserved: number; unchanged: number }> {
   if (!(await fs.pathExists(absPath))) {
     await fs.ensureDir(path.dirname(absPath));
+    // A renamed output inherits the Project Context of the file it replaces.
+    if (seedContext && !force) {
+      await fs.writeFile(
+        absPath,
+        replaceProjectContext(newContent, seedContext),
+        "utf-8"
+      );
+      console.log(
+        chalk.green(`  ✓ ${relPath} (renamed, Project Context preserved)`)
+      );
+      return { updated: 1, preserved: 1, unchanged: 0 };
+    }
     await fs.writeFile(absPath, newContent, "utf-8");
     console.log(chalk.green(`  ✓ ${relPath} (restored)`));
     return { updated: 1, preserved: 0, unchanged: 0 };
@@ -110,6 +127,21 @@ async function updateFile(
   await fs.writeFile(absPath, newContent, "utf-8");
   console.log(chalk.green(`  ✓ ${relPath} (updated)`));
   return { updated: 1, preserved: 0, unchanged: 0 };
+}
+
+/** Remove a workspace-relative path, refusing anything that resolves outside the workspace. */
+async function removeWorkspacePath(
+  cwd: string,
+  relativePath: string
+): Promise<void> {
+  const absolutePath = path.resolve(cwd, relativePath);
+  const relativeCheck = path.relative(cwd, absolutePath);
+  if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
+    throw new Error(
+      `Refusing to remove path outside workspace: ${relativePath}`
+    );
+  }
+  await fs.remove(absolutePath);
 }
 
 export async function updateCommand(options: UpdateOptions): Promise<void> {
@@ -273,14 +305,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
 
     if (removeStale) {
       for (const { relativePath } of staleOutputs) {
-        const absolutePath = path.resolve(cwd, relativePath);
-        const relativeCheck = path.relative(cwd, absolutePath);
-        if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
-          throw new Error(
-            `Refusing to remove path outside workspace: ${relativePath}`
-          );
-        }
-        await fs.remove(absolutePath);
+        await removeWorkspacePath(cwd, relativePath);
         console.log(
           chalk.green(`  ✓ ${relativePath} (removed obsolete output)`)
         );
@@ -390,6 +415,16 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   const sources = allSources.filter((s) => selectedSet.has(s.name));
   const resolvedInstalledPrompts = Array.from(selectedSet);
 
+  // Pre-0.5.0 `spec.<name>` outputs move to Agent Skills–compliant
+  // `spec-<name>` paths. Read their Project Context now so the new files keep it.
+  const legacyRenames = new Map<string, LegacyRename[]>();
+  for (const provider of providers) {
+    legacyRenames.set(
+      provider.alias,
+      await resolveLegacyRenames(cwd, provider, sources, "project")
+    );
+  }
+
   let updated = 0;
   let preserved = 0;
   let unchanged = 0;
@@ -397,6 +432,12 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   for (const provider of providers) {
     console.log(chalk.cyan(`\n  Updating prompts for ${provider.name}...`));
     const nativeSkillNames = new Set<string>();
+    const seedContexts = new Map(
+      (legacyRenames.get(provider.alias) ?? []).map((rename) => [
+        rename.newPath,
+        rename.contextBlock,
+      ])
+    );
 
     for (const source of sources) {
       // Codex has no native primitive for prompt-only reference docs.
@@ -423,9 +464,13 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
         const skillMdAbs = path.join(skillAbsDir, "SKILL.md");
 
         let contextBlock: string | null = null;
-        if (!options.force && (await fs.pathExists(skillMdAbs))) {
-          const existing = await fs.readFile(skillMdAbs, "utf-8");
-          contextBlock = extractProjectContext(existing);
+        if (!options.force) {
+          if (await fs.pathExists(skillMdAbs)) {
+            const existing = await fs.readFile(skillMdAbs, "utf-8");
+            contextBlock = extractProjectContext(existing);
+          } else {
+            contextBlock = seedContexts.get(skillOutDir) ?? null;
+          }
         }
 
         const filesCopied = await copyNativeSkillDir(
@@ -454,7 +499,8 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
           path.join(cwd, paths.agent),
           paths.agent,
           newContent,
-          !!options.force
+          !!options.force,
+          seedContexts.get(paths.agent)
         );
         updated += result.updated;
         preserved += result.preserved;
@@ -468,7 +514,8 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
           path.join(cwd, paths.prompt),
           paths.prompt,
           newPromptContent,
-          !!options.force
+          !!options.force,
+          seedContexts.get(paths.prompt)
         );
         updated += result.updated;
         preserved += result.preserved;
@@ -479,7 +526,10 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     // 3. Update provider-specific extras
     if (provider.alias === "claude-code") {
       const claudeMdPath = path.join(cwd, "CLAUDE.md");
-      const claudeMdContent = generateClaudeRootMd(resolvedInstalledPrompts);
+      const claudeMdContent = generateClaudeRootMd(
+        resolvedInstalledPrompts,
+        nativeSkillNames
+      );
       await fs.writeFile(claudeMdPath, claudeMdContent, "utf-8");
       console.log(chalk.green(`  ✓ CLAUDE.md (regenerated)`));
     }
@@ -520,6 +570,54 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
       );
       await fs.writeFile(agentsMdPath, merged, "utf-8");
       console.log(chalk.green(`  ✓ AGENTS.md (updated)`));
+    }
+  }
+
+  // The renamed outputs are written; offer to remove their dotted originals.
+  const renamedOutputs = providers.flatMap((provider) =>
+    (legacyRenames.get(provider.alias) ?? []).map((rename) => ({
+      provider: provider.name,
+      ...rename,
+    }))
+  );
+  if (renamedOutputs.length > 0) {
+    console.log(
+      chalk.yellow(
+        "\n  Outputs renamed to Agent Skills names (https://agentskills.io/specification):"
+      )
+    );
+    for (const rename of renamedOutputs) {
+      console.log(
+        chalk.yellow(
+          `    - [${rename.provider}] ${rename.legacyPath}  →  ${rename.newPath}`
+        )
+      );
+    }
+
+    let removeLegacy = !!options.force;
+    if (!options.force) {
+      const answer = await inquirer.prompt<{ removeLegacy: boolean }>([
+        {
+          type: "confirm",
+          name: "removeLegacy",
+          message: "Remove the old files?",
+          default: true,
+        },
+      ]);
+      removeLegacy = answer.removeLegacy;
+    }
+
+    if (removeLegacy) {
+      for (const { legacyPath } of renamedOutputs) {
+        await removeWorkspacePath(cwd, legacyPath);
+        console.log(chalk.green(`  ✓ ${legacyPath} (removed old name)`));
+      }
+    } else {
+      console.log(
+        chalk.dim(
+          "  Kept — the old files duplicate the renamed ones until you delete them."
+        )
+      );
     }
   }
 

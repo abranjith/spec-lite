@@ -36,7 +36,12 @@ Two kinds of role, both rendered from the same Markdown sources:
 | Shape | Autonomous specialist persona | Focused, repeatable workflow |
 | Selection | Chosen explicitly from a picker | Auto-discovered or named |
 | Source | `agents/<name>/AGENT.md` | `skills/<name>/SKILL.md` |
-| Examples | `spec.planner`, `spec.architect` | `spec-implement`, `spec-review` |
+| Examples | `spec-planner`, `spec-architect` | `spec-implement`, `spec-review` |
+
+Every installed agent, skill, prompt, and command is named `spec-<name>` —
+lowercase letters, digits, and single hyphens — following the
+[Agent Skills specification](https://agentskills.io/specification), so the same
+name works in every supported harness.
 
 Two shared references back them: `help` is the user-facing catalog, and
 `orchestrator` defines the precedence, naming, feature-ID, memory, and handoff
@@ -50,7 +55,7 @@ command, prompt, skill, and root-instruction formats:
 | Provider | Project files | Global agent/skill folders |
 |---|---|---|
 | GitHub Copilot | `.github/agents/`, `.github/prompts/`, `.github/skills/`, `.github/copilot-instructions.md` | `~/.copilot/agents/`, `~/.copilot/prompts/`, `~/.copilot/skills/` |
-| Claude Code | `.claude/agents/`, `.claude/commands/`, `CLAUDE.md` | `~/.claude/agents/`, `~/.claude/commands/` |
+| Claude Code | `.claude/agents/`, `.claude/skills/`, `.claude/commands/`, `CLAUDE.md` | `~/.claude/agents/`, `~/.claude/skills/`, `~/.claude/commands/` |
 | OpenAI Codex | `.codex/agents/`, `.agents/skills/`, `AGENTS.md` | `~/.codex/agents/`, `~/.agents/skills/`, `~/.codex/AGENTS.md` |
 | Pi | `.pi/prompts/`, `.pi/skills/` | `~/.pi/agent/prompts/`, `~/.pi/agent/skills/` |
 | Generic | `.spec-lite/prompts/` for copy/paste into any LLM | Not supported; use `export` for a portable bundle |
@@ -140,7 +145,7 @@ sources, timestamps, the optional project profile, and documentation settings:
 
 ```json
 {
-  "version": "0.4.3",
+  "version": "0.5.0",
   "format": "v2",
   "provider": "codex",
   "providers": ["codex", "claude-code"],

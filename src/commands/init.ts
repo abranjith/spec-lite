@@ -116,15 +116,15 @@ function parseProviderAliases(input?: string | string[]): string[] {
 function getPlanCriticNote(providerAlias: string): string | undefined {
   switch (providerAlias) {
     case "copilot":
-      return "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Copilot Chat before implementation to pressure-test the plan.";
+      return "  💡 Optional checkpoint: run /spec-plan-critic .spec-lite/plan.md in Copilot Chat before implementation to pressure-test the plan.";
     case "claude-code":
-      return "  💡 Optional checkpoint: ask Claude Code to use .claude/agents/spec.plan_critic.md against .spec-lite/plan.md before implementation.";
+      return "  💡 Optional checkpoint: run /spec-plan-critic .spec-lite/plan.md in Claude Code before implementation.";
     case "codex":
-      return "  💡 Optional checkpoint: ask Codex to use spec.plan_critic against .spec-lite/plan.md before implementation.";
+      return "  💡 Optional checkpoint: ask Codex to use the spec-plan-critic skill against .spec-lite/plan.md before implementation.";
     case "pi":
-      return "  💡 Optional checkpoint: run /spec.plan_critic .spec-lite/plan.md in Pi Chat before implementation.";
+      return "  💡 Optional checkpoint: run /skill:spec-plan-critic .spec-lite/plan.md in Pi before implementation.";
     case "generic":
-      return "  💡 Optional checkpoint: copy .spec-lite/prompts/spec.plan_critic.md into your LLM and review .spec-lite/plan.md before implementation.";
+      return "  💡 Optional checkpoint: copy .spec-lite/prompts/spec-plan-critic.md into your LLM and review .spec-lite/plan.md before implementation.";
     default:
       return undefined;
   }
@@ -422,6 +422,14 @@ export async function initCommand(options: InitOptions): Promise<void> {
     const existingFiles = await provider.detectExisting(cwd);
     providerExistingFiles.set(provider.alias, existingFiles);
 
+    if (existingFiles.some((f) => path.basename(f).startsWith("spec."))) {
+      console.log(
+        chalk.yellow(
+          `\n  [${provider.name}] Found pre-0.5.0 spec.<name> files. Run "spec-lite update" instead to rename them to Agent Skills names and keep their Project Context edits.`
+        )
+      );
+    }
+
     let action: "overwrite" | "skip" | null = null;
 
     if (existingFiles.length > 0 && !options.force) {
@@ -586,7 +594,10 @@ export async function initCommand(options: InitOptions): Promise<void> {
     // 7. Provider-specific extras
     if (provider.alias === "claude-code") {
       const claudeMdPath = path.join(cwd, "CLAUDE.md");
-      const claudeMdContent = generateClaudeRootMd(installedPrompts);
+      const claudeMdContent = generateClaudeRootMd(
+        installedPrompts,
+        nativeSkillNames
+      );
       await fs.writeFile(claudeMdPath, claudeMdContent, "utf-8");
       console.log(chalk.green(`  ✓ CLAUDE.md`));
       written++;

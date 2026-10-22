@@ -43,6 +43,16 @@ export interface Provider {
   };
 
   /**
+   * Pre-0.5.0 output paths (dotted `spec.<name>` file names) for a given prompt.
+   * Project paths are relative to the workspace root; global paths are absolute.
+   * Used only to migrate old installs to Agent Skills–compliant names.
+   */
+  getLegacyOutputPaths?(
+    promptName: string,
+    scope: OutputScope
+  ): { agent?: string; prompt?: string };
+
+  /**
    * Get the output directory for a skill when using native Agent Skills format.
    * Path is relative to workspace root.
    * Only used when supportsNativeSkills is true.
@@ -94,6 +104,9 @@ export interface Provider {
     workspaceRoot: string
   ): Promise<{ path: string; label: string } | null>;
 }
+
+/** Where outputs are installed: the workspace, or the user's home directory. */
+export type OutputScope = "project" | "global";
 
 export interface PromptMeta {
   /** Prompt file name without extension (e.g., "planner") */

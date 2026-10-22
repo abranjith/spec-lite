@@ -4,17 +4,22 @@ Agents are autonomous specialist personas. Skills are focused, repeatable
 workflows that can be auto-discovered or explicitly selected. Both are rendered
 from the same Markdown sources into whatever format your harness expects.
 
+Every installed name is `spec-<name>` (lowercase letters, digits, and single
+hyphens), as required by the [Agent Skills specification](https://agentskills.io/specification).
+Agents use the role name (`spec-planner`); skills, prompts, and commands use the
+action name (`spec-plan`, `spec-implement`).
+
 Use only the roles a task needs — nothing here is a required checklist.
 
 ## Agents
 
 | Source | Typical selector | Persona |
 |---|---|---|
-| `brainstorm` | `spec.brainstormer` | Curious product partner who turns a rough idea into a concrete, testable vision. |
-| `plan` | `spec.planner` | Pragmatic technical planner who converts requirements into an implementation-ready blueprint. |
-| `plan-feature` | `spec.feature_planner` | Focused feature designer who scopes one enhancement without requiring a full project plan. |
-| `architect` | `spec.architect` | Systems architect who designs cloud topology, data strategy, reliability, and scale. |
-| `yolo` | `spec.yolo` | Autonomous delivery coordinator who runs the full workflow with checkpoints and resumable state. |
+| `brainstorm` | `spec-brainstormer` | Curious product partner who turns a rough idea into a concrete, testable vision. |
+| `plan` | `spec-planner` | Pragmatic technical planner who converts requirements into an implementation-ready blueprint. |
+| `plan-feature` | `spec-feature-planner` | Focused feature designer who scopes one enhancement without requiring a full project plan. |
+| `architect` | `spec-architect` | Systems architect who designs cloud topology, data strategy, reliability, and scale. |
+| `yolo` | `spec-yolo` | Autonomous delivery coordinator who runs the full workflow with checkpoints and resumable state. |
 
 ## Skills
 
@@ -47,11 +52,21 @@ handoff contracts.
 
 | Harness | Agent selection | Skill selection |
 |---|---|---|
-| GitHub Copilot | Select `spec.<agent>` from the agent picker | Describe the task for auto-discovery, select the generated agent, or use the corresponding project prompt |
-| Claude Code | Select `spec.<agent>`; project installs also provide `/spec.<verb>` commands | Select the generated specialist agent such as `spec.implementer`, or use the project command |
-| OpenAI Codex | Invoke the `spec.<agent>` subagent | Ask Codex to use the skill by name, such as `spec-implement` |
-| Pi | Use `/spec.<verb>` | Use `/skill:spec-<name>` or allow Pi to auto-discover it |
-| Generic | Open `.spec-lite/prompts/spec.<verb>.md` | Copy the matching prompt into the LLM, or create a combined bundle with `export` |
+| GitHub Copilot | Select `spec-<agent>` from the agent picker | Describe the task for auto-discovery, run `/spec-<name>`, or select the generated agent |
+| Claude Code | Ask Claude to use the `spec-<agent>` subagent; project installs also provide `/spec-<verb>` commands | Run `/spec-<name>`, such as `/spec-implement`, or describe the task for auto-discovery |
+| OpenAI Codex | Invoke the `spec-<agent>` subagent | Ask Codex to use the skill by name, such as `spec-implement` |
+| Pi | Use `/spec-<verb>` | Use `/skill:spec-<name>` or allow Pi to auto-discover it |
+| Generic | Open `.spec-lite/prompts/spec-<verb>.md` | Copy the matching prompt into the LLM, or create a combined bundle with `export` |
+
+### Upgrading from 0.4.x
+
+Before 0.5.0, agents, prompts, and commands used dotted names such as
+`spec.plan_critic`, which some harnesses reject. Run `spec-lite update` in each
+project: it writes the `spec-<name>` files, carries over your Project Context
+edits, and offers to remove the old files. On Claude Code, skills move from
+`.claude/commands/` to native `.claude/skills/spec-<name>/SKILL.md` directories.
+For global installs, re-run `spec-lite install --global`, which offers to remove
+the old global files.
 
 ## Example prompts
 
@@ -63,11 +78,11 @@ like these.
 
 | Select | Example prompt |
 |---|---|
-| `spec.brainstormer` | "Turn this shared grocery-list idea into a concise product vision. Focus on the smallest useful first release." |
-| `spec.planner` | "Plan the grocery-list app from `.spec-lite/brainstorm.md` using TypeScript, React, and PostgreSQL." |
-| `spec.feature_planner` | "Create one self-contained feature spec for inviting another person to a grocery list." |
-| `spec.architect` | "Design a low-cost production architecture for this app, including real-time updates, email delivery, backups, and scaling." |
-| `spec.yolo` | "Build the scoped MVP from the approved requirements. Stop at the defined checkpoints and keep resumable state." |
+| `spec-brainstormer` | "Turn this shared grocery-list idea into a concise product vision. Focus on the smallest useful first release." |
+| `spec-planner` | "Plan the grocery-list app from `.spec-lite/brainstorm.md` using TypeScript, React, and PostgreSQL." |
+| `spec-feature-planner` | "Create one self-contained feature spec for inviting another person to a grocery list." |
+| `spec-architect` | "Design a low-cost production architecture for this app, including real-time updates, email delivery, backups, and scaling." |
+| `spec-yolo` | "Build the scoped MVP from the approved requirements. Stop at the defined checkpoints and keep resumable state." |
 
 ### Skills
 
