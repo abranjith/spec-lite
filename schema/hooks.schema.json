@@ -92,6 +92,28 @@
         "payloadSchema": {
           "type": "object"
         },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "plan",
+              "report",
+              "verdict",
+              "workflow",
+              "execution",
+              "action",
+              "decision",
+              "decision-resolved",
+              "feature",
+              "change",
+              "task",
+              "changes",
+              "summary"
+            ]
+          },
+          "description": "Variable groups the hook needs. Without one of them on a run, the hook is skipped instead of failing, and its variables need no fallback."
+        },
         "builtin": {
           "type": "string"
         },

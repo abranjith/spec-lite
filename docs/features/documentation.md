@@ -53,8 +53,10 @@ documentation go stale.
 never touch the same file: Design → Feature (once per feature) → Usage → README
 last, so it can index the finished set.
 
-Update mode resolves what to refresh from the supplied scope and the feature's
-`changeset.json` (see [Hooks](hooks.md)), then invokes only the affected writers.
+Update mode resolves what to refresh from the supplied scope and its changeset:
+the feature's `changeset.json`, or for an Implement Change Mode run or a fix
+without a feature, its file in `.spec-lite/reviews/changeset/` (see
+[Hooks](hooks.md#changeset-capture)). It then invokes only the affected writers.
 
 ## Guarantees
 

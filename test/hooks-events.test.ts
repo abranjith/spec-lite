@@ -102,23 +102,35 @@ describe("catalog integrity", () => {
     }
   });
 
-  it("guarantees `changes` on exactly the events that follow changeset capture", () => {
-    const withChanges = EVENT_CATALOG.filter((e) =>
-      e.provides.includes("changes")
+  it("guarantees `changes` only where every caller has a captured changeset", () => {
+    const withChanges = EVENT_CATALOG.filter(
+      (e) => e.status === "emitted" && e.provides.includes("changes")
     ).map((e) => e.name);
-    expect(withChanges).toEqual(
-      expect.arrayContaining([
-        "implement.post",
-        "implement.task.post",
-        "implement.feature.post",
-        "fix.post",
-      ])
-    );
+    // implement.post, implement.task.post and fix.post also follow capture,
+    // but Plan, Review and YOLO runs (and fixes without a name) carry no
+    // changeset there, so a hook needing one declares `requires`.
+    expect(withChanges).toEqual(["implement.feature.post"]);
     // A *.pre event must never claim to provide changes — nothing has been
     // captured yet at that point.
     for (const e of EVENT_CATALOG) {
       if (e.phase === "pre") expect(e.provides).not.toContain("changes");
     }
+  });
+
+  it("guarantees `feature` only on events every caller scopes to a feature", () => {
+    const withFeature = EVENT_CATALOG.filter(
+      (e) => e.status === "emitted" && e.provides.includes("feature")
+    ).map((e) => e.name);
+    // implement.pre/post fire in Plan, Review, Change and YOLO runs too, and
+    // Review Mode fires implement.task.post per finding, often with no feature.
+    expect(withFeature.sort()).toEqual(
+      [
+        "feature.spec.post",
+        "implement.feature.post",
+        "implement.task.pre",
+        "plan-feature.post",
+      ].sort()
+    );
   });
 
   it("never guarantees `task` on a non-task event", () => {

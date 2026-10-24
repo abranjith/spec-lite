@@ -30,6 +30,8 @@ import {
   runFeatureMigration,
 } from "../utils/feature-migration.js";
 import { offerHooks } from "./init.js";
+import { migrateHookRequires } from "../hooks/migration.js";
+import { hooksJsonPath, globalHooksJsonPath } from "../hooks/workspace.js";
 import { InstalledLinks } from "../utils/installed-links.js";
 import {
   OutputPreservation,
@@ -648,6 +650,21 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
         )
       );
     }
+  }
+
+  // Hooks using a variable the corrected event catalog no longer promises
+  // would fail validation, and a registry error stops every hook run. The
+  // global registry applies here too, so it is migrated alongside.
+  for (const [file, label] of [
+    [hooksJsonPath(cwd), ".spec-lite/hooks.json"],
+    [globalHooksJsonPath(), "~/.spec-lite/hooks.json"],
+  ] as const) {
+    for (const { hook, added } of await migrateHookRequires(file))
+      console.log(
+        chalk.green(
+          `  ✓ ${label}: "${hook}" now runs only on runs that carry ${added.join(" and ")} ("requires")`
+        )
+      );
   }
 
   // Offer optional hooks this project hasn't decided on, including new ones.

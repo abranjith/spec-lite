@@ -4,7 +4,8 @@ description: >
   Pragmatic hybrid of planner and feature designer. Takes a user's idea and
   produces a single, self-contained feature specification with granular tasks.
   Use for focused enhancements or standalone features that don't need the full
-  Planner → Feature pipeline.
+  Planner → Feature pipeline but do need a spec; a small change to existing
+  behavior goes straight to Implement's Change Mode.
 metadata:
   author: spec-lite
   type: agent
@@ -58,6 +59,8 @@ Take a user's idea, requirement, or enhancement request and — through interact
 - The work is a **single, focused feature or enhancement** — not a multi-feature project.
 - The user has a reasonably clear idea of what they want — they don't need multi-feature decomposition or broad architectural planning.
 - The scope can be captured in one feature spec with a manageable number of tasks (roughly 3–10 tasks).
+
+**Use Implement's Change Mode instead when** the request is a small change to existing behavior that needs no spec: it extends an existing surface rather than adding one, adds no data-model entity or migration, needs no design decision, and its outcome fits in one or two sentences. Suggest Change Mode to the user rather than writing a one- or two-task spec for it.
 
 **Use the full Plan agent → Feature pipeline instead when:**
 
@@ -153,7 +156,7 @@ Do not expand the current scope. Append out-of-scope improvements to `.spec-lite
 
 ## Output: `.spec-lite/features/FEAT-<ID>-<name>/spec.md`
 
-Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) **before** the final `plan-feature.post` command; honor each result before the next event.
+Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` — the **same location and compatible format** as Feature skill output, so the **Implement** skill picks it up without any special handling. Once written, run `spec-lite hook run feature.spec.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description of the spec}}"` (see [Hooks](#hooks)) **before** the final `plan-feature.post` command; honor each result before the next event.
 
 ### Output Template
 

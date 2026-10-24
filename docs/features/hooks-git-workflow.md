@@ -138,10 +138,11 @@ Besides `options`, a short entry may set only these, within the limits that
 | One feature | Implement | `ft/feat-020-execute-operations` | `.worktrees/feat-020-execute-operations` |
 | A whole plan | Implement, Plan Mode | `plan/orders` (from `plan_orders.md`) | `.worktrees/plan-orders` |
 | A fix | Fix | `fix/auth-issue` | `.worktrees/fix-auth-issue` |
+| A small change | Implement, Change Mode | `chg/add-json-flag` | `.worktrees/change-add-json-flag` |
 | Review findings | Implement, Review Mode | `review/checkout` (from `review_checkout.md`) | `.worktrees/review-checkout` |
 | A YOLO run | YOLO | `yolo/20261006-store` | `.worktrees/yolo-20261006-store` |
 
-- **Names are stable.** They come from the feature directory, the plan file, the review report, or the YOLO Run ID, so a retry or a resumed session gets the same branch. A fix uses the name the agent passes: your ticket ID when you give one.
+- **Names are stable.** They come from the feature directory, the plan file, the review report, or the YOLO Run ID, so a retry or a resumed session gets the same branch. A fix or a change uses the name the agent passes: your ticket ID when you give one.
 - **A plan or YOLO run is one branch.** Each feature builds on the previous ones, and the pull request opens when the whole run completes. A feature implemented on its own gets its own branch.
 - **Follow-up work joins its feature.** A fix or review remediation for a feature whose worktree still exists goes onto that branch and updates its pull request.
 - **Name format.** Names use lowercase letters, digits, and hyphens. Names longer than 60 characters end in a short hash.
@@ -239,10 +240,10 @@ of the registry and out of command output.
 - **Handoff to the agent.** A subprocess can't change its caller's directory, so `prepare-worktree` prints `SPEC-LITE-WORKTREE {"path": …, "branch": …}` (or `payload.worktree` with `--json`), and Implement and Fix move to that path. The remaining hooks of the same event already run there.
 - **Choosing the workflow.** The CLI checks these in order:
   1. `--feature` given, and the feature has an open workflow: use it, wherever the hook runs from. That is either the feature's own workflow, or a plan or YOLO workflow whose plans list it. This is how a task resumes its feature, even from another workflow's worktree.
-  2. Already inside a managed worktree: continue in it. Starting different work there is an error; start it from the main checkout.
+  2. Already inside a managed worktree: continue in it. A fix, change, or review remediation started there joins that branch. Starting a different feature, plan, or YOLO run there is an error; start it from the main checkout.
   3. At `implement.task.pre`: stop. A task resumes a worktree but never creates one.
-  4. Otherwise: create or resume the feature, plan (`--payload plan=<file>`), YOLO (`--payload yolo=<Run ID>`), fix (`fix.pre --payload name=…`), or review (`implement.pre --payload name=…`) workflow.
-- **What the roles pass.** Implement and Fix choose the workflow through the flags on their hook calls: `--feature FEAT-020` for a feature, `--payload plan=.spec-lite/plan_orders.md` for a plan, `--payload name=auth-issue` for a fix. To use the workflow without an agent, see [Running hooks yourself](hooks.md#running-hooks-yourself).
+  4. Otherwise: create or resume the feature, plan (`--payload plan=<file>`), YOLO (`--payload yolo=<Run ID>`), fix (`fix.pre --payload name=…`), change (`implement.pre --payload change=…`), or review (`implement.pre --payload name=…`) workflow.
+- **What the roles pass.** Implement and Fix choose the workflow through the flags on their hook calls: `--feature FEAT-020` for a feature, `--payload plan=.spec-lite/plan_orders.md` for a plan, `--payload name=auth-issue` for a fix, `--payload change=add-json-flag` for a change. A change never takes `--feature`. Started from the main checkout, it gets its own workflow and `chg/` branch. To use the workflow without an agent, see [Running hooks yourself](hooks.md#running-hooks-yourself).
 - **State.** Workflow state and locks live in `.git/spec-lite/`, outside every commit.
 
 ## Troubleshooting

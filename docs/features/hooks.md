@@ -251,9 +251,14 @@ Hand-offs are how one role chains into another automatically:
   "events": ["implement.post"],
   "type": "skill",
   "skill": "review",
+  "requires": ["feature"],
   "args": "review feature ${feature.name}"
 }
 ```
+
+`implement.post` also fires for Plan, Review, Change, and YOLO runs, which have
+no feature, so `requires` limits this hand-off to runs that have one. See
+[Hooks that need a feature](#hooks-that-need-a-feature-or-a-change).
 
 In a role run, the event's other hooks run first. Then, instead of carrying on,
 the role gets a `ready` result with a start command, and the agent starts the
@@ -278,7 +283,7 @@ A `prompt` hook carries its instruction in `prompt`:
   "name": "changelog-after-implement",
   "events": ["implement.post"],
   "type": "prompt",
-  "prompt": "Add a CHANGELOG.md entry for ${feature.id}: ${summary}",
+  "prompt": "Add a CHANGELOG.md entry for this work: ${summary}",
   "completion": "reported"
 }
 ```
@@ -297,7 +302,7 @@ it on any other type. Your own hook already has a field for each setting:
 | `command` / `script` | Arguments in `run`, or variables in `env` | `"run": "node scripts/notify.mjs --channel releases"`, `"env": { "CHANNEL": "releases" }` |
 | `http` | `url`, `headers`, `bodyTemplate` | `"bodyTemplate": "{\"channel\":\"releases\",\"text\":\"${summary}\"}"` |
 | `skill` / `agent` | `args` | `"args": "review feature ${feature.name}"` |
-| `prompt` | The `prompt` text | `"prompt": "Update CHANGELOG.md for ${feature.id}; keep entries short."` |
+| `prompt` | The `prompt` text | `"prompt": "Update CHANGELOG.md: ${summary}. Keep entries short."` |
 
 Settings can use `${...}` templates for event data, and `${env:NAME}` for
 secrets. To reuse one script with different settings, add one hook entry per
@@ -378,6 +383,7 @@ Replacing a builtin, same name with a different body:
       "name": "capture-changeset",
       "events": ["implement.post"],
       "type": "command",
+      "requires": ["feature"],
       "run": "node scripts/my-changeset.mjs ${feature.dir}"
     }
   ]
@@ -408,6 +414,9 @@ lifecycle point, with `--tracked` and the IDs of their run. Call it yourself to:
   spec-lite hook run fix.pre --payload name=auth-issue
   spec-lite hook run fix.post --payload name=auth-issue --payload summary="Fix token refresh"
   ```
+
+  A small enhancement made by hand works the same way with `implement.pre` and
+  `implement.post` and `--payload change=<name>`, such as `change=add-json-flag`.
 
 - **Script it in CI.**
 
@@ -441,7 +450,7 @@ and failure policy as yours, and they run in-process, without needing
 | Name | Subscribed to | On by default | Does | More |
 |---|---|---|---|---|
 | `capture-baseline` | `implement.pre`, `implement.task.pre`, `fix.pre` | yes | Records HEAD and whatever is already dirty, so pre-existing edits are never attributed to this run | [Changeset capture](#changeset-capture) |
-| `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the feature's `changeset.json` | [Changeset capture](#changeset-capture) |
+| `capture-changeset` | `implement.post`, `implement.task.post`, `fix.post` | yes | Diffs against that baseline and merges the result into the run's changeset: the feature's `changeset.json`, or a change's or fix's file in `.spec-lite/reviews/changeset/` | [Changeset capture](#changeset-capture) |
 | `changeset-from-pr` | nothing until you subscribe it | no | Reads the changed files from the open pull request instead | [Changeset capture](#changeset-capture) |
 | `prepare-worktree` | `implement.pre`, `implement.task.pre`, `fix.pre` | no | Creates or resumes the work's worktree and branch | [Git workflow](hooks-git-workflow.md) |
 | `commit-progress` | `implement.task.post`, `implement.post`, `fix.post` | no | Commits each task; commits the rest and pushes at completion | [Git workflow](hooks-git-workflow.md) |
@@ -495,9 +504,23 @@ done since the `*.pre` event. Review reads it as the authoritative scope for
 section only for features created before hooks existed. See
 [Review](review.md).
 
+Work without a feature gets its own changeset in `.spec-lite/reviews/changeset/`:
+
+| Work | Changeset | Reviewed with |
+|---|---|---|
+| A Change Mode run (`--payload change=<name>`) | `.spec-lite/reviews/changeset/chg_<name>.json` | `review change <name>` |
+| A fix without `--feature` (`--payload name=<issue>`) | `.spec-lite/reviews/changeset/fix_<issue>.json` | `review fix <issue>` |
+
+A fix with `--feature` still writes to that feature's `changeset.json`. To keep
+these changesets out of Git, add `.spec-lite/reviews/changeset/` to `.gitignore`.
+An ignored changeset is never committed, so it exists only in the checkout that
+captured it: with the [Git workflow](hooks-git-workflow.md), run `review change`
+or `review fix` before `spec-lite worktree cleanup` removes that worktree.
+
 - **Generated output is filtered out:** `dist/`, `build/`, `out/`, `node_modules/`, `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, and `.spec-lite/` itself.
 - **Commit `changeset.json` with the work**, because Review reads it. Its content changes only when the set of changed files does. Capture times are in the local [audit log](#audit-log).
-- **Without `--feature`** (an ad-hoc fix), capture is skipped with a note rather than failing.
+- **Without a feature, change, or fix name** (Plan, Review, and YOLO runs), capture is skipped with a note rather than failing. Each feature's own run captures instead.
+- **Change and fix names become file names**, so they may use only letters, digits, `.`, `_`, and `-`. A change with any other name is rejected; a fix with one skips capture.
 - **Outside a Git repository**, capture is disabled and reported; Review falls back to the manual list.
 - **Disabling both builtins** turns capture off. Every other hook keeps working.
 
@@ -621,6 +644,7 @@ unsubscribed.
 | `timeoutMs` | `command`, `script`, `http`, `builtin` | `30000` | Time budget before the hook is stopped and reported as failed |
 | `once` | all | `false` | Skip if the hook already succeeded on this event for the same feature (manual runs) or workflow (role runs) |
 | `payloadSchema` | all | — | JSON Schema the payload must match before the hook runs; a mismatch is a [contract error](#results-and-exit-codes) |
+| `requires` | all | — | Variable groups the hook needs, such as `["feature"]`. A run without one skips the hook instead of failing; see [Hooks that need a feature](#hooks-that-need-a-feature-or-a-change) |
 | `run` | `command`, `script` | — | Command line or script path. Templates are shell-quoted |
 | `shell` | `command`, `script` | `auto` | `auto` (bash, or PowerShell on Windows), `bash`, `pwsh` |
 | `cwd` | `command`, `script` | workspace root | Working directory, relative to the workspace root |
@@ -694,7 +718,8 @@ them; see the [event catalog](#event-catalog) for what each event guarantees.
 ```
 
 Other fields include `task`, `plan`, `report`, `verdict`, `verdictCode`, `name`
-(a fix's name), `worktree` (after `prepare-worktree`), and, in role runs,
+(a fix's name), `change` (a Change Mode run's name), `worktree` (after
+`prepare-worktree`), and, in role runs,
 `workflow`, `execution`, and `eventId`. Any `--payload key=value` passed to
 `hook run` is added as a top-level field.
 
@@ -728,10 +753,42 @@ which variable groups it guarantees, and `spec-lite hook validate` rejects a
 template that relies on a group its events don't guarantee:
 
 ```text
-[error] "bad-var": ${task.id} has no guaranteed value on implement.post. Subscribe to an event that provides "task", or write ${task.id:-default}.
+[error] "bad-var": ${task.id} has no guaranteed value on implement.post. Add "requires": ["task"] to run the hook only when it is present, subscribe to an event that provides "task", or write ${task.id:-default}.
 ```
 
 Write `${task.id:-none}` wherever a value may legitimately be absent.
+
+#### Hooks that need a feature or a change
+
+Some events fire for more than one kind of work. `implement.pre` and
+`implement.post` fire in Feature, Plan, Review, Change, and YOLO runs, and only
+Feature Mode carries a feature. A hook that only makes sense for one kind of
+work lists the variable groups it needs in `requires`:
+
+```json
+{
+  "name": "post-spec-link",
+  "events": ["implement.post"],
+  "type": "command",
+  "requires": ["feature"],
+  "run": "node scripts/post-spec.mjs ${feature.spec}"
+}
+```
+
+- **A run without the group skips the hook.** It is reported as `skipped`, with
+  `requires feature, which this run does not carry`. That is not a failure: the
+  event's other hooks still run.
+- **`hook validate` trusts the group.** Variables from a required group need no
+  `:-default`, because the hook only runs when all of them have a value.
+- **`requires: ["change"]`** runs a hook only on Implement's Change Mode runs,
+  where `${change.name}` is set.
+
+`spec-lite update` adds `requires` for you to hooks written before 0.5.0 that use
+`${feature.*}` or `${changes.*}` on `implement.pre`, `implement.post`,
+`implement.task.post`, or `fix.post`. Earlier versions promised those variables
+there, though Plan, Review, and YOLO runs never had them. `update` checks
+`.spec-lite/hooks.json` and `~/.spec-lite/hooks.json`; `spec-lite install --global`
+checks the global file.
 
 `${env:NAME}` reads only the real process environment, and its value is redacted
 from `--dry-run` output and `hooks.log.jsonl`. It is the only place a secret
@@ -745,7 +802,7 @@ the token itself.
 | `${plan.name}` | plan | Plan name: the plan file name without `plan_` and `.md`. | `orders` |
 | `${report.file}` | report | Workspace-relative path of the report the role wrote. | `.spec-lite/reviews/review_orders.md` |
 | `${verdict.code}` | verdict | Machine-readable verdict: Plan Critic `ready`, `revisions` or `replan`; Review `pass`, `changes-required` or `blocked`. | `ready` |
-| `${workflow.id}` | workflow — tracked runs | ID of the saved workflow (one per feature, plan, fix, review or YOLO run). Tracked runs only. | `w-1234` |
+| `${workflow.id}` | workflow — tracked runs | ID of the saved workflow (one per feature, plan, fix, change, review or YOLO run). Tracked runs only. | `w-1234` |
 | `${execution.id}` | execution — tracked runs | ID of the role run that fired the event. Tracked runs only. | `x-1234` |
 | `${action.id}` | action — optional | ID of the saved action this role run was started from, if any; write `${action.id:-none}`. | `a-1234` |
 | `${decision.id}` | decision — checkpoint events | Checkpoint ID, as used by `spec-lite decide`. | `d-1234` |
@@ -768,6 +825,7 @@ the token itself.
 | `${feature.name}` | feature | Snake_case feature name. | `user_management` |
 | `${feature.dir}` | feature | Feature directory, workspace-relative. | `.spec-lite/features/FEAT-012-user_management` |
 | `${feature.spec}` | feature | Feature spec path, workspace-relative. | `.spec-lite/features/FEAT-012-user_management/spec.md` |
+| `${change.name}` | change | Change name from `--payload change=`, on Implement Change Mode runs. | `add-json-flag` |
 | `${task.id}` | task | Task identifier within a feature. | `TASK-003` |
 | `${changes.count}` | changes | Number of files in the captured changeset. | `12` |
 | `${changes.source}` | changes | How the changeset was captured: git, gh, or none. | `git` |
@@ -788,9 +846,10 @@ needs a `:-default`.
 `emitted` events fire today. `planned` events are declared so that subscribing to
 them validates with a warning instead of an unknown-event error; they begin
 firing in a later release. **Guarantees** lists the [variable groups](#interpolation)
-each event always provides. A group not listed may still be present at run time
-(a Fix often maps to a feature), but a template relying on it needs a
-`${name:-default}`.
+each event always provides, whichever role mode fires it. A group not listed may
+still be present at run time (Feature Mode's `implement.post` has a feature; Plan
+Mode's doesn't), so a template relying on it needs
+[`requires`](#hooks-that-need-a-feature-or-a-change) or a `${name:-default}`.
 
 <!-- hook-events-table:start -->
 | Event | Role | Status | Guarantees |
@@ -810,16 +869,16 @@ each event always provides. A group not listed may still be present at run time
 | `feature.pre` | feature | emitted | — |
 | `feature.post` | feature | emitted | `summary` |
 | `feature.spec.post` | feature | emitted | `feature`, `summary` |
-| `implement.pre` | implement | emitted | `feature` |
-| `implement.post` | implement | emitted | `feature`, `changes`, `summary` |
+| `implement.pre` | implement | emitted | — |
+| `implement.post` | implement | emitted | `summary` |
 | `implement.task.pre` | implement | emitted | `feature`, `task` |
-| `implement.task.post` | implement | emitted | `feature`, `task`, `changes` |
+| `implement.task.post` | implement | emitted | `task` |
 | `implement.feature.post` | implement | emitted | `feature`, `changes`, `summary` |
 | `review.pre` | review | emitted | — |
 | `review.post` | review | emitted | `report`, `verdict`, `summary` |
 | `review.verdict` | review | emitted | `report`, `verdict`, `summary` |
 | `fix.pre` | fix | emitted | — |
-| `fix.post` | fix | emitted | `changes`, `summary` |
+| `fix.post` | fix | emitted | `summary` |
 | `write-unit-tests.pre` | write-unit-tests | planned | — |
 | `write-unit-tests.post` | write-unit-tests | planned | `summary` |
 | `write-integration-tests.pre` | write-integration-tests | planned | — |
@@ -944,7 +1003,9 @@ an earlier version stays tracked until you `git rm --cached` it.
 | `tracked-required` on a manual `hook run` | The event has a gate, checkpoint, or hand-off | Let the role fire it, add `--dry-run` to preview, or `--skip` those hooks |
 | `${env:X}` warning at validate time | The variable isn't set in this shell | Set it wherever hooks run, or add `:-default` |
 | Builtin still active after disabling | The entry name doesn't match exactly | Reuse the exact name, such as `capture-changeset` |
-| Changeset empty | No `--feature`, no baseline, or not a Git repository | Check the `capture-baseline` line in `hooks.log.jsonl` |
+| `has no guaranteed value on implement.post` after upgrading | The hook uses `${feature.*}` or `${changes.*}`, which `implement.post` no longer promises | Run `spec-lite update`, or add `"requires": ["feature"]` yourself |
+| A hook is skipped with `requires feature, which this run does not carry` | The run has no feature: a Plan, Review, Change, or YOLO run | Expected. Remove `requires` and use `${name:-default}` if the hook should run anyway |
+| Changeset empty | No `--feature`, change, or fix name, no baseline, or not a Git repository | Check the `capture-baseline` result in the `hook run` output |
 | A hand-off didn't start | The run has no Git checkout, or the chain limit was reached | Run `spec-lite next` to see the saved state |
 
 ## Related

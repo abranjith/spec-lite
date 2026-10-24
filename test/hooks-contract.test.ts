@@ -142,10 +142,10 @@ describe("contract errors bypass onFailure", () => {
         name: "runtime-missing",
         events: ["implement.post"],
         type: "command",
-        // feature.id IS guaranteed by implement.post's `provides`, so this
-        // passes validate-time checking; it only fails when fired without
-        // --feature. That is the runtime fail-closed path.
-        run: "echo ${feature.id}",
+        // summary IS guaranteed by implement.post's `provides`, so this
+        // passes validate-time checking; it only fails when a caller omits
+        // --payload summary. That is the runtime fail-closed path.
+        run: "echo ${summary}",
         onFailure: "warn",
       },
     ]);

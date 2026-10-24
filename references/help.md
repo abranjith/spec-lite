@@ -33,7 +33,7 @@ Use this navigator to choose a role. For ownership, precedence, naming, IDs, and
 | Skill | Use when | Primary output |
 |---|---|---|
 | **Feature** | Break plan rows into executable vertical slices | `features/FEAT-###-<name>/spec.md` + plan Spec File |
-| **Implement** | Execute one feature, a plan, or review findings | Code, tests, state, changeset.json, feature summary |
+| **Implement** | Execute one feature, a plan, or review findings; or make a small change without a spec (Change Mode) | Code, tests, state, changeset, feature summary; `reviews/chg_<name>.md` in Change Mode |
 | **Review** | Audit completed files/features/plans, including dependency vulnerabilities; also handle focused package vulnerability reviews | `reviews/review_<scope>.md` |
 | **Fix** | Diagnose and repair a bug/regression/review finding | Minimal fix + regression tests/report |
 | **Write Unit Tests** | Expand isolated behavior coverage | Unit-test spec and tests |
@@ -82,10 +82,18 @@ feature plan mode → implement plan mode → integration tests
 → review plan <plan-file> → document full/update
 ```
 
+### Small change to existing behavior
+
+```text
+implement change <request> → review change <name> → document update (if behavior changed)
+```
+
+Change Mode needs no spec. It stops and suggests **Plan Feature** when the change adds a data-model entity, a new public surface, or a design decision.
+
 ### Bug or review remediation
 
 ```text
-fix <symptom or REV-ID> → rerun failing test/review scope → document update (if behavior changed)
+fix <symptom or REV-ID> → rerun failing test → review fix <issue> (or the review scope) → document update (if behavior changed)
 ```
 
 ### Data-first design
@@ -105,6 +113,8 @@ yolo <goal> → explicitly confirm → pause/resume through .spec-lite/yolo_stat
 - `review files <paths/globs>` for an exact patch or module.
 - `review feature <name>` after the feature is fully implemented and has a captured `changeset.json`.
 - `review plan [<plan-file>]` for all completed features; incomplete rows are listed and skipped.
+- `review change <name>` after an Implement Change Mode run, judged against its change record.
+- `review fix <issue>` after a fix made without `--feature`; a fix that targeted a feature is covered by `review feature <name>`.
 - `review dependencies [<paths/globs>]` for package vulnerability findings; without paths, discover all project manifests/lockfiles under the workspace root.
 
 Consolidated reviews cover correctness/testing, security, performance, and dependency vulnerabilities using live [GitHub Advisories](https://github.com/advisories) by default. Explicit requests to the skill or reviewer subagent for vulnerability findings run the same dependency procedure and produce prioritized fixes, upgrade/mitigation guidance, and validation steps. A user-requested vulnerability-only review records other dimensions as Not reviewed. Use **Plan Critic** instead for pre-implementation plan review.

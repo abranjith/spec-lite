@@ -183,10 +183,10 @@ async function porcelainPaths(root: string): Promise<string[]> {
  */
 export async function captureBaseline(
   root: string,
-  featureDir: string,
+  location: string,
   opts: { featureId?: string; event: string; workflow?: string }
 ): Promise<ChangesetDoc> {
-  const file = changesetPath(root, featureDir);
+  const file = changesetPath(root, location);
   let doc = await readDoc(file);
 
   if (!(await isGitRepo(root))) {
@@ -259,10 +259,10 @@ function parseNameStatus(
  */
 export async function captureChangeset(
   root: string,
-  featureDir: string,
+  location: string,
   opts: { event: string; role: string; task?: string }
 ): Promise<ChangesetDoc> {
-  const file = changesetPath(root, featureDir);
+  const file = changesetPath(root, location);
   const doc = await readDoc(file);
 
   if (doc.vcs !== "git" || !doc.baseline) {
@@ -329,11 +329,12 @@ export async function captureChangeset(
   return doc;
 }
 
+/** The changeset at a location: a feature directory, or a standalone `.json` file (see changesetLocation). */
 export async function readChangeset(
   root: string,
-  featureDir: string
+  location: string
 ): Promise<ChangesetDoc | undefined> {
-  const file = changesetPath(root, featureDir);
+  const file = changesetPath(root, location);
   if (!(await fs.pathExists(file))) return undefined;
   return (await fs.readJson(file)) as ChangesetDoc;
 }

@@ -87,7 +87,8 @@ export interface PullRequestOptions {
 }
 
 /** What a workflow is scoped to; decides its branch name and who completes it. */
-export type WorkflowKind = "feature" | "fix" | "review" | "plan" | "yolo";
+export type WorkflowKind =
+  "feature" | "fix" | "change" | "review" | "plan" | "yolo";
 
 /** The managed worktree handed to the calling agent (`SPEC-LITE-WORKTREE`). */
 export interface WorktreeInfo {
@@ -139,6 +140,12 @@ export interface HookDefinition {
   completion?: "reported";
   /** Optional JSON Schema validated against the payload BEFORE invocation. */
   payloadSchema?: Record<string, unknown>;
+  /**
+   * Variable groups the hook needs, e.g. `["feature"]`. When the run does not
+   * carry one, the hook is skipped (not failed), and `hook validate` treats
+   * that group's variables as guaranteed for this hook.
+   */
+  requires?: string[];
 
   // --- builtin ---
   /** Handler id in the builtin registry. Defaults to `name` when omitted. */

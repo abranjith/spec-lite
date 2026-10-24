@@ -15,6 +15,8 @@ Review accepts exactly one scope form:
 review files <paths/globs>
 review feature <name>
 review plan [plan-file]
+review change <name>
+review fix <issue>
 review dependencies [paths/globs]
 ```
 
@@ -23,6 +25,8 @@ review dependencies [paths/globs]
 | `review files <paths/globs>` | Exactly the named or matched files | No file exists or matches |
 | `review feature <name>` | The feature's `changeset.json` entries | Any State Tracking task is incomplete, or no scope is resolvable |
 | `review plan [<plan-file>]` | Union of each `[x] Complete` feature's changeset | No feature is complete; incomplete features are listed and skipped |
+| `review change <name>` | The changeset of an Implement Change Mode run, judged against its change record `.spec-lite/reviews/chg_<name>.md` | The changeset is missing or empty |
+| `review fix <issue>` | The changeset of a fix made without `--feature`, judged against its fix report `.spec-lite/reviews/fix_<issue>.md` | The changeset is missing or empty, or the fix targeted a feature (use `review feature`) |
 | `review dependencies [<paths/globs>]` | Named/matched manifests or lockfiles and their dependency graphs; all project manifests/lockfiles under the workspace root when paths are omitted | Explicit paths do not exist or match |
 
 Resolved paths are normalized and deduplicated. For source review, generated
@@ -67,6 +71,12 @@ the dependency check is Not applicable, with an explanation.
 Feature and plan review use each feature's hook-captured
 `.spec-lite/features/FEAT-###-<name>/changeset.json`. That file is written by the
 built-in changeset hooks during Implement and Fix — see [Hooks](hooks.md#built-in-hooks).
+
+Work without a feature has its own changeset in `.spec-lite/reviews/changeset/`:
+`chg_<name>.json` for a Change Mode run, read by `review change`, and
+`fix_<issue>.json` for a fix without `--feature`, read by `review fix`. A fix
+made with `--feature` joins that feature's `changeset.json` instead, so
+`review feature` covers it.
 
 A `changeset.json` is a diff anchored to the baseline captured before the run's
 edits began, so it describes exactly this run's work. Review never infers scope

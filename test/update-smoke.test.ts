@@ -32,6 +32,35 @@ describe("legacy workspace update", () => {
       { spaces: 2 }
     );
 
+    // update also migrates the global hooks.json; never touch the real one.
+    const home = path.join(root, "home");
+    vi.spyOn(os, "homedir").mockReturnValue(home);
+    const projectHooks = path.join(root, ".spec-lite", "hooks.json");
+    const globalHooks = path.join(home, ".spec-lite", "hooks.json");
+    await fs.outputJson(projectHooks, {
+      version: 1,
+      hooks: [
+        {
+          name: "review-after-implement",
+          events: ["implement.post"],
+          type: "skill",
+          skill: "review",
+          args: "review feature ${feature.name}",
+        },
+      ],
+    });
+    await fs.outputJson(globalHooks, {
+      version: 1,
+      hooks: [
+        {
+          name: "fix-files",
+          events: ["fix.post"],
+          type: "command",
+          run: "echo ${changes.files}",
+        },
+      ],
+    });
+
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(inquirer, "prompt").mockImplementation(
       async <T extends inquirer.Answers>(
@@ -109,6 +138,14 @@ describe("legacy workspace update", () => {
         },
       });
       expect([...config.installedPrompts].sort()).toEqual(allSourceNames);
+
+      // Hooks relying on a withdrawn variable promise keep working.
+      expect((await fs.readJson(projectHooks)).hooks[0].requires).toEqual([
+        "feature",
+      ]);
+      expect((await fs.readJson(globalHooks)).hooks[0].requires).toEqual([
+        "changes",
+      ]);
     } finally {
       process.chdir(originalCwd);
       await fs.remove(root);

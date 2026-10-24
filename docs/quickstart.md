@@ -67,6 +67,7 @@ Shorter paths are usually enough:
 |---|---|
 | Clear idea for a new project | Plan → Feature → Implement → Review |
 | One focused enhancement | Feature Planner → Implement → Review → Document Update |
+| Small change to existing behavior | Implement (Change Mode) → Review |
 | Existing defect or refactor | Fix → Review |
 | Architecture decision | Architect, then Plan or DevOps |
 | Existing plan needs a challenge | Plan Critic → revise or continue |

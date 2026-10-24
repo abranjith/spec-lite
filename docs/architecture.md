@@ -83,7 +83,8 @@ user content in those files is retained.
 │   │   └── hooks.log.jsonl    Append-only audit of every hook run
 │   ├── unit_tests_<name>.md
 │   └── integration_tests_<name>.md
-├── reviews/                   Plan and implementation reviews
+├── reviews/                   Reviews, fix reports, and change records
+│   └── changeset/             Changesets of changes and of fixes without a feature
 ├── stacks/                    Selected stack baselines
 ├── data_model.md              Relational model, when used
 ├── TODO.md                    Deferred enhancement backlog
@@ -106,8 +107,10 @@ Roles announce their lifecycle points as versioned events (`implement.pre`,
 the extension seam: anything subscribed in the hook registry runs at that point,
 whether it is shipped with the CLI or written by you.
 
-Two builtins subscribe by default and capture each feature's `changeset.json`,
-which Review then uses as its authoritative file scope. Everything about that is
+Two builtins subscribe by default and capture the changed files of each
+feature (its `changeset.json`), and of each Change Mode run or fix without a
+feature (a file in `.spec-lite/reviews/changeset/`). Review then uses them as its
+authoritative file scope. Everything about that is
 replaceable. See [Hooks](features/hooks.md), [Git workflow hooks](features/hooks-git-workflow.md),
 and [Gates and checkpoints](features/hooks-gates-checkpoints.md).
 

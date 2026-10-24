@@ -20,6 +20,8 @@ import {
 } from "../utils/output-preservation.js";
 import type { LegacyRename } from "../utils/stale-sources.js";
 import { InstalledLinks } from "../utils/installed-links.js";
+import { migrateHookRequires } from "../hooks/migration.js";
+import { globalHooksJsonPath } from "../hooks/workspace.js";
 
 interface InstallOptions {
   ai?: string | string[];
@@ -367,6 +369,17 @@ export async function installCommand(options: InstallOptions): Promise<void> {
       }
     }
   }
+
+  // 4c. Global hooks relying on a variable the corrected event catalog no
+  // longer promises would stop every hook run; keep them where they worked.
+  for (const { hook, added } of await migrateHookRequires(
+    globalHooksJsonPath()
+  ))
+    console.log(
+      chalk.green(
+        `  ✓ ~/.spec-lite/hooks.json: "${hook}" now runs only on runs that carry ${added.join(" and ")} ("requires")`
+      )
+    );
 
   // 5. Write global config
   const pkg = getPackageVersion();

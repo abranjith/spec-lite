@@ -124,7 +124,7 @@ export const INTERPOLATION_VARS: readonly VarDefinition[] = [
   V(
     "workflow.id",
     "workflow",
-    "ID of the saved workflow (one per feature, plan, fix, review or YOLO run). Tracked runs only.",
+    "ID of the saved workflow (one per feature, plan, fix, change, review or YOLO run). Tracked runs only.",
     "w-1234",
     (c) => (c.payload.workflow as { id?: string })?.id
   ),
@@ -280,6 +280,15 @@ export const INTERPOLATION_VARS: readonly VarDefinition[] = [
     (c) => c.payload.feature?.spec
   ),
 
+  // --- change --------------------------------------------------------------
+  V(
+    "change.name",
+    "change",
+    "Change name from `--payload change=`, on Implement Change Mode runs.",
+    "add-json-flag",
+    (c) => (typeof c.payload.change === "string" ? c.payload.change : undefined)
+  ),
+
   // --- task ----------------------------------------------------------------
   V(
     "task.id",
@@ -349,6 +358,38 @@ const VARS_BY_NAME = new Map(INTERPOLATION_VARS.map((v) => [v.name, v]));
 export function describeVars(): VarDefinition[] {
   return [...INTERPOLATION_VARS];
 }
+
+/** Every variable group a hook can name in `requires`, in table order. */
+export const VAR_GROUPS: readonly VarGroup[] = [
+  ...new Set(
+    INTERPOLATION_VARS.map((v) => v.group).filter(
+      (g): g is VarGroup => g !== "base"
+    )
+  ),
+];
+
+/**
+ * The groups in `requires` that this payload does not carry. A group counts
+ * as present only when every variable in it has a value, so a hook that runs
+ * can use any of them without a fallback — the same promise `hook validate`
+ * makes for it.
+ */
+export function missingRequirements(
+  requires: readonly string[] | undefined,
+  ctx: ResolveContext
+): string[] {
+  return (requires ?? []).filter((group) =>
+    INTERPOLATION_VARS.some((v) => {
+      if (v.group !== group) return false;
+      const value = v.resolve(ctx);
+      return value === undefined || value === "";
+    })
+  );
+}
+
+/** Message recorded on a hook skipped for `requires`. */
+export const requirementsMessage = (missing: string[]): string =>
+  `requires ${missing.join(", ")}, which this run does not carry`;
 
 // ---------------------------------------------------------------------------
 // Parsing — one pass, no recursion
@@ -448,12 +489,14 @@ export interface TemplateDiagnostics {
  *
  * An unknown name is always an error. A known name whose group is not
  * guaranteed by every subscribed event is an error too, unless the reference
- * carries a `:-` fallback — that is the whole reason events declare `provides`.
+ * carries a `:-` fallback or the hook `requires` that group — that is the
+ * whole reason events declare `provides`.
  */
 export function validateTemplate(
   template: string,
   subscribedEvents: EventDefinition[],
-  label: string
+  label: string,
+  requires: readonly string[] = []
 ): TemplateDiagnostics {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -487,6 +530,7 @@ export function validateTemplate(
     }
 
     if (ref.fallback !== undefined || def.group === "base") continue;
+    if (requires.includes(def.group)) continue; // the hook is skipped without it
     if (["workflow.id", "execution.id"].includes(ref.name)) continue; // guaranteed in tracked runs
     if (ref.name === "decision.url") {
       errors.push(`${label}: decision.url is optional; use a fallback.`);
@@ -500,7 +544,8 @@ export function validateTemplate(
       errors.push(
         `${label}: \${${ref.name}} has no guaranteed value on ` +
           `${missing.map((e) => e.name).join(", ")}. ` +
-          `Subscribe to an event that provides "${def.group}", or write ` +
+          `Add "requires": ["${def.group}"] to run the hook only when it is present, ` +
+          `subscribe to an event that provides "${def.group}", or write ` +
           `\${${ref.name}:-default}.`
       );
     }

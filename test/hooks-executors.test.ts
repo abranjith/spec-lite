@@ -393,6 +393,7 @@ describe("cwd is interpolated", () => {
         name: "writes-relative",
         events: ["implement.post"],
         type: "command",
+        requires: ["feature"],
         cwd: "${feature.dir}",
         run: `node -e "require('fs').writeFileSync('${out}', process.cwd())"`,
       },

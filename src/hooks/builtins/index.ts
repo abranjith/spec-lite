@@ -15,6 +15,7 @@ import path from "node:path";
 import fs from "fs-extra";
 import type { HookDefinition, HookPayload } from "../types.js";
 import { captureBaseline, captureChangeset } from "../changeset.js";
+import { changesetLocation, changesetPath } from "../workspace.js";
 import { changesetFromPr } from "./changeset-from-pr.js";
 import { prepareWorktree, commitProgress } from "./git-workflow.js";
 import { createPullRequest } from "./pull-request.js";
@@ -32,30 +33,32 @@ export interface BuiltinOutcome {
 export type BuiltinHandler = (ctx: BuiltinContext) => Promise<BuiltinOutcome>;
 
 /**
- * Changeset capture needs somewhere to write changeset.json — a feature
- * directory. Fix is frequently invoked without one (an ad-hoc bug fix with no
- * tracked feature), so a missing `--feature` is a graceful no-op, not a
- * failure: returning undefined here, rather than throwing, is what keeps
- * feature-less Fix runs from surfacing a spurious hook failure on every call.
+ * Changeset capture needs somewhere to write: a feature directory, or for a
+ * change or a fix without a feature, its file under
+ * .spec-lite/reviews/changeset/. Plan, Review and YOLO runs name none, so a
+ * missing location is a graceful no-op, not a failure: returning undefined
+ * here, rather than throwing, keeps those runs from surfacing a spurious hook
+ * failure on every call.
  */
-async function optionalFeatureDir(
+async function optionalLocation(
   ctx: BuiltinContext
 ): Promise<string | undefined> {
-  const dir = ctx.payload.feature?.dir;
-  if (!dir) return undefined;
-  const abs = path.join(ctx.root, dir);
-  await fs.ensureDir(abs);
-  return dir;
+  const location = changesetLocation(ctx.payload);
+  if (!location) return undefined;
+  await fs.ensureDir(path.dirname(changesetPath(ctx.root, location)));
+  return location;
 }
+
+const NO_LOCATION =
+  "no --feature, change or fix name given; changeset capture skipped";
 
 export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
   "prepare-worktree": prepareWorktree,
   "commit-progress": commitProgress,
   "create-pull-request": createPullRequest,
   "capture-baseline": async (ctx) => {
-    const dir = await optionalFeatureDir(ctx);
-    if (!dir)
-      return { message: "no --feature given; changeset capture skipped" };
+    const dir = await optionalLocation(ctx);
+    if (!dir) return { message: NO_LOCATION };
 
     const worktree = ctx.payload.worktree;
     const doc = await captureBaseline(ctx.root, dir, {
@@ -75,9 +78,8 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
   },
 
   "capture-changeset": async (ctx) => {
-    const dir = await optionalFeatureDir(ctx);
-    if (!dir)
-      return { message: "no --feature given; changeset capture skipped" };
+    const dir = await optionalLocation(ctx);
+    if (!dir) return { message: NO_LOCATION };
 
     const doc = await captureChangeset(ctx.root, dir, {
       event: ctx.payload.event,
@@ -93,9 +95,8 @@ export const BUILTIN_HANDLERS: Record<string, BuiltinHandler> = {
   },
 
   "changeset-from-pr": async (ctx) => {
-    const dir = await optionalFeatureDir(ctx);
-    if (!dir)
-      return { message: "no --feature given; changeset capture skipped" };
+    const dir = await optionalLocation(ctx);
+    if (!dir) return { message: NO_LOCATION };
     const doc = await changesetFromPr(ctx.root, dir, {
       event: ctx.payload.event,
       role: ctx.payload.role,

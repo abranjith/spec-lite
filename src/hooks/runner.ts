@@ -27,7 +27,11 @@ import {
 import { previewHook } from "./preview.js";
 import { validatePayloadForHook } from "./payload-validation.js";
 import type { HookPayload, HookResult, ResolvedHook } from "./types.js";
-import type { ResolveContext } from "./interpolation.js";
+import {
+  missingRequirements,
+  requirementsMessage,
+  type ResolveContext,
+} from "./interpolation.js";
 import {
   runControlledEvent,
   controlFailure,
@@ -392,6 +396,21 @@ async function runStateless(
     }
 
     const ctx: ResolveContext = { payload, payloadFile };
+
+    // A hook that needs a feature (or a change, a plan…) sits out runs that
+    // carry none, rather than failing on an unresolvable ${...}.
+    const missing = missingRequirements(hook.requires, ctx);
+    if (missing.length) {
+      results.push({
+        name: hook.name,
+        event: opts.event,
+        kind: hook.type,
+        status: "skipped",
+        durationMs: 0,
+        message: requirementsMessage(missing),
+      });
+      continue;
+    }
 
     // Validate the payload against the hook's declared contract BEFORE doing
     // anything with side effects.

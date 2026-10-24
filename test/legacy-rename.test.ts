@@ -50,6 +50,7 @@ describe("pre-0.5.0 dotted outputs", () => {
       "user-owned"
     );
 
+    vi.spyOn(os, "homedir").mockReturnValue(path.join(root, "home"));
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     const prompt = vi.spyOn(inquirer, "prompt").mockImplementation((async (
       questions: Array<{

@@ -300,7 +300,7 @@ Rules answer a checkpoint without asking you, when the event's data matches:
 }
 ```
 
-- **`if`** maps variable names, without `${}`, to the value each must have. Any [variable](hooks.md#interpolation) the event guarantees can be used: `verdict.code` on `plan-critic.post`, `review.post`, and `review.verdict`; `feature.id` on feature events; and so on. `hook validate` rejects a variable the event doesn't guarantee.
+- **`if`** maps variable names, without `${}`, to the value each must have. Any [variable](hooks.md#interpolation) the event guarantees can be used: `verdict.code` on `plan-critic.post`, `review.post`, and `review.verdict`; `feature.id` on feature events; and so on. A variable from a group the checkpoint lists in [`requires`](hooks.md#hooks-that-need-a-feature-or-a-change) counts as guaranteed, because the checkpoint is skipped on runs without it. `hook validate` rejects any other variable the event doesn't guarantee.
 - **All conditions in one rule must match.** Values compare as exact strings, ignoring case and surrounding spaces.
 - **Rules are checked in order; the first match wins.** No match means you're asked.
 - **`choose`** must name one of the checkpoint's choices.

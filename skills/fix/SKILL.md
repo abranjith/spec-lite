@@ -49,6 +49,8 @@ Before starting, you SHOULD read the following artifacts:
 
 Diagnose the root cause of a bug or failure, implement a targeted fix, and add a regression test to prevent recurrence. Minimize blast radius — fix the bug, don't refactor the world.
 
+Fix is for defects: behavior that doesn't work as intended. If nothing is broken and the user wants behavior added or changed, stop before any edit or hook call and route the request: a small enhancement goes to **Implement** in Change Mode, a larger one to **Plan Feature**.
+
 ## Inputs
 
 - **Required**: Error description (stack trace, failing test output, reproduction steps, or user-reported behavior).
@@ -61,8 +63,8 @@ Diagnose the root cause of a bug or failure, implement a targeted fix, and add a
 
 ### 1. Reproduce & Understand
 
-- Name the issue once and reuse that name for the whole fix, including the report `fix_{{issue-name}}.md`. Use the user's ticket or issue ID when one is given (e.g. `PROJ-123`); otherwise use a short kebab-case name such as `auth-issue`. When resuming a fix, run `spec-lite worktree list` first and reuse the name of the matching `fix:` workflow.
-- Before edits, run `spec-lite hook run fix.pre --tracked --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. Feature-less fixes skip changeset capture. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call.
+- Name the issue once and reuse that name for the whole fix, including the report `fix_{{issue-name}}.md`. Use the user's ticket or issue ID when one is given (e.g. `PROJ-123`); otherwise use a short kebab-case name such as `auth-issue`. Use only letters, digits, `.`, `_`, and `-`: the name also names the fix's changeset file. When resuming a fix, run `spec-lite worktree list` first and reuse the name of the matching `fix:` workflow.
+- Before edits, run `spec-lite hook run fix.pre --tracked --payload name="{{issue-name}}"` (see [Hooks](#hooks)), adding `--feature FEAT-{{ID}}` when the fix targets a tracked feature. The fix's changed files are then recorded in that feature's `changeset.json`; without `--feature`, they go to `.spec-lite/reviews/changeset/fix_{{issue-name}}.json`. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call.
 - Read the error output. Understand the *symptom* before looking for the *cause*.
 - Identify the failing assertion, exception, or unexpected behavior.
 - If possible, reproduce the issue locally.
@@ -106,7 +108,7 @@ When updating, find the affected feature by its stable `FEAT-###` ID, replace th
 
 If `.spec-lite.json.documentation.updateWithDevelopment` is `true` and the fix changes observable behavior, architecture, data, public APIs, or documented operations, invoke **Document** in update mode with the affected paths/feature. If it is `false` or config is absent, do not edit human-facing docs ad hoc; suggest `document update <scope>` in What's Next.
 
-After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --tracked --execution {{execution-id}} --payload name="{{issue-name}}" --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the feature changeset, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL and cleanup command it prints.
+After the fix report, regression tests, state, and documentation are complete, run `spec-lite hook run fix.post --tracked --execution {{execution-id}} --payload name="{{issue-name}}" --payload summary="{{one-line description of the fix}}"`, including `--feature FEAT-{{ID}}` when applicable. This captures the fix's changeset, in the feature's `changeset.json` or `fix_{{issue-name}}.json`, then runs any enabled commit/push and PR hooks. Report the active worktree path and any PR URL and cleanup command it prints.
 
 ---
 
@@ -198,8 +200,9 @@ See the shared [Hook Protocol](../../references/orchestrator.md#hook-protocol) f
 ## Constraints
 
 - **Do NOT** fix more than what's broken. Scope discipline is non-negotiable.
+- **Do NOT** take on enhancements. New or changed behavior goes to **Implement** Change Mode or **Plan Feature**.
 - **Do NOT** submit a fix without a regression test (unless the user explicitly says to skip it).
-- **Do NOT** leave the Fix Report unwritten. Always save it to `.spec-lite/reviews/fix_<issue>.md` — without a durable file, the fix is invisible to `review feature`, `review plan`, and `document update`.
+- **Do NOT** leave the Fix Report unwritten. Always save it to `.spec-lite/reviews/fix_<issue>.md` — `review fix <issue>` and `document update` read it for the fix's intent, and without it the fix is explained nowhere.
 - **Do NOT** suppress errors or exceptions as a "fix". Address the root cause.
 - **Do** check if the same bug pattern exists elsewhere in the codebase. Note it as a follow-up, but don't fix it in the same change.
 - **Do** verify the fix actually resolves the original issue before declaring it done.
@@ -214,4 +217,4 @@ Before What's Next, follow the [Memory Capture Protocol](../memorize/SKILL.md#me
 
 ## What's Next?
 
-Follow the orchestrator format. Suggest rerunning the originating test or consolidated **Review** scope, and `document update <scope>` when human-facing docs were not auto-updated.
+Follow the orchestrator format. Suggest rerunning the originating test, then **Review**: `review fix <issue>` for a fix without a feature, or the consolidated scope (`review feature <name>` or `review plan`) for a fix that targeted one. Suggest `document update <scope>` when human-facing docs were not auto-updated.

@@ -34,6 +34,7 @@ export type VarGroup =
   | "verdict"
   | "summary"
   | "plan"
+  | "change"
   | "report"
   | "workflow"
   | "execution"
@@ -48,9 +49,11 @@ export interface EventDefinition {
   phase: HookPhase;
   status: EventStatus;
   /**
-   * Variable groups this event is guaranteed to carry. A group absent here may
-   * still be present at runtime (a fix often does map to a feature), but a
-   * template relying on it must supply a `${name:-default}` fallback.
+   * Variable groups this event is guaranteed to carry — on every call, from
+   * every role mode that fires it. A group absent here may still be present at
+   * runtime (Feature Mode's `implement.post` has a feature; Plan Mode's does
+   * not), so a template relying on it declares `requires` or supplies a
+   * `${name:-default}` fallback.
    */
   provides: VarGroup[];
   description: string;
@@ -194,12 +197,14 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
   ),
 
   // --- Implementation ------------------------------------------------------
+  // implement.pre/post fire in every mode — Feature, Plan, Review, Change and
+  // YOLO — and only Feature Mode carries a feature, so neither guarantees one.
   E(
     "implement.pre",
     "implement",
     "pre",
     "emitted",
-    ["feature"],
+    [],
     "Before implementation begins. Built-in changeset baseline is captured here."
   ),
   E(
@@ -207,7 +212,7 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
     "implement",
     "post",
     "emitted",
-    ["feature", "changes", "summary"],
+    ["summary"],
     "After implementation is finalized. Built-in changeset capture runs here."
   ),
   E(
@@ -218,13 +223,15 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
     ["feature", "task"],
     "Before each TASK-### begins."
   ),
+  // Review Mode also fires implement.task.post, once per REV-### finding,
+  // with no feature when its report covers a plan or a review scope.
   E(
     "implement.task.post",
     "implement",
     "post",
     "emitted",
-    ["feature", "task", "changes"],
-    "After each TASK-### is verified complete."
+    ["task"],
+    "After each TASK-### (or REV-### in Review Mode) is verified complete."
   ),
   E(
     "implement.feature.post",
@@ -273,7 +280,7 @@ export const EVENT_CATALOG: readonly EventDefinition[] = [
     "fix",
     "post",
     "emitted",
-    ["changes", "summary"],
+    ["summary"],
     "After the fix and its regression test are verified. Built-in changeset capture runs here."
   ),
   E(

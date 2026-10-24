@@ -21,6 +21,7 @@ flowchart LR
   P --> DM[Build Data Model optional]
   P --> F[Feature]
   PF[Plan Feature shortcut] --> I[Implement]
+  CH[Small change, no spec] -->|Change Mode| I
   F --> I
   I --> U[Unit Tests]
   I --> IT[Integration Tests]
@@ -47,8 +48,10 @@ flowchart LR
 | Feature spec content | Feature or Plan Feature | Implement executes it |
 | Feature `State Tracking` | Implement only | Review confirms every task is complete before using the feature as a scope |
 | Feature `changeset.json` / `hooks.log.jsonl` | The `capture-baseline`/`capture-changeset` hooks, fired by Implement and Fix at `*.pre`/`*.post` | Review uses `changeset.json` as the deterministic scope; a hand-maintained `## Touched Files` list in the spec is the legacy fallback only when `changeset.json` is absent |
+| `.spec-lite/reviews/changeset/chg_<name>.json`, `fix_<issue>.json` | The same hooks, for a Change Mode run or a fix without `--feature` | Review's `review change` / `review fix` scope; a project may git-ignore the directory |
+| `.spec-lite/reviews/chg_<name>.md` | Implement (Change Mode) | Request, Done-when checks and outcome; Review judges the change against it |
 | `.spec-lite/data_model.md` | Build Data Model | Feature/Implement/Review treat it as authoritative schema |
-| `.spec-lite/feature-summary.md` | Implement and Fix | AI-facing current behavior; headings retain `FEAT-###` |
+| `.spec-lite/feature-summary.md` | Implement (all modes) and Fix | AI-facing current behavior; headings retain `FEAT-###` |
 | `.spec-lite/reviews/review_<scope>.md` | Review; Fix/Implement may add resolution notes | Review recommends; Fix/Implement remediate |
 | `.spec-lite/TODO.md` | TODO plus roles tracking out-of-scope work | Backlog only, never implicit current scope |
 | `README.md`, configured docs | Document writer family | Human-facing current state |
@@ -64,7 +67,7 @@ flowchart LR
 5. Evidence from current code/tests/tools.
 6. Prompt defaults.
 
-Never silently reinterpret a conflict. Surface the exact competing rules and the smallest decision needed. Review findings do not rewrite plans or code; bugs, vulnerabilities, and bottlenecks route to **Fix**, while missing product behavior routes to **Feature**.
+Never silently reinterpret a conflict. Surface the exact competing rules and the smallest decision needed. Review findings do not rewrite plans or code; bugs, vulnerabilities, and bottlenecks route to **Fix**; a small enhancement to existing behavior routes to **Implement** Change Mode; missing product behavior routes to **Feature**.
 
 ## Context and Isolation
 
@@ -91,6 +94,8 @@ Review accepts exactly one deterministic scope:
 - `review files <paths/globs>`: exact existing matches; reject none.
 - `review feature <name>`: the feature's `changeset.json` (Touched Files fallback if absent); reject incomplete/empty scope.
 - `review plan [file]`: union of completed features' `changeset.json` (Touched Files fallback per feature); list skipped incomplete rows and reject when none are complete.
+- `review change <name>`: `.spec-lite/reviews/changeset/chg_<name>.json`, judged against `.spec-lite/reviews/chg_<name>.md`; reject an absent or empty changeset.
+- `review fix <issue>`: `.spec-lite/reviews/changeset/fix_<issue>.json`, judged against `.spec-lite/reviews/fix_<issue>.md`; reject an absent or empty changeset, pointing a feature-targeted fix to `review feature`.
 - `review dependencies [paths/globs]`: named/matched manifests/lockfiles and their graphs, or all project manifests/lockfiles under the workspace root when paths are omitted; reject unmatched explicit paths.
 
 Consolidated reviews cover code correctness/testing, security, performance, and dependency vulnerabilities by default. Explicit vulnerability requests to Review or a reviewer subagent use the same dependency procedure; without another scope, resolve `review dependencies`. A user-requested vulnerability-only focus may omit unrelated dimensions, recorded in the report. Owning manifests/lockfiles are declared dependency evidence even when excluded from source review. Use live GitHub Advisories by default unless explicitly overridden; report coverage gaps and qualified verdicts rather than claiming clean results. Every run uses `REV-###` and writes `.spec-lite/reviews/review_<scope>.md` with Critical/High/Medium/Low severity, one verdict, and practical remediation/validation guidance.
@@ -134,11 +139,11 @@ Outside a Git checkout, events with only stateless hooks run without durable con
 
 ### Scope and context
 
-Resolve root scope before the pre event: `--feature FEAT-###`, `--payload plan=<file>`, `--payload name=<fix>`, `--payload scope=<review/spec-key>`, `--payload artifact=<brainstorm-file>`, or `--payload yolo=<run-id>`. The returned context binds workflow, execution, chain, owner generation and workspace. Keep `--execution <id>` and any `--action <id>` on subsequent events. A delegated child uses `--parent <parent-execution-id>` and receives its own execution context.
+Resolve root scope before the pre event: `--feature FEAT-###`, `--payload plan=<file>`, `--payload name=<fix>`, `--payload change=<change>` (Implement Change Mode, never with `--feature`), `--payload scope=<review/spec-key>`, `--payload artifact=<brainstorm-file>`, or `--payload yolo=<run-id>`. The returned context binds workflow, execution, chain, owner generation and workspace. Keep `--execution <id>` and any `--action <id>` on subsequent events. A delegated child uses `--parent <parent-execution-id>` and receives its own execution context.
 
 When invoked through a saved action, use its returned start command instead of creating another root execution. Logical target IDs resolve to the provider's installed role or exported instructions. Hosts without native subagents can execute those instructions in the current session.
 
-Process `SPEC-LITE-CONTEXT` and `SPEC-LITE-WORKTREE` first. All later reads, edits, tests, scope changes and hook calls use that workspace. The Git workflow builtins still prepare/reuse one worktree for a feature, fix, plan or YOLO run and capture authoritative `changeset.json` scope.
+Process `SPEC-LITE-CONTEXT` and `SPEC-LITE-WORKTREE` first. All later reads, edits, tests, scope changes and hook calls use that workspace. The Git workflow builtins still prepare/reuse one worktree for a feature, fix, change, plan or YOLO run, and the capture builtins record authoritative changeset scope.
 
 ### Pause and resume
 
@@ -236,7 +241,11 @@ Do not expand the current scope. Append out-of-scope improvements to `.spec-lite
 ├── reviews/
 │   ├── plan_critique_<scope>.md
 │   ├── review_<scope>.md
-│   └── fix_<issue>.md
+│   ├── fix_<issue>.md
+│   ├── chg_<name>.md
+│   └── changeset/
+│       ├── chg_<name>.json
+│       └── fix_<issue>.json
 ├── devops/
 └── stacks/
 ```

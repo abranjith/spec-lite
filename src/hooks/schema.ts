@@ -7,6 +7,7 @@
 import { allEventNames } from "./events.js";
 import { BUILTIN_OPTIONS, optionsSchema } from "./builtins/options.js";
 import { SETTINGS_FIELDS } from "./types.js";
+import { VAR_GROUPS } from "./interpolation.js";
 
 /**
  * A builtin's `options` are typed by its handler: the `builtin` field, or the
@@ -90,6 +91,13 @@ export function buildHooksSchema(): Record<string, unknown> {
           maxRounds: { type: "integer", minimum: 1, maximum: 100, default: 3 },
           completion: { const: "reported" },
           payloadSchema: { type: "object" },
+          requires: {
+            type: "array",
+            uniqueItems: true,
+            items: { enum: [...VAR_GROUPS] },
+            description:
+              "Variable groups the hook needs. Without one of them on a run, the hook is skipped instead of failing, and its variables need no fallback.",
+          },
 
           builtin: { type: "string" },
           options: {

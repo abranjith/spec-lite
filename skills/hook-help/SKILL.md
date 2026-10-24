@@ -71,7 +71,8 @@ Not a hook: standing rules for every role belong in memory (the **Memorize** ski
 - `<role>.pre` fires before a role's work and `<role>.post` after it. `implement.task.pre` and `implement.task.post` fire around each task; `implement.feature.post` fires after each feature in Plan Mode; `review.verdict` fires after a review report, for routing on its outcome.
 - Only `emitted` events fire. A `planned` event validates with a warning but never fires yet; tell the user.
 - Subscribe to the one concrete event that matches the intent. Use a wildcard such as `implement.*` only when the user asks for every event of a role.
-- Each event guarantees certain variable groups (`hook events`, `hook vars`). Use a variable the event doesn't guarantee only with a fallback: `${task.id:-none}`.
+- Each event guarantees certain variable groups (`hook events`, `hook vars`). Use a variable the event doesn't guarantee only with a fallback, `${task.id:-none}`, or with `requires`.
+- `implement.pre` and `implement.post` fire for every Implement mode: Feature, Plan, Review, Change, and YOLO. Only Feature Mode carries a feature, and only Change Mode a change. A hook that needs one declares `"requires": ["feature"]` or `"requires": ["change"]`; runs without it skip the hook instead of failing. `fix.post` carries a feature only when the fix targeted one.
 
 ---
 
@@ -122,9 +123,12 @@ Hand off to a spec-lite role:
   "events": ["implement.post"],
   "type": "skill",
   "skill": "review",
+  "requires": ["feature"],
   "args": "review feature ${feature.name}"
 }
 ```
+
+Review each Change Mode run the same way with `"requires": ["change"]` and `"args": "review change ${change.name}"`.
 
 Hand off to a free-text instruction:
 
@@ -211,7 +215,7 @@ Turn a builtin off without redefining it:
 4. **Gates** are `command`/`script` only, with `"onFailure": "abort"`. They must be safe to rerun and must not publish or notify. They run before checkpoints and before hooks that change things.
 5. **Checkpoints** have a `question` and at least two `choices`. Choice IDs are lowercase and hyphenated, and `ask` is reserved. Each choice has a `description` and exactly one of `continue: true`, `stop: true`, `skill`, `agent`, or `prompt`. A checkpoint runs before hooks that change things, unless it has a higher `order` and `"afterEffects": true`. Checkpoints can't subscribe to `checkpoint.*` or `hook.error`.
 6. **Rules**: each `if` key is a variable name without `${}` that the event guarantees, such as `verdict.code` on `plan-critic.post`, `review.post`, or `review.verdict`. Each `choose` names a declared choice.
-7. **Templates** resolve or fail. Only variables from `hook vars`; `${name:-default}` for values the event doesn't guarantee; `${decision.url:-}` always needs a fallback.
+7. **Templates** resolve or fail. Only variables from `hook vars`. For a value the event doesn't guarantee, either write `${name:-default}`, or add its group to `requires` so the hook is skipped on runs without it. `${decision.url:-}` always needs a fallback.
 8. **Secrets** only through `${env:NAME}`, never literally in the registry.
 9. **Git workflow builtins** (`prepare-worktree`, `commit-progress`, `create-pull-request`) keep `"onFailure": "abort"` and their relative order, and `commit-progress` needs `prepare-worktree`. Set them up with `spec-lite hook setup` rather than by hand.
 10. **Shell**: `run` uses bash, or PowerShell on Windows (`"shell": "auto"`); `cmd.exe` is not supported. Prefer `node`/`npm` commands or a checked-in script, which work in both.
@@ -234,7 +238,7 @@ Tell the user what their hook will do, in these terms:
 ## Verify
 
 1. Run `spec-lite hook validate`. Fix every error your change introduced; mention any warnings.
-2. Preview the event with `spec-lite hook run <event> --dry-run`, plus the scope the event needs: `--feature FEAT-###`, `--payload plan=<plan file>`, or `--payload name=<fix name>`. Confirm the hook appears, in the expected order, with its templates resolved.
+2. Preview the event with `spec-lite hook run <event> --dry-run`, plus the scope the event needs: `--feature FEAT-###`, `--payload plan=<plan file>`, `--payload name=<fix name>`, or `--payload change=<change name>`. A hook with `requires` shows as skipped when that scope lacks the group; preview it with a scope that has it. Confirm the hook appears, in the expected order, with its templates resolved.
 3. Only with the user's consent, run `spec-lite hook test <name>`. It really executes: commands run and webhooks post. To try a gate script, run it directly with a scratch `SPEC_LITE_RESPONSE_FILE` and show the answer it writes. Never test a GitHub checkpoint with `--publish` unless the user asks; it posts real content.
 
 Never fire real lifecycle events, meaning `spec-lite hook run` without `--dry-run`, to try a hook.

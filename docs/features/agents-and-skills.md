@@ -26,9 +26,9 @@ Use only the roles a task needs — nothing here is a required checklist.
 | Source | Native skill | Persona |
 |---|---|---|
 | `feature` | `spec-feature` | Decomposer who turns plan features into small, verifiable vertical slices. |
-| `implement` | `spec-implement` | Disciplined implementation engineer who writes code, tests, and required documentation. |
+| `implement` | `spec-implement` | Disciplined implementation engineer who writes code, tests, and required documentation, from a spec or, in Change Mode, a small change request. |
 | `review` | `spec-review` | Independent reviewer who checks correctness, security, performance, testing, and dependency vulnerabilities using GitHub Advisories, with practical remediation guidance. |
-| `fix` | `spec-fix` | Methodical debugger and refactorer who proves root cause and guards against regression. |
+| `fix` | `spec-fix` | Methodical debugger who proves root cause and guards against regression. |
 | `write-unit-tests` | `spec-write-unit-tests` | Unit-test specialist who targets behavior, boundaries, errors, and exclusions. |
 | `write-integration-tests` | `spec-write-integration-tests` | Integration-test specialist who verifies component seams and external boundaries. |
 | `document` | `spec-document` | Documentation coordinator for full, targeted, and surgical updates. |
@@ -90,6 +90,7 @@ like these.
 |---|---|
 | `spec-feature` | "Create feature specs for every incomplete feature in `.spec-lite/plan.md`." |
 | `spec-implement` | "Implement `.spec-lite/features/FEAT-001-shared_lists/spec.md` and verify every task." |
+| `spec-implement` | "Implement change: let list owners rename a shared list." (Change Mode, no spec) |
 | `spec-review` | "Review feature `shared_lists` after implementation, including vulnerable packages and remediation suggestions." |
 | `spec-fix` | "The second browser does not receive list updates. Diagnose the root cause, fix it, and add a regression test." |
 | `spec-write-unit-tests` | "Add unit tests for the invitation service, including expired, duplicate, and malformed tokens." |

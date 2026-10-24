@@ -5,7 +5,11 @@
 import crypto from "node:crypto";
 import fs from "fs-extra";
 import { getEvent } from "./events.js";
-import { resolveFeature, resolveProvider } from "./workspace.js";
+import {
+  changesetLocation,
+  resolveFeature,
+  resolveProvider,
+} from "./workspace.js";
 import { currentHead, readChangeset } from "./changeset.js";
 import type { HookPayload, ChangesPayload } from "./types.js";
 
@@ -20,12 +24,12 @@ export interface BuildPayloadOptions {
   extra?: Record<string, string>;
 }
 
-/** The feature's changeset, with HEAD read live: changeset.json records no HEAD, so committing it is idempotent. */
+/** The run's changeset, with HEAD read live: changeset.json records no HEAD, so committing it is idempotent. */
 async function changesFor(
   root: string,
-  featureDir: string
+  location: string
 ): Promise<ChangesPayload | undefined> {
-  const doc = await readChangeset(root, featureDir);
+  const doc = await readChangeset(root, location);
   if (!doc) return undefined;
   return {
     source: doc.vcs === "git" ? "git" : "none",
@@ -63,14 +67,9 @@ export async function buildPayload(
 
   if (opts.featureId) {
     const feature = await resolveFeature(opts.root, opts.featureId);
-    if (feature) {
-      payload.feature = feature;
-      const changes = await changesFor(opts.root, feature.dir);
-      if (changes) payload.changes = changes;
-    } else {
-      payload.feature = { id: opts.featureId.toUpperCase() };
-    }
+    payload.feature = feature ?? { id: opts.featureId.toUpperCase() };
   }
+  await refreshChanges(opts.root, payload);
 
   if (opts.taskId) payload.task = { id: opts.taskId };
 
@@ -82,8 +81,9 @@ export async function refreshChanges(
   root: string,
   payload: HookPayload
 ): Promise<void> {
-  if (!payload.feature?.dir) return;
-  const changes = await changesFor(root, payload.feature.dir);
+  const location = changesetLocation(payload);
+  if (!location) return;
+  const changes = await changesFor(root, location);
   if (changes) payload.changes = changes;
 }
 

@@ -72,6 +72,11 @@ Update performs the complete project migration:
 - migrates flat `.spec-lite/features/feature_<name>.md` specs into ID-prefixed
   directories, preserving both canonical `FEAT-###` and legacy Plan Feature
   `FEAT-FP-###` IDs and rewriting plan and feature-summary links;
+- adds `requires` to hooks in `.spec-lite/hooks.json` and `~/.spec-lite/hooks.json`
+  that rely on `${feature.*}` or `${changes.*}` where `implement.pre`,
+  `implement.post`, `implement.task.post`, or `fix.post` no longer promise them,
+  so they keep running in Feature Mode instead of failing validation (see
+  [Hooks that need a feature](features/hooks.md#hooks-that-need-a-feature-or-a-change));
 - preserves content inside Project Context markers unless `--force` is used.
 
 ## install
@@ -88,6 +93,9 @@ spec-lite install --global --ai codex --exclude yolo --force
 | `--ai <provider>` | interactive | Install for one or more globally supported providers |
 | `--exclude <names>` | none | Omit comma/space-separated sources from the global installation |
 | `--force` | `false` | Overwrite an existing global installation without confirmation |
+
+A global install also adds `requires` to hooks in `~/.spec-lite/hooks.json`
+that rely on variables an event no longer promises, as `update` does.
 
 ## list
 
@@ -165,7 +173,7 @@ spec-lite hook run fix.post --payload name=auth-issue --payload summary="Fix tok
 |---|---|---|
 | `--feature <id>` | none | Feature ID, such as `FEAT-012` or legacy `FEAT-FP-007`; adds the feature directory, spec, and changeset to the payload |
 | `--task <id>` | none | Task ID, such as `TASK-003` |
-| `--payload <kv>` | none | Additional payload `key=value`; repeat for several. `plan=<file>`, `name=<fix name>`, and `yolo=<Run ID>` choose the work for the [Git workflow hooks](features/hooks-git-workflow.md) |
+| `--payload <kv>` | none | Additional payload `key=value`; repeat for several. `plan=<file>`, `name=<fix name>`, `change=<change name>`, and `yolo=<Run ID>` choose the work for the [Git workflow hooks](features/hooks-git-workflow.md) |
 | `--dry-run` | `false` | Resolve and print what would run, without running anything; `${env:...}` values are redacted. Previews gates and checkpoints too |
 | `--json` | `false` | Machine-readable report instead of the human summary |
 | `--skip <name>` | none | Skip a hook for this call; repeat for several, or use `*` for all. `SPEC_LITE_SKIP_HOOKS` does the same for a whole process |
@@ -279,7 +287,7 @@ spec-lite hook validate
 
 Static check of the merged registry with no side effects: JSON schema, event
 names, every `${...}` template against the variables its subscribed events
-guarantee, builtin options, and ordering rules, such as gates before hooks
+guarantee (plus the groups the hook lists in `requires`), builtin options, and ordering rules, such as gates before hooks
 that change things, and one hand-off or checkpoint per event. Exits `0` when
 valid (warnings allowed) and `2` when any error is found. Suitable for CI. No
 options.
@@ -386,7 +394,7 @@ spec-lite worktree cleanup --merged
 
 | Subcommand | Behavior |
 |---|---|
-| `list` | Each workflow's name, scope (`feature:FEAT-020`, `plan:orders`, …), branch, path, and status: `active`, `no worktree`, or `incomplete` |
+| `list` | Each workflow's name, scope (`feature:FEAT-020`, `plan:orders`, `change:add-json-flag`, …), branch, path, and status: `active`, `no worktree`, or `incomplete` |
 | `cleanup <name>` | After merging: verify the merge, remove the worktree (never forced), delete the local branch, reset specs copied from the main checkout, and forget the workflow |
 | `cleanup --merged` | Clean up every merged workflow and report the rest as skipped |
 

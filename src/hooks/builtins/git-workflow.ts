@@ -18,7 +18,7 @@ import type {
   WorkflowKind,
   WorktreeInfo,
 } from "../types.js";
-import { resolveFeature } from "../workspace.js";
+import { isSafeWorkName, resolveFeature } from "../workspace.js";
 import { COMMIT_TEMPLATE_RE } from "./options.js";
 import { runtimeArtifactPath } from "../publication.js";
 
@@ -306,6 +306,9 @@ export interface WorkItem {
 const text = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
+/** Branch prefixes that differ from the workflow kind. */
+const BRANCH_PREFIX: Partial<Record<WorkflowKind, string>> = { change: "chg" };
+
 function scoped(
   kind: WorkflowKind,
   raw: string
@@ -319,7 +322,7 @@ function scoped(
     kind,
     name,
     identity: `${kind}:${label}`,
-    branch: `${kind}/${label}`,
+    branch: `${BRANCH_PREFIX[kind] ?? kind}/${label}`,
   };
 }
 
@@ -344,6 +347,7 @@ export function canonicalPlanPath(plan: string, cwd?: string): string {
 /** True when the payload names a unit of work at all. */
 export const identifiesWork = (payload: HookPayload): boolean =>
   !!(
+    text(payload.change) ||
     text(payload.yolo) ||
     text(payload.plan) ||
     text(payload.name) ||
@@ -353,9 +357,22 @@ export const identifiesWork = (payload: HookPayload): boolean =>
 /**
  * The unit of work an invocation names. Branches and directories derive only
  * from stable identifiers — a feature directory, a plan file, a review report
- * scope, a recorded YOLO run ID — or from the name a Fix passes.
+ * scope, a recorded YOLO run ID — or from the name a Fix or a change passes.
  */
 export function workItem(payload: HookPayload): WorkItem {
+  const change = text(payload.change);
+  if (change) {
+    // A change keeps its own branch and changeset, even when it touches a feature.
+    if (payload.feature?.id)
+      throw new Error(
+        "Change Mode does not take --feature; pass only --payload change=<name>."
+      );
+    if (!isSafeWorkName(change))
+      throw new Error(
+        `Change name ${change} names a file; use letters, digits, ".", "_" or "-", such as add-json-flag or PROJ-123.`
+      );
+    return scoped("change", change);
+  }
   const yolo = text(payload.yolo);
   if (yolo) return scoped("yolo", yolo);
   const plan = text(payload.plan);
@@ -399,7 +416,7 @@ export function workItem(payload: HookPayload): WorkItem {
     };
   }
   throw new Error(
-    "Identify the work with --feature, --payload name=…, --payload plan=…, or --payload yolo=…."
+    "Identify the work with --feature, --payload name=…, --payload change=…, --payload plan=…, or --payload yolo=…."
   );
 }
 
@@ -719,6 +736,8 @@ async function inputPaths(
   if (name)
     for (const report of [`review_${name}.md`, `fix_${name}.md`])
       items.add(`.spec-lite/reviews/${report}`);
+  const change = text(payload.change);
+  if (change) items.add(`.spec-lite/reviews/chg_${change}.md`);
   const existing: string[] = [];
   for (const item of items)
     if (await fs.pathExists(path.join(source, item))) existing.push(item);

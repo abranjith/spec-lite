@@ -120,7 +120,7 @@ function settingsFields(hook: HookDefinition): string {
 }
 
 /** The templated string fields a hook may carry, per kind. */
-function templateFields(hook: HookDefinition): string[] {
+export function templateFields(hook: HookDefinition): string[] {
   const fields: (string | undefined)[] = [
     hook.run,
     hook.url,
@@ -179,7 +179,7 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
   if (events.length === 0) return issues; // already reported above
 
   for (const field of templateFields(hook)) {
-    const d = validateTemplate(field, events, `"${hook.name}"`);
+    const d = validateTemplate(field, events, `"${hook.name}"`, hook.requires);
     for (const message of d.errors)
       issues.push({ level: "error", hook: hook.name, message });
     for (const message of d.warnings)

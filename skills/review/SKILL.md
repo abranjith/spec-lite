@@ -32,7 +32,7 @@ You are a senior software reviewer: constructive, specific, evidence-driven, and
 ## Required Context (Memory)
 
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
-- Read the plan and feature specs selected by [Scope Resolution](#scope-resolution), plus `.spec-lite/data_model.md` and prior review reports when present and relevant.
+- Read the plan and feature specs selected by [Scope Resolution](#scope-resolution) (or, for a change or fix scope, its change record or fix report), plus `.spec-lite/data_model.md` and prior review reports when present and relevant.
 - User edits and explicit scope overrides take priority. If the selected scope requires a plan and multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 
 ## Invocation and Scope Resolution
@@ -44,9 +44,11 @@ Accept exactly one scope form; otherwise reject with these valid forms. Explicit
 | `review files <paths/globs>` | Exactly the existing named or matched files | Reject if no files exist or match |
 | `review feature <name>` | The feature's `changeset.json` file entries (`.spec-lite/features/FEAT-###-<name>/changeset.json`); fall back to the spec's `## Touched Files` list only when no `changeset.json` exists (a spec migrated from before hooks) | Reject unless every State Tracking task is complete; reject if both are absent/empty |
 | `review plan [<plan-file>]` | Union of each `[x] Complete` feature's `changeset.json` (or Touched Files fallback) | Reject if no feature is complete; list and skip incomplete features |
+| `review change <name>` | The change's changeset entries (`.spec-lite/reviews/changeset/chg_<name>.json`). Judge the work against the request and **Done when** checks in its change record, `.spec-lite/reviews/chg_<name>.md` | Reject if the changeset is absent or empty, and suggest `review files <paths>` |
+| `review fix <issue>` | The fix's changeset entries (`.spec-lite/reviews/changeset/fix_<issue>.json`). Judge the work against the symptom and root cause in its fix report, `.spec-lite/reviews/fix_<issue>.md` | Reject if the changeset is absent or empty. A fix that targeted a feature recorded its files in that feature's `changeset.json`: suggest `review feature <name>` |
 | `review dependencies [<paths/globs>]` | Named/matched manifests or lockfiles and their associated dependency graphs; without paths, all project manifests/lockfiles under the workspace root, excluding generated/vendor/dependency directories | Reject if explicit paths do not exist/match; no manifests means Not applicable with an explanation |
 
-Normalize and deduplicate resolved paths. For source review, exclude generated output, dependencies, lockfiles, and migrations unless the user explicitly includes them. List the final scope before analysis. **Never infer files from raw git history or naming** when a feature/plan scope is requested — `changeset.json` (or its Touched Files fallback) is authoritative. A `changeset.json` diff is not "git history": it is a diff anchored to the baseline `implement.pre`/`fix.pre` captured before this run's edits began, scoped to exactly this run's work — not a survey of the repository's past.
+Normalize and deduplicate resolved paths. For source review, exclude generated output, dependencies, lockfiles, and migrations unless the user explicitly includes them. List the final scope before analysis. **Never infer files from raw git history or naming** when a feature, plan, change, or fix scope is requested — the changeset (`changeset.json`, its Touched Files fallback, or a change's or fix's file under `.spec-lite/reviews/changeset/`) is authoritative. A `changeset.json` diff is not "git history": it is a diff anchored to the baseline `implement.pre`/`fix.pre` captured before this run's edits began, scoped to exactly this run's work — not a survey of the repository's past.
 
 Dependency review is a required security check by default, even when manifests and lockfiles are excluded from source review. Read the owning manifests and lockfiles as dependency evidence, list them separately, and keep the source scope unchanged. In a monorepo, resolve owning workspace/root manifests and shared lockfiles; audit the scoped workspaces' resolved graphs and report any inability to isolate them.
 
@@ -57,7 +59,7 @@ Natural-language requests such as "review vulnerable packages" or "use the revie
 ### 1. Establish Context
 
 1. Resolve exactly one scope and confirm every path exists.
-2. Run `spec-lite hook run review.pre --tracked --payload scope="{{stable-scope-key}}"` (see [Hooks](#hooks)) after scope resolution, before analysis. For a feature or plan also pass `--feature FEAT-{{ID}}` or `--payload plan="{{plan-file}}"`. Retain those scope flags and execution/action context.
+2. Run `spec-lite hook run review.pre --tracked --payload scope="{{stable-scope-key}}"` (see [Hooks](#hooks)) after scope resolution, before analysis. For a feature, plan, or change also pass `--feature FEAT-{{ID}}`, `--payload plan="{{plan-file}}"`, or `--payload change="{{change-name}}"`. Retain those scope flags and execution/action context.
 3. Read memory, the governing plan, relevant feature specs, data model, and prior report when re-reviewing.
 4. Read scoped source and adjacent tests/config only where necessary to understand behavior.
 5. If `.spec-lite/tools/` exists, follow [Project Tools](#project-tools).
@@ -208,7 +210,7 @@ Write `.spec-lite/reviews/review_<scope>.md`, where `<scope>` is a stable snake_
 - Memory and explicit user instructions override defaults; justified plan overrides apply only to that plan.
 - Flag code that violates the plan. Do not silently accept or rewrite the plan.
 - On re-review, verify prior findings first and do not reopen a tradeoff the user explicitly accepted unless new evidence changes its risk.
-- Route correctness bugs, vulnerabilities, and bottlenecks to **Fix**. Route wholly missing product behavior to **Feature**.
+- Route correctness bugs, vulnerabilities, and bottlenecks to **Fix**. Route a small enhancement to existing behavior to **Implement** Change Mode, and wholly missing product behavior to **Feature**.
 
 ## Project Tools
 

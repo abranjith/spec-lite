@@ -100,8 +100,46 @@ export async function resolveFeature(
   return undefined;
 }
 
-export function changesetPath(root: string, featureDir: string): string {
-  return path.join(root, featureDir, "changeset.json");
+/**
+ * Changesets of work without a feature — a change, or a fix with no
+ * `--feature` — live together in one directory, so a project can git-ignore
+ * them with a single line.
+ */
+export const STANDALONE_CHANGESET_DIR = ".spec-lite/reviews/changeset";
+
+/** A change or fix name that is safe as a file name: no separators, no `..`. */
+export const SAFE_WORK_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+export const isSafeWorkName = (name: string): boolean =>
+  SAFE_WORK_NAME.test(name) && !name.includes("..");
+
+const named = (value: unknown): string | undefined =>
+  typeof value === "string" && isSafeWorkName(value.trim())
+    ? value.trim()
+    : undefined;
+
+/**
+ * Where a run's changeset lives, workspace-relative: its feature's directory,
+ * or a `.json` file under STANDALONE_CHANGESET_DIR for a change or a fix
+ * without a feature. Undefined when the run names neither.
+ */
+export function changesetLocation(payload: {
+  role?: string;
+  feature?: { dir?: string };
+  [key: string]: unknown;
+}): string | undefined {
+  const change = named(payload.change);
+  if (change) return `${STANDALONE_CHANGESET_DIR}/chg_${change}.json`;
+  if (payload.feature?.dir) return payload.feature.dir;
+  const fix = payload.role === "fix" ? named(payload.name) : undefined;
+  if (fix) return `${STANDALONE_CHANGESET_DIR}/fix_${fix}.json`;
+  return undefined;
+}
+
+/** The changeset file at a location: a feature directory's changeset.json, or the `.json` file itself. */
+export function changesetPath(root: string, location: string): string {
+  return location.endsWith(".json")
+    ? path.join(root, location)
+    : path.join(root, location, "changeset.json");
 }
 
 export function hooksLogPath(root: string, featureDir: string): string {

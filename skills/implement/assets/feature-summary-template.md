@@ -1,6 +1,6 @@
 ## Feature Summary Maintenance
 
-After completing implementation (Feature Mode, Plan Mode, or Review Mode — if behavior changed), you MUST update `.spec-lite/feature-summary.md`. This document is the **current-state reference** for all implemented features — not a changelog, not a log. It reflects what each feature does *right now*.
+After completing implementation (Feature Mode, Plan Mode, or Review and Change Mode — if behavior changed), you MUST update `.spec-lite/feature-summary.md`. This document is the **current-state reference** for all implemented features — not a changelog, not a log. It reflects what each feature does *right now*.
 
 ### Rules
 

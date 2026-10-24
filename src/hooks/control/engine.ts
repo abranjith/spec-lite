@@ -4,8 +4,17 @@ import fs from "fs-extra";
 import { refreshChanges } from "../payload.js";
 import { getEvent } from "../events.js";
 import { hooksForEvent, loadRegistry } from "../registry.js";
-import { resolveTemplate, describeVars } from "../interpolation.js";
-import { readProjectConfig, hooksLogPath } from "../workspace.js";
+import {
+  resolveTemplate,
+  describeVars,
+  missingRequirements,
+  requirementsMessage,
+} from "../interpolation.js";
+import {
+  readProjectConfig,
+  hooksLogPath,
+  isSafeWorkName,
+} from "../workspace.js";
 import { validatePayloadForHook } from "../payload-validation.js";
 import { runShellHook } from "../executors/shell.js";
 import { runHttpHook } from "../executors/http.js";
@@ -218,6 +227,16 @@ async function decisionResult(
     { decision, decisionId: decision.id, message: decision.publication?.error }
   );
 }
+/** Payload keys that name a run's work; saved with its execution and never changed by later events. */
+const SCOPE_KEYS = [
+  "plan",
+  "scope",
+  "work",
+  "name",
+  "change",
+  "artifact",
+  "yolo",
+] as const;
 function scope(
   payload: HookPayload,
   root: string
@@ -246,7 +265,24 @@ function scope(
   };
   let kind: string;
   let value: string;
-  if (payload.feature?.id) {
+  if (text("change")) {
+    // A change keeps its own workflow and changeset; joining a feature's would
+    // reopen that feature's saved flow and rewrite its changeset.json.
+    if (payload.feature?.id)
+      throw new ControlError(
+        "invalid-scope",
+        "Change Mode does not take --feature; pass only --payload change=<name>.",
+        2
+      );
+    kind = "change";
+    value = text("change")!;
+    if (!isSafeWorkName(value))
+      throw new ControlError(
+        "invalid-scope",
+        `Change name ${value} names a file; use letters, digits, ".", "_" or "-", such as add-json-flag or PROJ-123.`,
+        2
+      );
+  } else if (payload.feature?.id) {
     kind = "feature";
     value = payload.feature.id.toUpperCase();
   } else if (text("plan")) {
@@ -267,7 +303,7 @@ function scope(
   } else
     throw new ControlError(
       "scope-required",
-      `Resolve work before ${payload.event}: supply --feature or --payload plan=path, scope=key, artifact=path, name=fix-name, or yolo=run-id.`,
+      `Resolve work before ${payload.event}: supply --feature or --payload plan=path, scope=key, artifact=path, name=fix-name, change=change-name, or yolo=run-id.`,
       2
     );
   return { kind, scope: value, key: `${kind}:${value.normalize("NFC")}` };
@@ -869,14 +905,7 @@ export async function runControlledEvent(
           workflow = await tx.require("workflows", execution.workflow);
           // Scope and arguments come from saved approval; explicit caller values cannot replace it.
           const saved = structuredClone(execution.payload);
-          for (const key of [
-            "plan",
-            "scope",
-            "work",
-            "name",
-            "artifact",
-            "yolo",
-          ])
+          for (const key of SCOPE_KEYS)
             if (saved[key] !== undefined) payload[key] = saved[key];
           if (saved.feature) payload.feature = saved.feature;
           payload.selectedAction = action.choice;
@@ -970,14 +999,7 @@ export async function runControlledEvent(
                 2
               );
           }
-          for (const key of [
-            "plan",
-            "scope",
-            "work",
-            "name",
-            "artifact",
-            "yolo",
-          ])
+          for (const key of SCOPE_KEYS)
             if (
               opts.extra?.[key] !== undefined &&
               execution.payload[key] !== undefined
@@ -996,14 +1018,7 @@ export async function runControlledEvent(
                   2
                 );
             }
-          for (const key of [
-            "plan",
-            "scope",
-            "work",
-            "name",
-            "artifact",
-            "yolo",
-          ])
+          for (const key of SCOPE_KEYS)
             if (payload[key] === undefined)
               payload[key] = execution.payload[key];
           if (
@@ -1316,7 +1331,10 @@ async function dispatchEvent(
   if (retry) {
     const event = await store.tx((tx) => tx.require("events", eventId));
     for (const hook of event.hooks.filter(
-      (h) => repeatable(h) && (h.builtin ?? h.name) !== "prepare-worktree"
+      (h) =>
+        repeatable(h) &&
+        (h.builtin ?? h.name) !== "prepare-worktree" &&
+        !missingRequirements(h.requires, { payload: event.payload }).length
     )) {
       const outcome = await invoke(store, hook, event.payload);
       if (outcome.status === "failed")
@@ -1369,6 +1387,22 @@ async function dispatchEvent(
           return eventResult(event, execution, "running", {
             message: "Another invocation owns this hook attempt.",
           });
+        const missing = missingRequirements(hook.requires, {
+          payload: event.payload,
+        });
+        if (missing.length) {
+          event.outcomes.push({
+            name: hook.name,
+            event: event.name,
+            kind: hook.type,
+            status: "skipped",
+            durationMs: 0,
+            message: requirementsMessage(missing),
+          });
+          event.cursor++;
+          tx.put("events", event);
+          return { event, hook: { ...hook, enabled: false } };
+        }
         if (hook.once) {
           const previous = (await tx.list("events")).some(
             (saved) =>

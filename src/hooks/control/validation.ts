@@ -248,7 +248,9 @@ export function flowHookErrors(hook: HookDefinition): string[] {
       ...(opts?.attach ?? []),
       ...(opts?.inputs ?? []),
     ].filter((s): s is string => typeof s === "string")) {
-      errors.push(...validateTemplate(template, events, hook.name).errors);
+      errors.push(
+        ...validateTemplate(template, events, hook.name, hook.requires).errors
+      );
       if (parseTemplate(template).some((r) => r.name.startsWith("decision.")))
         errors.push("Creation templates cannot use decision slots.");
     }
@@ -262,13 +264,19 @@ export function flowHookErrors(hook: HookDefinition): string[] {
           /\$\{decision\.(id|question|status|choice|actor|feedbackFile)(?::-[^{}]*)?\}/g,
           "decision-slot"
         );
-        errors.push(...validateTemplate(stripped, events, hook.name).errors);
+        errors.push(
+          ...validateTemplate(stripped, events, hook.name, hook.requires).errors
+        );
       }
     for (const rule of opts?.rules ?? [])
       for (const field of Object.keys(rule.if))
         errors.push(
-          ...validateTemplate(`\${${field}}`, events, `${hook.name} rule`)
-            .errors
+          ...validateTemplate(
+            `\${${field}}`,
+            events,
+            `${hook.name} rule`,
+            hook.requires
+          ).errors
         );
   }
   return errors;

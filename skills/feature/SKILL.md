@@ -162,7 +162,7 @@ Before spawning, apply the deterministic ID rule to every queued legacy row. The
 2. An instruction to read this skill file (`<repo>/skills/feature/SKILL.md`) and follow its Feature Mode workflow end-to-end for that single feature.
 3. An instruction to read all relevant context files: `.spec-lite/memory.md`, `.spec-lite/data_model.md`, `.spec-lite/feature-summary.md`, and the plan file itself (each only if present).
 4. Its hook context: your execution ID as the parent. The subagent starts with `spec-lite hook run feature.pre --tracked --parent <your-execution-id> --feature FEAT-<ID>` and carries the execution ID that call returns (never yours) on every later event.
-5. The mandatory deliverables: (a) create `.spec-lite/features/FEAT-<ID>-<name>/spec.md` and run `spec-lite hook run feature.spec.post --tracked --execution <its-execution-id> --feature FEAT-<ID>`, (b) update the parent plan's `Spec File` cell for this FEAT-ID to point to the created file, and (c) do NOT touch the plan's `Status` column.
+5. The mandatory deliverables: (a) create `.spec-lite/features/FEAT-<ID>-<name>/spec.md` and run `spec-lite hook run feature.spec.post --tracked --execution <its-execution-id> --feature FEAT-<ID> --payload summary="<one-line description of the spec>"`, (b) update the parent plan's `Spec File` cell for this FEAT-ID to point to the created file, and (c) do NOT touch the plan's `Status` column.
 6. A request to return a **brief one-line summary** of what was created (e.g., `"FEAT-002 spec created at .spec-lite/features/FEAT-002-order_processing/spec.md (8 tasks)"`) or a one-line failure reason. Tell the subagent its return text will be the only thing the orchestrator sees.
 
 **Do not run multiple feature subagents in parallel** — feature specs must be created sequentially so that the parent plan's `Spec File` column is updated cleanly without merge conflicts on the plan file.
@@ -240,7 +240,7 @@ Do not expand the current scope. Append out-of-scope improvements to `.spec-lite
 
 Your output is a markdown file at `.spec-lite/features/FEAT-{{ID}}-<name>/spec.md` (e.g., `.spec-lite/features/FEAT-001-user_management/spec.md`).
 
-Once the spec file exists, run `spec-lite hook run feature.spec.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}}` (see [Hooks](#hooks)) — this fires once per spec written, including once per Plan Mode subagent. In Feature Mode (a single spec), also run `spec-lite hook run feature.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` once the plan sync below is complete.
+Once the spec file exists, run `spec-lite hook run feature.spec.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description of the spec}}"` (see [Hooks](#hooks)) — this fires once per spec written, including once per Plan Mode subagent. In Feature Mode (a single spec), also run `spec-lite hook run feature.post --tracked --execution {{execution-id}} --feature FEAT-{{ID}} --payload summary="{{one-line description}}"` once the plan sync below is complete.
 
 Before finishing, also save the parent plan update described above so both artifacts are synchronized:
 

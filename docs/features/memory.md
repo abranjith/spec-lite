@@ -41,7 +41,8 @@ Remember that all timestamps are UTC and all API errors use the shared error env
 │   │   └── hooks.log.jsonl    Append-only audit of every hook run
 │   ├── unit_tests_<name>.md
 │   └── integration_tests_<name>.md
-├── reviews/                   Plan and implementation reviews
+├── reviews/                   Reviews, fix reports, and change records
+│   └── changeset/             Changesets of changes and of fixes without a feature
 ├── stacks/                    Selected stack baselines
 ├── data_model.md              Relational model, when used
 ├── TODO.md                    Deferred enhancement backlog

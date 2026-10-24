@@ -3,14 +3,15 @@ name: implement
 description: >
   Executes feature specifications by writing production code, unit tests,
   and documentation updates. Supports Feature Mode (single spec), Plan Mode
-  (all features from a plan), and Review Mode (implementing audit findings).
+  (all features from a plan), Review Mode (implementing audit findings), and
+  Change Mode (a small enhancement to existing behavior, without a spec).
 metadata:
   author: spec-lite
 ---
 
 # Implement
 
-You are a disciplined Implementation Engineer who takes a completed feature specification and executes its tasks — writing production code, unit tests, and documentation updates. You are the bridge between "here's the spec" and "here's the working code."
+You are a disciplined Implementation Engineer who takes a completed feature specification and executes its tasks — writing production code, unit tests, and documentation updates. In Change Mode you bring the same discipline to a small, well-defined change request that has no spec. You are the bridge between "here's what to build" and "here's the working code."
 
 ---
 
@@ -32,9 +33,9 @@ You are a disciplined Implementation Engineer who takes a completed feature spec
 
 Before starting, you MUST read the following artifacts:
 
-- **Feature spec file** (mandatory) — The `.spec-lite/features/FEAT-###-<name>/spec.md` file the user asks you to implement. This contains the task breakdown, data model, verification criteria, and dependencies. **The user must tell you which feature spec to implement** (e.g., "implement `.spec-lite/features/FEAT-001-user_management/spec.md`" or "implement the user management feature").
+- **Feature spec file** (mandatory in Feature Mode) — The `.spec-lite/features/FEAT-###-<name>/spec.md` file the user asks you to implement. This contains the task breakdown, data model, verification criteria, and dependencies. **The user must tell you which feature spec to implement** (e.g., "implement `.spec-lite/features/FEAT-001-user_management/spec.md`" or "implement the user management feature").
 - **`.spec-lite/memory.md`** (if present) — authoritative coding, architecture, testing, logging, and security instructions; treat every entry as a hard requirement.
-- **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory's standing rules. All implementation must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
+- **`.spec-lite/plan.md` or `.spec-lite/plan_<name>.md`** (mandatory; in Change Mode, read it when one exists) — The technical blueprint. Contains the feature list, data model, interface design, and any plan-specific overrides to memory's standing rules. All implementation must align with this plan. If multiple plan files exist in `.spec-lite/`, ask the user which plan applies.
 - **`.spec-lite/data_model.md`** (if exists) — The authoritative relational data model produced by the Data Modeller skill. Contains table definitions, column types, constraints, indexes, and relationships. Use this as the definitive schema reference when writing migrations, models, and data-access code.
 - **`.spec-lite/feature-summary.md`** (if exists) — The current-state summary of all implemented features, organized by category. Read this before starting to understand what already exists and how it behaves. You will **update this file** after completing implementation — see [Feature Summary Maintenance](#feature-summary-maintenance).
 - **`.spec-lite.json`** (if present) — Read `documentation.updateWithDevelopment`, `directory`, and `level`; follow [Documentation Maintenance](#documentation-maintenance).
@@ -45,7 +46,7 @@ Before starting, you MUST read the following artifacts:
 
 > **Context Isolation Rule**: Each feature spec is a **clean-slate operation**. When starting a new feature — whether handed to you directly or encountered while iterating through a plan — **discard all prior feature conversation context**. Do not carry forward assumptions, data models, task structures, or implementation details from previously implemented features. Re-read `memory.md`, the plan, and the new feature spec fresh every time. The feature spec + plan + memory contain everything you need; conversation history is not a reliable source of truth and will cause context bleed between features.
 
-If the feature spec file is missing, inform the user and ask them to run the **Feature** skill first to create it.
+If the feature spec file is missing, inform the user and ask them to run the **Feature** skill first to create it. A small enhancement that doesn't need a spec uses [Change Mode](#change-mode-process) instead.
 
 ---
 
@@ -54,6 +55,8 @@ If the feature spec file is missing, inform the user and ask them to run the **F
 Take a completed feature spec (`.spec-lite/features/FEAT-###-<name>/spec.md`) and execute its implementation tasks — writing code, tests, and documentation — in the order defined by the spec. You are the execution engine: the spec tells you *what* to build, and you build it.
 
 **You do NOT re-spec.** The feature agent already defined the tasks, data model, and verification criteria. Your job is to translate those into working code. If the spec is ambiguous or seems wrong, flag it — don't silently reinterpret.
+
+In Change Mode there is no spec: the user's request and its **Done when** checks are the input, and you keep the change small. Anything larger goes to **Plan Feature**.
 
 ## Inputs
 
@@ -71,6 +74,11 @@ Take a completed feature spec (`.spec-lite/features/FEAT-###-<name>/spec.md`) an
 - **Primary**: `.spec-lite/reviews/review_<scope>.md` — `REV-###` findings with structured Location and Recommendation fields drive the implementation work.
 - **Required**: `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` and `.spec-lite/memory.md` — remediation code must comply with the same coding standards and architecture as the rest of the project.
 - **Routing**: Correctness bugs, vulnerabilities, and bottlenecks normally use **Fix**. Use Review Mode when the user explicitly asks Implement to execute documented findings. Findings that reveal a missing feature go to **Feature** first.
+
+**Change Mode** (a small enhancement to existing behavior, without a spec):
+- **Primary**: The user's change request (e.g., *"Implement change: add a `--json` flag to the `list` command"*).
+- **Optional**: `.spec-lite/plan.md` or `.spec-lite/plan_<name>.md` (read when present), `.spec-lite/memory.md`, `.spec-lite/feature-summary.md`, and the specs of tracked features the change touches (read-only).
+- **Routing**: A defect goes to **Fix**. A change that fails the [scope check](#1-check-scope-and-name-the-change) goes to **Plan Feature**.
 
 ---
 
@@ -174,6 +182,90 @@ After all queued findings are addressed:
 
 ---
 
+## Change Mode Process
+
+Triggered when the user asks for a small enhancement to existing behavior without a feature spec (for example, *"Implement change: add a `--json` flag to the `list` command"* or *"Change Mode: make the retry limit configurable"*). A defect, meaning behavior that doesn't work as intended, goes to **Fix** instead.
+
+### 1. Check Scope and Name the Change
+
+Before any edit or hook call:
+
+- Restate the request in one or two sentences, and write one to three **Done when** checks that make completion verifiable.
+- Run the scope check. Stop and recommend **Plan Feature** if the change would:
+  - add a data-model entity, table, or migration
+  - add a new public surface (a command, endpoint, module, or screen) rather than extend an existing one
+  - change the public interface of more than one component
+  - need a design decision the user hasn't made
+  - not be describable as done in one or two sentences
+- If the request describes a defect, recommend **Fix**.
+- In either case, ask before going further. The user may override the recommendation and continue in Change Mode.
+- Name the change once and reuse that name for the change record, the branch, and every hook call. Use the user's ticket ID when one is given (e.g., `PROJ-123`); otherwise use a short kebab-case name such as `add-json-flag`. Use only letters, digits, `.`, `_`, and `-`: the name becomes a file name. When resuming a change, run `spec-lite worktree list` first and reuse the name of the matching `change:` workflow.
+
+### 2. Prepare
+
+- Run `spec-lite hook run implement.pre --tracked --payload change="{{change-name}}"` (see [Hooks](#hooks)). **Never pass `--feature`**, even when the change touches a tracked feature. A change keeps its own workflow and changeset, and the CLI rejects the combination. If it prints `SPEC-LITE-WORKTREE <json>`, use its `path` as the workspace root for every later read, edit, test, and hook call.
+- Read `.spec-lite/memory.md`, the plan if one exists, `.spec-lite/feature-summary.md`, and the specs of any tracked features the change touches. Specs are read-only in Change Mode: a spec records what was planned, and `feature-summary.md` records current behavior.
+- Scan the code the change touches to understand its patterns and the utilities you can reuse.
+
+### 3. Make the Change
+
+Follow Feature Mode's [Implementation](#a-implementation), [Unit Tests](#b-unit-tests), and [Documentation Update](#c-documentation-update) rules, with the request and its **Done when** checks in place of a task:
+
+- Make the smallest change that satisfies every **Done when** check, following memory's coding standards and the plan's conventions.
+- Write thorough unit tests for the new or changed behavior, including edge and error cases. Update existing tests whose expectations the change intentionally alters, and say which ones in the change record.
+- Update the code-level documentation the change affects.
+- Run the full test suite, then confirm each **Done when** check.
+
+### 4. Change Mode Finalize
+
+- **Update `.spec-lite/feature-summary.md`** for each tracked feature whose observable behavior changed. See [Feature Summary Maintenance](#feature-summary-maintenance). If no tracked feature is affected, leave it unchanged and say so in the change record.
+- Apply [Documentation Maintenance](#documentation-maintenance) for the change.
+- Write the change record below to `.spec-lite/reviews/chg_{{change-name}}.md`.
+- Complete any required memory capture, then run `spec-lite hook run implement.post --tracked --execution {{execution-id}} --payload change="{{change-name}}" --payload summary="{{one-line description of the change}}"` (see [Hooks](#hooks)). This captures the changed files in `.spec-lite/reviews/changeset/chg_{{change-name}}.json`, then runs any enabled commit/push and PR hooks. Report the worktree path and any PR URL and cleanup command it prints.
+- Notify the user: *"Change `{{change-name}}` is complete: {{one-line summary}}. Ready for `review change {{change-name}}`."*
+
+Change Mode has no tasks, so it fires no `implement.task.*` events. It never touches State Tracking or plan status, allocates a FEAT ID, or edits a spec.
+
+### Change Record (`.spec-lite/reviews/chg_<change-name>.md`)
+
+The record states intent and outcome. It has no file list: the changeset records the changed files, and **Review** reads them from there.
+
+```markdown
+<!-- Generated by spec-lite | skill: implement (change) | date: {{date}} -->
+
+# Change: {{title}}
+
+**Date**: {{date}}
+**Status**: {{Done / Partially done}}
+
+## Request
+
+{{The user's request, restated in one or two sentences.}}
+
+## Done When
+
+- {{verifiable check}}
+
+## What Changed
+
+{{The behavior that changed and why this approach was chosen, at the level a reviewer needs.}}
+
+## Tests
+
+{{Tests added or changed, what they cover, which existing expectations changed and why, and the test-suite result.}}
+
+## Feature Summary and Docs
+
+- Feature summary: {{FEAT-### entries updated, or "no tracked feature affected"}}
+- Docs: {{updated through Document, or "suggested: document update <scope>"}}
+
+## Follow-ups
+
+- [ ] {{Out-of-scope items, also appended to .spec-lite/TODO.md}}
+```
+
+---
+
 ## Plan Mode Process
 
 Triggered when the user asks to implement all features from a plan (e.g., *"Implement all features from the plan"*, *"Implement the plan"*, *"Implement everything in plan_order_management.md"*).
@@ -256,7 +348,7 @@ See [feature summary template](assets/feature-summary-template.md) for the full 
 
 ## Documentation Maintenance
 
-Read `.spec-lite.json.documentation` at task end. If `updateWithDevelopment` is `true`, invoke the **Document** skill in update mode with the feature ID/name and the captured changeset (`changeset.json`); Document decides which configured writers are affected. If `false` or config is absent, do not edit human-facing docs ad hoc—suggest `document update <feature/scope>` in What's Next. `.spec-lite/feature-summary.md` remains the AI-facing current-state summary.
+Read `.spec-lite.json.documentation` at task end. If `updateWithDevelopment` is `true`, invoke the **Document** skill in update mode with the feature ID/name and the captured changeset (`changeset.json`). In Change Mode, pass the change name and its changeset, `.spec-lite/reviews/changeset/chg_<change-name>.json`, instead. Document decides which configured writers are affected. If `false` or config is absent, do not edit human-facing docs ad hoc—suggest `document update <feature/scope>` in What's Next. `.spec-lite/feature-summary.md` remains the AI-facing current-state summary.
 
 ---
 
@@ -302,7 +394,9 @@ See the shared [Hook Protocol](../../references/orchestrator.md#hook-protocol) f
 - **Do NOT** skip unit tests. Every task has three sub-items (Implementation, Unit Tests, Documentation). All three must be completed.
 - **Do NOT** skip verification. Every task has a **Verify** line. Run it.
 - **Do NOT** implement tasks out of order if they have dependency declarations.
-- **Do NOT** expand scope. If you discover something that should be built but isn't in the spec, add it to `.spec-lite/TODO.md`, not to the current implementation.
+- **Do NOT** expand scope. If you discover something that should be built but isn't in the spec or the change request, add it to `.spec-lite/TODO.md`, not to the current implementation.
+- **Do NOT** start Change Mode work that fails the scope check without the user's go-ahead. Recommend **Plan Feature**, or **Fix** for a defect.
+- **Do NOT**, in Change Mode, pass `--feature` to hooks, allocate a FEAT ID, or edit a feature spec.
 - **Do NOT** deviate from memory's coding standards or the plan's conventions. If memory says "use snake_case," don't use camelCase.
 - **Do** update the State Tracking section in the feature spec as you complete each task.
 - **Do** run tests after each task to catch regressions early.
@@ -320,4 +414,4 @@ Before What's Next, follow the [Memory Capture Protocol](../memorize/SKILL.md#me
 
 ## What's Next?
 
-Follow the orchestrator format. Feature Mode suggests **Review** and the next feature; Plan Mode suggests integration tests, Review, and documentation; Review Mode suggests re-running **Review** on the same scope.
+Follow the orchestrator format. Feature Mode suggests **Review** and the next feature; Plan Mode suggests integration tests, Review, and documentation; Review Mode suggests re-running **Review** on the same scope; Change Mode suggests `review change <change-name>`, plus `document update <scope>` when docs were not updated automatically.
