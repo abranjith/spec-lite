@@ -369,14 +369,21 @@ export function replaceProjectContext(
  * Copy a native Agent Skills skill directory to the target location.
  * Updates the `name` field in SKILL.md frontmatter to match the target directory name.
  * Optionally injects the project context block into the SKILL.md body.
- * Copies references/, assets/, and scripts/ subdirectories as-is.
+ * Copies references/, assets/, and scripts/ and optionally rewrites Markdown links.
  *
  * @returns the number of files written.
  */
 export async function copyNativeSkillDir(
   sourceDir: string,
   targetDir: string,
-  options: { contextBlock?: string | null }
+  options: {
+    contextBlock?: string | null;
+    rewriteFile?: (
+      content: string,
+      sourceFile: string,
+      outputFile: string
+    ) => string;
+  }
 ): Promise<number> {
   let filesCopied = 0;
   const targetName = path.basename(targetDir);
@@ -388,8 +395,15 @@ export async function copyNativeSkillDir(
   // Update the name field in frontmatter (must match parent directory per Agent Skills spec)
   skillContent = skillContent.replace(/^(name:\s*).+$/m, `$1${targetName}`);
 
+  skillContent =
+    options.rewriteFile?.(
+      skillContent,
+      skillMdPath,
+      path.join(targetDir, "SKILL.md")
+    ) ?? skillContent;
+
   // Inject project context if provided
-  if (options.contextBlock) {
+  if (options.contextBlock !== null && options.contextBlock !== undefined) {
     skillContent = replaceProjectContext(skillContent, options.contextBlock);
   }
 
@@ -409,6 +423,27 @@ export async function copyNativeSkillDir(
 
     const destSubdir = path.join(targetDir, subdir);
     await fs.copy(srcSubdir, destSubdir);
+
+    if (options.rewriteFile) {
+      const rewrite = options.rewriteFile;
+      const rewriteMarkdown = async (directory: string): Promise<void> => {
+        for (const entry of await fs.readdir(directory, {
+          withFileTypes: true,
+        })) {
+          const src = path.join(directory, entry.name);
+          if (entry.isDirectory()) await rewriteMarkdown(src);
+          else if (entry.name.endsWith(".md")) {
+            const dest = path.join(targetDir, path.relative(sourceDir, src));
+            await fs.writeFile(
+              dest,
+              rewrite(await fs.readFile(src, "utf8"), src, dest),
+              "utf8"
+            );
+          }
+        }
+      };
+      await rewriteMarkdown(srcSubdir);
+    }
 
     for (const entry of entries) {
       filesCopied++;

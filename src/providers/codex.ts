@@ -1,6 +1,7 @@
 import path from "path";
 import os from "os";
 import fs from "fs-extra";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import type { Provider, PromptMeta, OutputScope } from "./base.js";
 import {
   getAgentOutputName,
@@ -46,6 +47,15 @@ export class CodexProvider implements Provider {
   supportsAgents = false;
   supportsNativeSkills = true;
   supportsGlobal = true;
+
+  readOutputContent(content: string, outputPath: string): string {
+    if (!outputPath.endsWith(".toml")) return content;
+    const instructions = parseToml(content).developer_instructions;
+    if (typeof instructions !== "string") {
+      throw new Error(`Missing developer_instructions in ${outputPath}`);
+    }
+    return instructions;
+  }
 
   getOutputPaths(promptName: string): { prompt: string } {
     return {
@@ -97,9 +107,8 @@ export class CodexProvider implements Provider {
    *
    * Codex requires `name`, `description`, and `developer_instructions`. The
    * full markdown body (including the `<!-- project-context -->` block) is
-   * placed inside a multi-line `developer_instructions` string so that
-   * `extractProjectContext` / `replaceProjectContext` keep working during
-   * `spec-lite update`.
+   * serialized as `developer_instructions`. Updates decode its Markdown,
+   * merge editable context, then serialize again to preserve TOML escaping.
    */
   transformPrompt(content: string, meta: PromptMeta): string {
     const subagentName = toSpecName(subagentFileName(meta.name));
@@ -108,11 +117,11 @@ export class CodexProvider implements Provider {
       `# DO NOT EDIT below the project-context block — managed by spec-lite`,
       `# To update: run "spec-lite update" — your Project Context edits will be preserved`,
       "",
-      `name = ${tomlBasicString(subagentName)}`,
-      `description = ${tomlBasicString(meta.description || meta.title)}`,
-      "",
-      `developer_instructions = ${tomlMultilineString(content)}`,
-      "",
+      stringifyToml({
+        name: subagentName,
+        description: meta.description || meta.title,
+        developer_instructions: content,
+      }),
     ];
     return lines.join("\n");
   }
@@ -351,39 +360,4 @@ export function mergeCodexAgentsMd(
 
   const separator = existingContent.endsWith("\n") ? "\n" : "\n\n";
   return existingContent + separator + block + "\n";
-}
-
-// ---------------------------------------------------------------------------
-// TOML serialization helpers
-// ---------------------------------------------------------------------------
-
-/** Render a single-line TOML basic string. Escapes `\`, `"`, and control chars. */
-function tomlBasicString(value: string): string {
-  const escaped = value
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t");
-  return `"${escaped}"`;
-}
-
-/**
- * Render a multi-line TOML string for `developer_instructions`. Prefers literal
- * (`'''`) syntax — no escapes, content survives verbatim — and falls back to
- * basic (`"""`) with backslash escaping if the content contains a `'''` run.
- */
-function tomlMultilineString(value: string): string {
-  if (!value.includes("'''")) {
-    // Literal multi-line: leading newline after opener is stripped by TOML, so add one.
-    return `'''\n${value}\n'''`;
-  }
-
-  // Fallback: basic multi-line. Escape `\` and break up any `"""` runs by
-  // backslash-escaping the third quote of each run.
-  let escaped = value.replace(/\\/g, "\\\\");
-  while (escaped.includes('"""')) {
-    escaped = escaped.replace(/"""/g, '""\\"');
-  }
-  return `"""\n${escaped}\n"""`;
 }

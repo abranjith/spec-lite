@@ -70,6 +70,9 @@ export interface Provider {
    */
   transformPrompt(content: string, meta: PromptMeta): string;
 
+  /** Decode an installed output before extracting editable Markdown context. */
+  readOutputContent?(content: string, outputPath: string): string;
+
   /**
    * Transform the raw markdown prompt content into the provider's agent file format.
    * Only required when supportsAgents is true.

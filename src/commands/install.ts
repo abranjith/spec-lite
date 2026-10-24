@@ -9,10 +9,17 @@ import {
   copyNativeSkillDir,
   hasPromptName,
   loadAllSources,
+  replaceProjectContext,
 } from "../utils/prompts.js";
 import { mergeCodexAgentsMd } from "../providers/codex.js";
 import { getPackageVersion } from "../utils/package-version.js";
 import { resolveLegacyRenames } from "../utils/stale-sources.js";
+import {
+  OutputPreservation,
+  backupAndRemoveLegacy,
+} from "../utils/output-preservation.js";
+import type { LegacyRename } from "../utils/stale-sources.js";
+import { InstalledLinks } from "../utils/installed-links.js";
 
 interface InstallOptions {
   ai?: string | string[];
@@ -179,14 +186,37 @@ export async function installCommand(options: InstallOptions): Promise<void> {
 
   // 4. Load and write prompts (new agents/skills structure with legacy fallback)
   const sources = await loadAllSources(exclude);
+  const linkSources = await loadAllSources();
   let written = 0;
   const installedPrompts = sources.map((source) => source.name);
+  // Snapshot originals before any writes, including outputs whose names did not change.
+  const legacyRenames = new Map<string, LegacyRename[]>();
+  for (const provider of providers) {
+    legacyRenames.set(
+      provider.alias,
+      await resolveLegacyRenames(homeDir, provider, sources, "global")
+    );
+  }
+  const renamedOutputs: Array<LegacyRename & { provider: string }> = [];
 
   for (const provider of providers) {
     console.log(
       chalk.cyan(`\n  Installing global prompts for ${provider.name}...`)
     );
     const nativeSkillNames = new Set<string>();
+    const links = new InstalledLinks(
+      provider,
+      homeDir,
+      linkSources,
+      sources,
+      "global"
+    );
+    const preservation = new OutputPreservation(
+      provider,
+      homeDir,
+      legacyRenames.get(provider.alias) ?? [],
+      !!options.force
+    );
 
     for (const source of sources) {
       // Codex has no native primitive for prompt-only reference docs.
@@ -209,10 +239,24 @@ export async function installCommand(options: InstallOptions): Promise<void> {
       // --- Native skill directory (global, if provider supports Agent Skills format) ---
       if (isNativeSkill) {
         const skillOutDir = provider.getGlobalSkillOutputDir!(source.name);
+        // Claude's old global skills were agent files; seed newly native skills
+        // from that role's original context as well as preserving the new agent.
+        const legacyAgentContext =
+          provider.alias === "claude-code"
+            ? (legacyRenames
+                .get(provider.alias)
+                ?.find((rename) => rename.newPath === paths.agent)
+                ?.contextBlock ?? null)
+            : null;
+        const contextBlock = await preservation.contextFor(
+          path.join(skillOutDir, "SKILL.md"),
+          source.content,
+          legacyAgentContext
+        );
         const filesCopied = await copyNativeSkillDir(
           source.rootPath,
           skillOutDir,
-          { contextBlock: null }
+          { contextBlock, rewriteFile: links.rewriteFile.bind(links) }
         );
         written += filesCopied;
         nativeSkillNames.add(source.name);
@@ -225,7 +269,15 @@ export async function installCommand(options: InstallOptions): Promise<void> {
         provider.transformAgent &&
         (!source.promptOnly || provider.alias === "copilot")
       ) {
-        const transformed = provider.transformAgent(source.content, meta);
+        const context = await preservation.contextFor(
+          paths.agent,
+          source.content
+        );
+        const content = links.rewrite(source, source.content, paths.agent);
+        const transformed = provider.transformAgent(
+          context !== null ? replaceProjectContext(content, context) : content,
+          meta
+        );
         await fs.ensureDir(path.dirname(paths.agent));
         await fs.writeFile(paths.agent, transformed, "utf-8");
         written++;
@@ -234,13 +286,29 @@ export async function installCommand(options: InstallOptions): Promise<void> {
 
       // --- Prompt file (global, skip for native skills) ---
       if (!isNativeSkill && paths.prompt) {
-        const transformed = provider.transformPrompt(source.content, meta);
+        const context = await preservation.contextFor(
+          paths.prompt,
+          source.content
+        );
+        const content = links.rewrite(source, source.content, paths.prompt);
+        const transformed = provider.transformPrompt(
+          context !== null ? replaceProjectContext(content, context) : content,
+          meta
+        );
         await fs.ensureDir(path.dirname(paths.prompt));
         await fs.writeFile(paths.prompt, transformed, "utf-8");
         written++;
         console.log(chalk.green(`  ✓ ${paths.prompt}`));
       }
     }
+
+    await links.writeSupportingFiles();
+    renamedOutputs.push(
+      ...(await preservation.removableRenames()).map((rename) => ({
+        ...rename,
+        provider: provider.name,
+      }))
+    );
 
     if (provider.alias === "codex") {
       const codexInstalledPrompts = sources
@@ -265,15 +333,6 @@ export async function installCommand(options: InstallOptions): Promise<void> {
 
   // 4b. Pre-0.5.0 installs used dotted `spec.<name>` files; their renamed
   // replacements are now written, so offer to remove the originals.
-  const renamedOutputs = (
-    await Promise.all(
-      providers.map(async (provider) =>
-        (await resolveLegacyRenames(homeDir, provider, sources, "global")).map(
-          (rename) => ({ provider: provider.name, ...rename })
-        )
-      )
-    )
-  ).flat();
   if (renamedOutputs.length > 0) {
     console.log(
       chalk.yellow(
@@ -302,15 +361,9 @@ export async function installCommand(options: InstallOptions): Promise<void> {
     }
 
     if (removeLegacy) {
-      for (const { legacyPath } of renamedOutputs) {
-        const relativeCheck = path.relative(homeDir, legacyPath);
-        if (relativeCheck.startsWith("..") || path.isAbsolute(relativeCheck)) {
-          throw new Error(
-            `Refusing to remove path outside the home directory: ${legacyPath}`
-          );
-        }
-        await fs.remove(legacyPath);
-        console.log(chalk.green(`  ✓ ${legacyPath} (removed old name)`));
+      for (const rename of renamedOutputs) {
+        await backupAndRemoveLegacy(homeDir, rename);
+        console.log(chalk.green(`  ✓ ${rename.legacyPath} (removed old name)`));
       }
     }
   }

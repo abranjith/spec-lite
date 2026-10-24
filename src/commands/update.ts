@@ -10,7 +10,6 @@ import {
 import type { SpecLiteConfig, SourceItem } from "../providers/base.js";
 import {
   loadAllSources,
-  extractProjectContext,
   replaceProjectContext,
   copyNativeSkillDir,
 } from "../utils/prompts.js";
@@ -31,6 +30,11 @@ import {
   runFeatureMigration,
 } from "../utils/feature-migration.js";
 import { offerHooks } from "./init.js";
+import { InstalledLinks } from "../utils/installed-links.js";
+import {
+  OutputPreservation,
+  backupAndRemoveLegacy,
+} from "../utils/output-preservation.js";
 
 interface UpdateOptions {
   ai?: string | string[];
@@ -77,33 +81,20 @@ function parseProviderAliases(input?: string | string[]): string[] {
 }
 
 /**
- * Update a single output file: preserve project-context edits if possible,
- * otherwise overwrite.  Returns { updated, preserved, unchanged } deltas.
+ * Write a rendered output after context has been merged before serialization.
+ * Returns { updated, preserved, unchanged } deltas.
  */
 async function updateFile(
   absPath: string,
   relPath: string,
   newContent: string,
-  force: boolean,
-  seedContext: string | null = null
+  contextPreserved: boolean
 ): Promise<{ updated: number; preserved: number; unchanged: number }> {
   if (!(await fs.pathExists(absPath))) {
     await fs.ensureDir(path.dirname(absPath));
-    // A renamed output inherits the Project Context of the file it replaces.
-    if (seedContext && !force) {
-      await fs.writeFile(
-        absPath,
-        replaceProjectContext(newContent, seedContext),
-        "utf-8"
-      );
-      console.log(
-        chalk.green(`  ✓ ${relPath} (renamed, Project Context preserved)`)
-      );
-      return { updated: 1, preserved: 1, unchanged: 0 };
-    }
     await fs.writeFile(absPath, newContent, "utf-8");
     console.log(chalk.green(`  ✓ ${relPath} (restored)`));
-    return { updated: 1, preserved: 0, unchanged: 0 };
+    return { updated: 1, preserved: contextPreserved ? 1 : 0, unchanged: 0 };
   }
 
   const currentContent = await fs.readFile(absPath, "utf-8");
@@ -112,21 +103,9 @@ async function updateFile(
     return { updated: 0, preserved: 0, unchanged: 1 };
   }
 
-  if (!force) {
-    const userContext = extractProjectContext(currentContent);
-    if (userContext) {
-      const mergedContent = replaceProjectContext(newContent, userContext);
-      await fs.writeFile(absPath, mergedContent, "utf-8");
-      console.log(
-        chalk.green(`  ✓ ${relPath} (updated, Project Context preserved)`)
-      );
-      return { updated: 1, preserved: 1, unchanged: 0 };
-    }
-  }
-
   await fs.writeFile(absPath, newContent, "utf-8");
   console.log(chalk.green(`  ✓ ${relPath} (updated)`));
-  return { updated: 1, preserved: 0, unchanged: 0 };
+  return { updated: 1, preserved: contextPreserved ? 1 : 0, unchanged: 0 };
 }
 
 /** Remove a workspace-relative path, refusing anything that resolves outside the workspace. */
@@ -428,15 +407,23 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   let updated = 0;
   let preserved = 0;
   let unchanged = 0;
+  const completedRenames: Array<LegacyRename & { provider: string }> = [];
 
   for (const provider of providers) {
     console.log(chalk.cyan(`\n  Updating prompts for ${provider.name}...`));
     const nativeSkillNames = new Set<string>();
-    const seedContexts = new Map(
-      (legacyRenames.get(provider.alias) ?? []).map((rename) => [
-        rename.newPath,
-        rename.contextBlock,
-      ])
+    const links = new InstalledLinks(
+      provider,
+      cwd,
+      allSources,
+      sources,
+      "project"
+    );
+    const preservation = new OutputPreservation(
+      provider,
+      cwd,
+      legacyRenames.get(provider.alias) ?? [],
+      !!options.force
     );
 
     for (const source of sources) {
@@ -463,21 +450,17 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
         const skillAbsDir = path.join(cwd, skillOutDir);
         const skillMdAbs = path.join(skillAbsDir, "SKILL.md");
 
-        let contextBlock: string | null = null;
-        if (!options.force) {
-          if (await fs.pathExists(skillMdAbs)) {
-            const existing = await fs.readFile(skillMdAbs, "utf-8");
-            contextBlock = extractProjectContext(existing);
-          } else {
-            contextBlock = seedContexts.get(skillOutDir) ?? null;
-          }
-        }
+        const contextBlock = await preservation.contextFor(
+          skillMdAbs,
+          source.content
+        );
 
         const filesCopied = await copyNativeSkillDir(
           source.rootPath,
           skillAbsDir,
           {
             contextBlock,
+            rewriteFile: links.rewriteFile.bind(links),
           }
         );
         updated += filesCopied;
@@ -494,13 +477,24 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
         provider.transformAgent &&
         (!source.promptOnly || provider.alias === "copilot")
       ) {
-        const newContent = provider.transformAgent(source.content, meta);
+        const context = await preservation.contextFor(
+          paths.agent,
+          source.content
+        );
+        const content = links.rewrite(
+          source,
+          source.content,
+          path.resolve(cwd, paths.agent)
+        );
+        const newContent = provider.transformAgent(
+          context !== null ? replaceProjectContext(content, context) : content,
+          meta
+        );
         const result = await updateFile(
           path.join(cwd, paths.agent),
           paths.agent,
           newContent,
-          !!options.force,
-          seedContexts.get(paths.agent)
+          context !== null
         );
         updated += result.updated;
         preserved += result.preserved;
@@ -509,19 +503,38 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
 
       // --- Prompt file (skip for native skills — the skill directory replaces it) ---
       if (!isNativeSkill) {
-        const newPromptContent = provider.transformPrompt(source.content, meta);
+        const context = await preservation.contextFor(
+          paths.prompt,
+          source.content
+        );
+        const content = links.rewrite(
+          source,
+          source.content,
+          path.resolve(cwd, paths.prompt)
+        );
+        const newPromptContent = provider.transformPrompt(
+          context !== null ? replaceProjectContext(content, context) : content,
+          meta
+        );
         const result = await updateFile(
           path.join(cwd, paths.prompt),
           paths.prompt,
           newPromptContent,
-          !!options.force,
-          seedContexts.get(paths.prompt)
+          context !== null
         );
         updated += result.updated;
         preserved += result.preserved;
         unchanged += result.unchanged;
       }
     }
+
+    await links.writeSupportingFiles();
+    completedRenames.push(
+      ...(await preservation.removableRenames()).map((rename) => ({
+        ...rename,
+        provider: provider.name,
+      }))
+    );
 
     // 3. Update provider-specific extras
     if (provider.alias === "claude-code") {
@@ -574,12 +587,7 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
   }
 
   // The renamed outputs are written; offer to remove their dotted originals.
-  const renamedOutputs = providers.flatMap((provider) =>
-    (legacyRenames.get(provider.alias) ?? []).map((rename) => ({
-      provider: provider.name,
-      ...rename,
-    }))
-  );
+  const renamedOutputs = completedRenames;
   if (renamedOutputs.length > 0) {
     console.log(
       chalk.yellow(
@@ -608,9 +616,9 @@ export async function updateCommand(options: UpdateOptions): Promise<void> {
     }
 
     if (removeLegacy) {
-      for (const { legacyPath } of renamedOutputs) {
-        await removeWorkspacePath(cwd, legacyPath);
-        console.log(chalk.green(`  ✓ ${legacyPath} (removed old name)`));
+      for (const rename of renamedOutputs) {
+        await backupAndRemoveLegacy(cwd, rename);
+        console.log(chalk.green(`  ✓ ${rename.legacyPath} (removed old name)`));
       }
     } else {
       console.log(

@@ -1,4 +1,5 @@
 import path from "path";
+import { InstalledLinks } from "../utils/installed-links.js";
 import fs from "fs-extra";
 import chalk from "chalk";
 import inquirer from "inquirer";
@@ -482,6 +483,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
 
   // 6. Load and write prompts (new agents/skills structure with legacy fallback)
   const sources = await loadAllSources(exclude);
+  const linkSources = await loadAllSources();
   let written = 0;
   let skipped = 0;
   const installedPrompts = sources.map((source) => source.name);
@@ -495,6 +497,13 @@ export async function initCommand(options: InitOptions): Promise<void> {
     );
     const globalAction = providerActions.get(provider.alias);
     const nativeSkillNames = new Set<string>();
+    const links = new InstalledLinks(
+      provider,
+      cwd,
+      linkSources,
+      sources,
+      "project"
+    );
 
     for (const source of sources) {
       // Codex has no native primitive for prompt-only reference docs.
@@ -528,7 +537,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
           const filesCopied = await copyNativeSkillDir(
             source.rootPath,
             path.join(cwd, skillOutDir),
-            { contextBlock }
+            { contextBlock, rewriteFile: links.rewriteFile.bind(links) }
           );
           written += filesCopied;
           nativeSkillNames.add(source.name);
@@ -552,7 +561,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
           globalAction === "skip";
 
         if (!shouldSkipAgent) {
-          let content = source.content;
+          let content = links.rewrite(source, source.content, agentAbsPath);
           if (contextBlock) {
             content = replaceProjectContext(content, contextBlock);
           }
@@ -576,7 +585,7 @@ export async function initCommand(options: InitOptions): Promise<void> {
           globalAction === "skip";
 
         if (!shouldSkipPrompt) {
-          let content = source.content;
+          let content = links.rewrite(source, source.content, promptAbsPath);
           if (contextBlock) {
             content = replaceProjectContext(content, contextBlock);
           }
@@ -590,6 +599,8 @@ export async function initCommand(options: InitOptions): Promise<void> {
         }
       }
     }
+
+    await links.writeSupportingFiles();
 
     // 7. Provider-specific extras
     if (provider.alias === "claude-code") {

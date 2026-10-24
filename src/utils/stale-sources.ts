@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 import type { OutputScope, Provider, SourceItem } from "../providers/base.js";
-import { extractProjectContext } from "./prompts.js";
+import { extractOutputContext } from "./output-preservation.js";
 
 export interface RemovedSource {
   internalName: string;
@@ -119,6 +119,10 @@ export interface LegacyRename {
   newPath: string;
   /** Project Context block from the legacy file, so it survives the rename. */
   contextBlock: string | null;
+  /** Actual replacement file (newPath can be a native skill directory). */
+  outputFile: string;
+  /** Snapshot used to refuse cleanup if the original changes during migration. */
+  originalContent: string;
 }
 
 /**
@@ -166,7 +170,12 @@ export async function resolveLegacyRenames(
       renames.set(legacyPath, {
         legacyPath,
         newPath,
-        contextBlock: extractProjectContext(content),
+        contextBlock: extractOutputContext(provider, content, absolute),
+        outputFile:
+          isNativeSkill && newPath === skillDir
+            ? path.join(newPath, "SKILL.md")
+            : newPath,
+        originalContent: content,
       });
     }
   }
