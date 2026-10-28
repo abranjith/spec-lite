@@ -31,7 +31,7 @@
  * Grammar:
  *   ${name}                 a table variable
  *   ${name:-default}        …with a fallback when it has no value
- *   ${env:NAME}             a process environment variable
+ *   ${env:NAME}             a process environment variable (ENV_FIELDS only)
  *   ${env:NAME:-default}    …with a fallback
  *   $${                     a literal "${"
  *
@@ -61,6 +61,39 @@ export interface ResolveContext {
   payloadFile?: string;
   /** Environment used for ${env:NAME}. Defaults to process.env. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Whether ${env:NAME} may resolve. Only the executors for `ENV_FIELDS` set
+   * this; everywhere else the resolved text reaches the agent, saved run
+   * state, or GitHub, so an env reference is refused rather than leaked.
+   */
+  allowEnv?: boolean;
+}
+
+/**
+ * Hook fields whose resolved text only the CLI itself consumes — the command
+ * it spawns or the request it sends. `${env:...}` is accepted in these alone.
+ */
+export const ENV_FIELDS = [
+  "run",
+  "cwd",
+  "env",
+  "url",
+  "headers",
+  "bodyTemplate",
+] as const;
+
+/** Whether a field such as `headers.Authorization` may use `${env:...}`. */
+export function envAllowedIn(field: string): boolean {
+  return (ENV_FIELDS as readonly string[]).includes(field.split(".")[0]);
+}
+
+function envNotAllowedMessage(raw: string, field?: string): string {
+  return (
+    `${raw} is not allowed in ${field ? `\`${field}\`` : "this field"}: ` +
+    `its text is shown to the agent, saved in run state, or posted to GitHub. ` +
+    `\${env:...} works only in ${ENV_FIELDS.map((f) => `\`${f}\``).join(", ")}; ` +
+    `to use the variable, read it in a command or script hook.`
+  );
 }
 
 export class InterpolationError extends Error {
@@ -491,12 +524,17 @@ export interface TemplateDiagnostics {
  * guaranteed by every subscribed event is an error too, unless the reference
  * carries a `:-` fallback or the hook `requires` that group — that is the
  * whole reason events declare `provides`.
+ *
+ * `field` names where the template lives, such as `prompt` or
+ * `headers.Authorization`; an `${env:...}` reference outside `ENV_FIELDS` is
+ * an error.
  */
 export function validateTemplate(
   template: string,
   subscribedEvents: EventDefinition[],
   label: string,
-  requires: readonly string[] = []
+  requires: readonly string[] = [],
+  field?: string
 ): TemplateDiagnostics {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -504,6 +542,10 @@ export function validateTemplate(
 
   for (const ref of parseTemplate(template)) {
     if (ref.isEnv) {
+      if (field !== undefined && !envAllowedIn(field)) {
+        errors.push(`${label}: ${envNotAllowedMessage(ref.raw, field)}`);
+        continue;
+      }
       if (!ref.name) {
         errors.push(
           `${label}: ${ref.raw} is missing an environment variable name.`
@@ -585,6 +627,10 @@ export function resolveTemplate(
     let resolved: string | undefined;
 
     if (ref.isEnv) {
+      // A fallback doesn't make it safe: the variable's value would still
+      // land in the text whenever it is set.
+      if (!ctx.allowEnv)
+        throw new InterpolationError(envNotAllowedMessage(ref.raw), ref.name);
       resolved = env[ref.name];
       if (resolved !== undefined) usedEnvVars.push(ref.name);
     } else {
@@ -624,11 +670,21 @@ export function redactEnvValues(
   env = process.env
 ): string {
   let out = text;
-  for (const name of envVars) {
+  // Longest value first, so a value that contains another is replaced whole.
+  const names = [...new Set(envVars)].sort(
+    (a, b) => (env[b]?.length ?? 0) - (env[a]?.length ?? 0)
+  );
+  for (const name of names) {
     const secret = env[name];
-    if (secret && secret.length > 0) {
-      out = out.split(secret).join(`\${env:${name}}`);
-    }
+    if (!secret) continue;
+    // The value also lands escaped — percent-encoded in a URL, JSON-escaped in
+    // a body — and an error message quotes it in that form.
+    const forms = new Set([
+      secret,
+      escapeValue(secret, "url"),
+      escapeValue(secret, "json"),
+    ]);
+    for (const form of forms) out = out.split(form).join(`\${env:${name}}`);
   }
   return out;
 }

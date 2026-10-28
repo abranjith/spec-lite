@@ -8,8 +8,10 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import {
+  redactEnvValues,
   resolveTemplate,
   shellEscapeContext,
+  type EscapeContext,
   type ResolveContext,
 } from "../interpolation.js";
 import type { HookDefinition, HookResult } from "../types.js";
@@ -86,16 +88,47 @@ export async function runShellHook(
   }
 
   const escapeCtx = shellEscapeContext(hook.shell);
+  // `run`, `cwd` and `env` are consumed here and nowhere else, so they may
+  // read ${env:...}. Every value used is redacted from the result message,
+  // which is printed and written to the audit log.
+  const usedEnv: string[] = [];
+  const resolve = (template: string, escape: EscapeContext) => {
+    const { value, usedEnvVars } = resolveTemplate(
+      template,
+      { ...ctx, allowEnv: true },
+      escape
+    );
+    usedEnv.push(...usedEnvVars);
+    return value;
+  };
+  const redact = (text: string | undefined) =>
+    text && redactEnvValues(text, usedEnv, ctx.env ?? process.env);
+
+  const env: NodeJS.ProcessEnv = { ...process.env, ...reentrancyEnv };
+  env.SPEC_LITE_EVENT = ctx.payload.event;
+  if (ctx.payload.feature?.id)
+    env.SPEC_LITE_FEATURE_ID = ctx.payload.feature.id;
+  if (ctx.payload.feature?.dir)
+    env.SPEC_LITE_FEATURE_DIR = ctx.payload.feature.dir;
+  if (ctx.payload.changes)
+    env.SPEC_LITE_CHANGED_FILES = ctx.payload.changes.files
+      .map((f) => f.path)
+      .join("\n");
+  if (ctx.payloadFile) env.SPEC_LITE_PAYLOAD_FILE = ctx.payloadFile;
+
   let resolvedCommand: string;
   let resolvedCwd: string | undefined;
   try {
-    resolvedCommand = resolveTemplate(hook.run, ctx, escapeCtx).value;
+    resolvedCommand = resolve(hook.run, escapeCtx);
     // `cwd` is handed to spawn() directly rather than to a shell, so it takes
     // the raw value — quoting it here would create a directory name with
     // quotes in it.
-    resolvedCwd = hook.cwd
-      ? resolveTemplate(hook.cwd, ctx, "none").value
-      : undefined;
+    resolvedCwd = hook.cwd ? resolve(hook.cwd, "none") : undefined;
+    // Inside the try, so a missing value is a contract error like any other
+    // template, not an ordinary failure that `onFailure: "warn"` lets through.
+    for (const [k, v] of Object.entries(hook.env ?? {})) {
+      env[k] = resolve(v, "none");
+    }
   } catch (err) {
     return {
       name: hook.name,
@@ -110,21 +143,6 @@ export async function runShellHook(
 
   const { bin, args } = shellInvocation(hook.shell, resolvedCommand);
   const cwd = resolvedCwd ? path.join(root, resolvedCwd) : root;
-
-  const env: NodeJS.ProcessEnv = { ...process.env, ...reentrancyEnv };
-  env.SPEC_LITE_EVENT = ctx.payload.event;
-  if (ctx.payload.feature?.id)
-    env.SPEC_LITE_FEATURE_ID = ctx.payload.feature.id;
-  if (ctx.payload.feature?.dir)
-    env.SPEC_LITE_FEATURE_DIR = ctx.payload.feature.dir;
-  if (ctx.payload.changes)
-    env.SPEC_LITE_CHANGED_FILES = ctx.payload.changes.files
-      .map((f) => f.path)
-      .join("\n");
-  if (ctx.payloadFile) env.SPEC_LITE_PAYLOAD_FILE = ctx.payloadFile;
-  for (const [k, v] of Object.entries(hook.env ?? {})) {
-    env[k] = resolveTemplate(v, ctx, "none").value;
-  }
 
   return new Promise<HookResult>((resolve) => {
     const child = spawn(bin, args, {
@@ -168,7 +186,7 @@ export async function runShellHook(
           status: "ok",
           exitCode: 0,
           durationMs,
-          message: stdout.trim() || undefined,
+          message: redact(stdout.trim()) || undefined,
         });
       } else {
         resolve({
@@ -178,7 +196,7 @@ export async function runShellHook(
           status: "failed",
           exitCode: code ?? -1,
           durationMs,
-          message: stderr.trim() || stdout.trim() || `exit ${code}`,
+          message: redact(stderr.trim() || stdout.trim()) || `exit ${code}`,
         });
       }
     });
@@ -191,7 +209,7 @@ export async function runShellHook(
         kind: hook.type,
         status: "failed",
         durationMs: Date.now() - start,
-        message: err.message,
+        message: redact(err.message),
       });
     });
   });

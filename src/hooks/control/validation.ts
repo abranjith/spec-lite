@@ -243,29 +243,36 @@ export function flowHookErrors(hook: HookDefinition): string[] {
           rules?: Array<{ if: Record<string, string> }>;
         }
       | undefined;
-    for (const template of [
-      opts?.question,
-      ...(opts?.attach ?? []),
-      ...(opts?.inputs ?? []),
-    ].filter((s): s is string => typeof s === "string")) {
+    for (const [field, template] of [
+      ["options.question", opts?.question],
+      ...(opts?.attach ?? []).map((t) => ["options.attach", t]),
+      ...(opts?.inputs ?? []).map((t) => ["options.inputs", t]),
+    ].filter((f): f is [string, string] => typeof f[1] === "string")) {
       errors.push(
-        ...validateTemplate(template, events, hook.name, hook.requires).errors
+        ...validateTemplate(template, events, hook.name, hook.requires, field)
+          .errors
       );
       if (parseTemplate(template).some((r) => r.name.startsWith("decision.")))
         errors.push("Creation templates cannot use decision slots.");
     }
-    for (const choice of Object.values(opts?.choices ?? {}))
-      for (const template of [
-        choice.args,
-        choice.prompt,
-        choice.description,
-      ].filter((s): s is string => typeof s === "string")) {
+    for (const [key, choice] of Object.entries(opts?.choices ?? {}))
+      for (const [name, template] of Object.entries({
+        args: choice.args,
+        prompt: choice.prompt,
+        description: choice.description,
+      }).filter((f): f is [string, string] => typeof f[1] === "string")) {
         const stripped = template.replace(
           /\$\{decision\.(id|question|status|choice|actor|feedbackFile)(?::-[^{}]*)?\}/g,
           "decision-slot"
         );
         errors.push(
-          ...validateTemplate(stripped, events, hook.name, hook.requires).errors
+          ...validateTemplate(
+            stripped,
+            events,
+            hook.name,
+            hook.requires,
+            `options.choices.${key}.${name}`
+          ).errors
         );
       }
     for (const rule of opts?.rules ?? [])
@@ -275,7 +282,8 @@ export function flowHookErrors(hook: HookDefinition): string[] {
             `\${${field}}`,
             events,
             `${hook.name} rule`,
-            hook.requires
+            hook.requires,
+            "options.rules"
           ).errors
         );
   }

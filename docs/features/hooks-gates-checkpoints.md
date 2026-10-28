@@ -178,7 +178,7 @@ question and two or more choices:
 <!-- builtin-options-table:checkpoint:start -->
 | Option | Type | Meaning |
 |---|---|---|
-| `question` | string | **Required.** Text shown to the person. Supports `${...}` templates from the event. |
+| `question` | string | **Required.** Text shown to the person. Supports `${...}` templates from the event, but not `${env:...}`. |
 | `choices` | object | **Required.** Two or more answers, keyed by a lowercase-hyphenated ID such as `critique` (`ask` is reserved). Each choice continues, stops, or hands off; see Choices. |
 | `attach` | string array | Files shown with the question. Fingerprinted like `inputs`, and posted into the GitHub comment when `github` is set. |
 | `inputs` | string array | Files the answer depends on. They are fingerprinted when the question is asked; if one changes before the answer is used, the question must be asked again. Never published. |
@@ -189,8 +189,15 @@ question and two or more choices:
 <!-- builtin-options-table:checkpoint:end -->
 
 `choices`, `rules`, and `github` are described below. `question`, `inputs`,
-`attach`, and choice `args` support `${...}` [templates](hooks.md#interpolation)
-from the event.
+`attach`, and each choice's `args`, `prompt`, and `description` support `${...}`
+[templates](hooks.md#interpolation) from the event.
+
+**No `${env:...}` in a checkpoint.** The question and choices are saved in run
+state, shown to the agent, and may be posted to GitHub, so `hook validate`
+rejects `${env:...}` in every checkpoint option, `rules` included, and names the
+field, such as `options.choices.review.args`. A choice that needs a secret should
+hand off to work that reads it in a `command` or `script` hook; see
+[Environment variables in templates](hooks.md#environment-variables-in-templates).
 
 ### Choices
 
@@ -205,7 +212,7 @@ Each choice has a `description` and exactly one of `continue`, `stop`, `skill`,
 | `skill: "<name>"` | Hand off to that skill. The paused role ends, and **the hooks after the checkpoint on this event are cancelled**. |
 | `agent: "<name>"` | The same, for an agent. |
 | `prompt: "<text>"` | Hand off to a free-text instruction. Needs `completion`. |
-| `args` | Arguments for `skill`, `agent`, or `prompt`. Besides event variables, it may use `${decision.choice}`, `${decision.feedbackFile}`, and the other [`decision` variables](hooks.md#interpolation). |
+| `args` | Arguments for `skill`, `agent`, or `prompt`. Besides event variables, it may use `${decision.choice}`, `${decision.feedbackFile}`, and the other [`decision` variables](hooks.md#interpolation), but not `${env:...}`. |
 | `completion: "reported"` | Required for a `prompt`, and for a skill or agent that isn't a spec-lite role. The agent records the outcome with `spec-lite action complete`. |
 
 Choice IDs are lowercase words joined by hyphens, such as `critique` or

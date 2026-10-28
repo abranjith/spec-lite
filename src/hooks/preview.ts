@@ -13,11 +13,18 @@ import type { ResolveContext } from "./interpolation.js";
 
 export function previewHook(hook: HookDefinition, ctx: ResolveContext): string {
   const usedEnv: string[] = [];
+  // Mirrors the executors: only command, script and http fields may read
+  // ${env:...}, so a hand-off previews the same refusal it would hit for real.
+  const allowEnv = ["command", "script", "http"].includes(hook.type);
   const resolve = (
     template: string,
     escape: Parameters<typeof resolveTemplate>[2]
   ) => {
-    const { value, usedEnvVars } = resolveTemplate(template, ctx, escape);
+    const { value, usedEnvVars } = resolveTemplate(
+      template,
+      { ...ctx, allowEnv },
+      escape
+    );
     usedEnv.push(...usedEnvVars);
     return value;
   };

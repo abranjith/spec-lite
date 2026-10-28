@@ -67,7 +67,7 @@ export function renderVarsTable(): string {
   }
 
   rows.push(
-    "| `${env:NAME}` | environment | A process environment variable — the only channel for secrets. | `${env:SLACK_WEBHOOK_URL}` |"
+    "| `${env:NAME}` | environment | A process environment variable — the only channel for secrets. Allowed only in `run`, `cwd`, `env`, `url`, `headers`, and `bodyTemplate`. | `${env:SLACK_WEBHOOK_URL}` |"
   );
 
   return rows.join("\n");

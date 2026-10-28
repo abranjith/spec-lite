@@ -67,7 +67,7 @@ const argv: JsonSchema = {
 /** One docs/schema line per checkpoint option; the schemas live in control/validation.ts. */
 const CHECKPOINT_DESCRIPTIONS: Record<string, string> = {
   question:
-    "Text shown to the person. Supports `${...}` templates from the event.",
+    "Text shown to the person. Supports `${...}` templates from the event, but not `${env:...}`.",
   choices:
     "Two or more answers, keyed by a lowercase-hyphenated ID such as `critique` (`ask` is reserved). Each choice continues, stops, or hands off; see Choices.",
   inputs:

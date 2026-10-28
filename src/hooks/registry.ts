@@ -119,19 +119,25 @@ function settingsFields(hook: HookDefinition): string {
   }
 }
 
-/** The templated string fields a hook may carry, per kind. */
-export function templateFields(hook: HookDefinition): string[] {
-  const fields: (string | undefined)[] = [
-    hook.run,
-    hook.url,
-    hook.bodyTemplate,
-    hook.args,
-    hook.prompt,
-    hook.cwd,
+/** The templated string fields a hook may carry, with where each one lives. */
+export function templateFields(
+  hook: HookDefinition
+): { field: string; template: string }[] {
+  const fields: [string, string | undefined][] = [
+    ["run", hook.run],
+    ["url", hook.url],
+    ["bodyTemplate", hook.bodyTemplate],
+    ["args", hook.args],
+    ["prompt", hook.prompt],
+    ["cwd", hook.cwd],
   ];
-  if (hook.env) fields.push(...Object.values(hook.env));
-  if (hook.headers) fields.push(...Object.values(hook.headers));
-  return fields.filter((f): f is string => typeof f === "string");
+  for (const [name, value] of Object.entries(hook.env ?? {}))
+    fields.push([`env.${name}`, value]);
+  for (const [name, value] of Object.entries(hook.headers ?? {}))
+    fields.push([`headers.${name}`, value]);
+  return fields
+    .filter((f): f is [string, string] => typeof f[1] === "string")
+    .map(([field, template]) => ({ field, template }));
 }
 
 function eventsForHook(hook: HookDefinition): {
@@ -178,8 +184,14 @@ function validateHook(hook: HookDefinition): RegistryIssue[] {
 
   if (events.length === 0) return issues; // already reported above
 
-  for (const field of templateFields(hook)) {
-    const d = validateTemplate(field, events, `"${hook.name}"`, hook.requires);
+  for (const { field, template } of templateFields(hook)) {
+    const d = validateTemplate(
+      template,
+      events,
+      `"${hook.name}"`,
+      hook.requires,
+      field
+    );
     for (const message of d.errors)
       issues.push({ level: "error", hook: hook.name, message });
     for (const message of d.warnings)

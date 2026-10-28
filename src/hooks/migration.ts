@@ -72,7 +72,10 @@ function groupsToRequire(hook: HookDefinition): string[] {
     })
   );
   const needed = new Set<string>();
-  for (const field of [...templateFields(hook), ...checkpointTemplates(hook)])
+  for (const field of [
+    ...templateFields(hook).map((f) => f.template),
+    ...checkpointTemplates(hook),
+  ])
     for (const ref of parseTemplate(field)) {
       if (ref.isEnv || ref.fallback !== undefined) continue;
       const group = GROUP_OF.get(ref.name);

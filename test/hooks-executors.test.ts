@@ -498,3 +498,99 @@ describe("agentic kinds are emitted, never executed", () => {
     expect(preview).toContain("user_management");
   });
 });
+
+describe("${env:...} values never reach output or the audit log", () => {
+  it("redacts a secret a command echoes, in the result and hooks.log.jsonl", async () => {
+    process.env.TEST_HOOK_SECRET = "super-secret-token";
+    try {
+      await writeHooks([
+        {
+          name: "echoes-secret",
+          events: ["implement.post"],
+          type: "command",
+          run: `node -e "console.log('token=' + process.argv[1])" \${env:TEST_HOOK_SECRET}`,
+        },
+      ]);
+      const report = await runEvent({
+        root,
+        event: "implement.post",
+        featureId: "FEAT-001",
+      });
+      const result = report.results.find((r) => r.name === "echoes-secret");
+      expect(result?.status).toBe("ok");
+      expect(result?.message).toBe("token=${env:TEST_HOOK_SECRET}");
+      const log = await fs.readFile(
+        path.join(root, ".spec-lite/features/FEAT-001-demo/hooks.log.jsonl"),
+        "utf-8"
+      );
+      expect(log).toContain("token=${env:TEST_HOOK_SECRET}");
+      expect(log).not.toContain("super-secret-token");
+    } finally {
+      delete process.env.TEST_HOOK_SECRET;
+    }
+  }, 20000);
+
+  it("fails closed on an unset variable in `env`, before running anything", async () => {
+    const marker = path.join(root, "never.txt");
+    await writeHooks([
+      {
+        name: "needs-token",
+        events: ["implement.post"],
+        type: "command",
+        run: `node -e "require('fs').writeFileSync(process.argv[1],'ran')" ${JSON.stringify(marker)}`,
+        env: { TOKEN: "${env:DEFINITELY_UNSET_HOOK_TOKEN}" },
+      },
+    ]);
+    const report = await runEvent({
+      root,
+      event: "implement.post",
+      featureId: "FEAT-001",
+    });
+    const result = report.results.find((r) => r.name === "needs-token");
+    expect(result?.contractError).toBe(true);
+    expect(report.exitCode).toBe(2);
+    expect(await fs.pathExists(marker)).toBe(false);
+  }, 20000);
+
+  it("redacts an env-sourced URL from an http parse error", async () => {
+    process.env.TEST_HOOK_URL = "not-a-url-secret-abc";
+    try {
+      const result = await runHttpHook(
+        {
+          name: "bad-url",
+          events: ["implement.post"],
+          type: "http",
+          url: "${env:TEST_HOOK_URL}",
+        },
+        { payload: samplePayload() }
+      );
+      expect(result.status).toBe("failed");
+      expect(result.message).toBeDefined();
+      expect(result.message).not.toContain("secret-abc");
+    } finally {
+      delete process.env.TEST_HOOK_URL;
+    }
+  });
+
+  it("refuses ${env:...} in a hand-off, at run time and in a preview", () => {
+    process.env.TEST_HOOK_SECRET = "super-secret-token";
+    try {
+      const hook = {
+        name: "leaky",
+        events: ["implement.post"],
+        type: "prompt" as const,
+        prompt: "Deploy with ${env:TEST_HOOK_SECRET}",
+        completion: "reported" as const,
+      };
+      const result = emitAgenticDirective(hook, { payload: samplePayload() });
+      expect(result.contractError).toBe(true);
+      expect(result.directive).toBeUndefined();
+      expect(result.message).toContain("is not allowed");
+      const preview = previewHook(hook, { payload: samplePayload() });
+      expect(preview).toMatch(/^ERROR: .*is not allowed/);
+      expect(preview).not.toContain("super-secret-token");
+    } finally {
+      delete process.env.TEST_HOOK_SECRET;
+    }
+  });
+});

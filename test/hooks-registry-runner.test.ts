@@ -164,6 +164,48 @@ describe("registry: validation matches what tracked role runs enforce", () => {
     expect(errors.map((e) => e.message).join("\n")).toContain("${task.id}");
   });
 
+  it("rejects ${env:...} where the text leaves the CLI, naming the field", async () => {
+    const errors = await issuesFor([
+      {
+        name: "leaky-prompt",
+        events: ["fix.post"],
+        type: "prompt",
+        prompt: "Use token ${env:API_TOKEN}",
+        completion: "reported",
+      },
+      {
+        name: "leaky-checkpoint",
+        events: ["fix.post"],
+        type: "builtin",
+        builtin: "checkpoint",
+        options: {
+          question: "Ship it?",
+          choices: {
+            review: {
+              description: "Review it",
+              skill: "review",
+              args: "review fix ${env:FIX_NAME}",
+            },
+            fix: { description: "Fix it", skill: "fix" },
+          },
+        },
+      },
+      {
+        name: "fine-http",
+        events: ["fix.post"],
+        type: "http",
+        url: "${env:WEBHOOK_URL:-https://example.test}",
+        headers: { Authorization: "Bearer ${env:API_TOKEN:-none}" },
+      },
+    ]);
+    const text = errors.map((e) => `${e.hook}: ${e.message}`).join("\n");
+    expect(text).toContain("${env:API_TOKEN} is not allowed in `prompt`");
+    expect(text).toContain(
+      "${env:FIX_NAME} is not allowed in `options.choices.review.args`"
+    );
+    expect(errors.filter((e) => e.hook === "fine-http")).toEqual([]);
+  });
+
   it("names the alternative when a non-builtin hook sets options", async () => {
     const errors = await issuesFor([
       {

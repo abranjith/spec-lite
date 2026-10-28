@@ -404,7 +404,7 @@
                     "type": "string",
                     "minLength": 1,
                     "pattern": "\\S",
-                    "description": "Text shown to the person. Supports `${...}` templates from the event."
+                    "description": "Text shown to the person. Supports `${...}` templates from the event, but not `${env:...}`."
                   },
                   "choices": {
                     "type": "object",

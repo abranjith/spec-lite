@@ -174,7 +174,7 @@ spec-lite hook run fix.post --payload name=auth-issue --payload summary="Fix tok
 | `--feature <id>` | none | Feature ID, such as `FEAT-012` or legacy `FEAT-FP-007`; adds the feature directory, spec, and changeset to the payload |
 | `--task <id>` | none | Task ID, such as `TASK-003` |
 | `--payload <kv>` | none | Additional payload `key=value`; repeat for several. `plan=<file>`, `name=<fix name>`, `change=<change name>`, and `yolo=<Run ID>` choose the work for the [Git workflow hooks](features/hooks-git-workflow.md) |
-| `--dry-run` | `false` | Resolve and print what would run, without running anything; `${env:...}` values are redacted. Previews gates and checkpoints too |
+| `--dry-run` | `false` | Resolve and print what would run, without running anything; `${env:...}` values are redacted, as they are in hook output and the audit log. Previews gates and checkpoints too |
 | `--json` | `false` | Machine-readable report instead of the human summary |
 | `--skip <name>` | none | Skip a hook for this call; repeat for several, or use `*` for all. `SPEC_LITE_SKIP_HOOKS` does the same for a whole process |
 | `--run-id <id>` | generated | Reuse one `runId` across several `hook run` calls |
@@ -277,7 +277,8 @@ spec-lite hook vars
 ```
 
 Prints every `${...}` variable grouped by the guarantee group that supplies it,
-with a description and an example value. No options.
+with a description and an example value, and notes where `${env:NAME}` is
+allowed. No options.
 
 ### hook validate
 
@@ -287,8 +288,12 @@ spec-lite hook validate
 
 Static check of the merged registry with no side effects: JSON schema, event
 names, every `${...}` template against the variables its subscribed events
-guarantee (plus the groups the hook lists in `requires`), builtin options, and ordering rules, such as gates before hooks
-that change things, and one hand-off or checkpoint per event. Exits `0` when
+guarantee (plus the groups the hook lists in `requires`), `${env:...}` used only
+in `run`, `cwd`, `env`, `url`, `headers`, and `bodyTemplate`, builtin options,
+and ordering rules, such as gates before hooks that change things, and one
+hand-off or checkpoint per event. Each error names the hook and, for a template,
+the field. An `${env:...}` variable that isn't set in the current shell is a
+warning, since hooks may run elsewhere. Exits `0` when
 valid (warnings allowed) and `2` when any error is found. Suitable for CI. No
 options.
 

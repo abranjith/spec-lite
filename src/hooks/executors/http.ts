@@ -1,7 +1,12 @@
 /**
  * Executor for `http` hooks. Uses Node 22's built-in fetch — no new dependency.
  */
-import { resolveTemplate, type ResolveContext } from "../interpolation.js";
+import {
+  redactEnvValues,
+  resolveTemplate,
+  type EscapeContext,
+  type ResolveContext,
+} from "../interpolation.js";
 import type { HookDefinition, HookResult } from "../types.js";
 
 export async function runHttpHook(
@@ -20,19 +25,36 @@ export async function runHttpHook(
     };
   }
 
+  // The request is consumed here and nowhere else, so its fields may read
+  // ${env:...}. Every value used is redacted from the result message, which
+  // is printed and written to the audit log; a URL parse error, for one,
+  // quotes the whole URL.
+  const usedEnv: string[] = [];
+  const resolve = (template: string, escape: EscapeContext) => {
+    const { value, usedEnvVars } = resolveTemplate(
+      template,
+      { ...ctx, allowEnv: true },
+      escape
+    );
+    usedEnv.push(...usedEnvVars);
+    return value;
+  };
+  const redact = (text: string) =>
+    redactEnvValues(text, usedEnv, ctx.env ?? process.env);
+
   let url: string;
   let body: string;
   let headers: Record<string, string>;
   try {
-    url = resolveTemplate(hook.url, ctx, "url").value;
+    url = resolve(hook.url, "url");
     body = hook.bodyTemplate
-      ? resolveTemplate(hook.bodyTemplate, ctx, "json").value
+      ? resolve(hook.bodyTemplate, "json")
       : JSON.stringify(ctx.payload);
     // Header values are templates too — that is how an Authorization header
     // gets its secret from ${env:...} without the token living in the registry.
     headers = { "Content-Type": "application/json" };
     for (const [name, template] of Object.entries(hook.headers ?? {})) {
-      headers[name] = resolveTemplate(template, ctx, "header").value;
+      headers[name] = resolve(template, "header");
     }
   } catch (err) {
     return {
@@ -82,7 +104,7 @@ export async function runHttpHook(
     const message =
       err instanceof Error && err.name === "AbortError"
         ? `timed out after ${hook.timeoutMs ?? 30000}ms`
-        : String(err);
+        : redact(String(err));
     return {
       name: hook.name,
       event: ctx.payload.event,

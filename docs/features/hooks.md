@@ -180,7 +180,8 @@ does the work.
 
 The CLI runs `run` in a shell, from the workspace root (or `cwd`), with a
 timeout. Exit code `0` is success; anything else is a failure, handled by
-`onFailure`. Output on stdout becomes the result message.
+`onFailure`. Output on stdout becomes the result message (stderr on a failure),
+with any [`${env:...}` values](#environment-variables-in-templates) redacted.
 
 `command` and `script` behave identically. The distinction records intent: a
 `script` hook usually names a checked-in file, and a `command` hook is a
@@ -190,9 +191,27 @@ its quoting rules can't be applied safely.
 
 The hook reads the event in any of three ways:
 
-- **Templates in `run`, `cwd`, and `env`.** Substituted values are shell-quoted, so `${feature.name}` always lands as one argument.
+- **Templates in `run`, `cwd`, and `env`.** In `run`, substituted values are shell-quoted, so `${feature.name}` always lands as one argument.
 - **stdin.** The full [payload](#payload) as JSON.
 - **Environment variables.** `SPEC_LITE_EVENT`, `SPEC_LITE_FEATURE_ID`, `SPEC_LITE_CHANGED_FILES`, and [more](#environment-variables).
+
+#### Using your own environment variables
+
+The hook inherits the environment `spec-lite` runs in, so it can use a variable
+such as `API_TOKEN` in three ways:
+
+| Write | Resolved by | If it isn't set | Redacted from output and the log |
+|---|---|---|---|
+| `${env:API_TOKEN}` in `run`, `cwd`, or `env` | spec-lite, before the hook starts | The hook stops with exit `2`, unless you write `${env:API_TOKEN:-default}` | Yes |
+| `$API_TOKEN` (bash) or `$env:API_TOKEN` (PowerShell) in `run` | The shell | Empty | No |
+| `process.env.API_TOKEN`, or your language's equivalent, in a script | Your script | Your script decides | No |
+
+Prefer `${env:...}`: it fails loudly when the variable is missing, works the same
+in bash and PowerShell, and keeps the value out of output. Don't write bash's
+`${API_TOKEN}`: spec-lite reads every `${...}` as its own template and rejects
+the unknown name. Write `$${API_TOKEN}` to pass it to bash as is. See
+[Environment variables in templates](#environment-variables-in-templates) for the
+full rules.
 
 ```json
 {
@@ -226,7 +245,8 @@ response within `timeoutMs`, is a failure.
 | `bodyTemplate` | the full payload as JSON | JSON-escaped, so the body stays valid |
 
 Secrets never belong in a committed registry. `${env:NAME}` is the only channel
-for them, and its value is redacted from `--dry-run` output and the audit log:
+for them, and its value is redacted from `--dry-run` output, hook output, and
+the audit log:
 
 ```json
 {
@@ -304,9 +324,12 @@ it on any other type. Your own hook already has a field for each setting:
 | `skill` / `agent` | `args` | `"args": "review feature ${feature.name}"` |
 | `prompt` | The `prompt` text | `"prompt": "Update CHANGELOG.md: ${summary}. Keep entries short."` |
 
-Settings can use `${...}` templates for event data, and `${env:NAME}` for
-secrets. To reuse one script with different settings, add one hook entry per
-setting, each with its own `name`, `run` arguments, or `env`.
+Settings can use `${...}` templates for event data. `command`, `script`, and
+`http` settings can also use `${env:NAME}` for secrets. `skill`, `agent`, and
+`prompt` settings can't, because their text reaches the agent; see
+[Environment variables in templates](#environment-variables-in-templates). To
+reuse one script with different settings, add one hook entry per setting, each
+with its own `name`, `run` arguments, or `env`.
 
 ## Manage hooks
 
@@ -683,6 +706,10 @@ unsubscribed.
 |---|---|
 | `SPEC_LITE_SKIP_HOOKS` | Comma-separated hook names, or `*`, to skip in this process and its children. See [Skipping hooks for one run](#skipping-hooks-for-one-run) |
 
+`command` and `script` hooks also inherit every other variable in spec-lite's
+environment, and any you add with the hook's `env` field. To pass a variable to
+another hook type, use [`${env:NAME}`](#environment-variables-in-templates).
+
 A custom pull-request adapter gets its own `SPEC_LITE_PR_*` variables; see
 [Custom PR provider](hooks-git-workflow.md#custom-pr-provider).
 
@@ -727,9 +754,12 @@ Other fields include `task`, `plan`, `report`, `verdict`, `verdictCode`, `name`
 
 `${...}` templates work in `run`, `cwd`, `env`, `url`, `headers`,
 `bodyTemplate`, `args`, and `prompt`, and in checkpoint options (`question`,
-`inputs`, `attach`, and choice `args`). Each is resolved in a **single pass**, so
-a substituted value is never re-scanned and payload text can't inject further
-references. It is then escaped for where it lands:
+`inputs`, `attach`, and each choice's `args`, `prompt`, and `description`).
+`${env:...}` works in the first six only; see
+[Environment variables in templates](#environment-variables-in-templates). Each
+template is resolved in a **single pass**, so a substituted value is never
+re-scanned and payload text can't inject further references. It is then escaped
+for where it lands:
 
 | Field | Escaping |
 |---|---|
@@ -742,7 +772,7 @@ references. It is then escaped for where it lands:
 ```text
 ${name}                 a variable from the table below
 ${name:-default}        with a fallback when it has no value
-${env:NAME}             a process environment variable
+${env:NAME}             an environment variable (run, cwd, env, url, headers, bodyTemplate)
 ${env:NAME:-default}    with a fallback
 $${                     a literal "${"
 ```
@@ -790,10 +820,30 @@ there, though Plan, Review, and YOLO runs never had them. `update` checks
 `.spec-lite/hooks.json` and `~/.spec-lite/hooks.json`; `spec-lite install --global`
 checks the global file.
 
-`${env:NAME}` reads only the real process environment, and its value is redacted
-from `--dry-run` output and `hooks.log.jsonl`. It is the only place a secret
-belongs: write an `Authorization` header as `"Bearer ${env:API_TOKEN}"`, never as
-the token itself.
+#### Environment variables in templates
+
+`${env:NAME}` passes a variable from the environment into a hook. It is the only
+place a secret belongs: write an `Authorization` header as
+`"Bearer ${env:API_TOKEN}"`, never as the token itself.
+
+| Hook type | Fields that accept `${env:...}` |
+|---|---|
+| `command`, `script` | `run`, `cwd`, `env` |
+| `http` | `url`, `headers`, `bodyTemplate` |
+| `skill`, `agent`, `prompt` | None |
+| `checkpoint` | None: not in `question`, `inputs`, `attach`, choices, or `rules` |
+| Other builtins | None. Commands they run, such as a [custom PR provider](hooks-git-workflow.md#custom-pr-provider), inherit the environment instead |
+
+- **Only where the CLI consumes the text itself.** The fields above become a command spec-lite runs or a request it sends. Everywhere else the resolved text is shown to the agent, saved in run state, or posted to GitHub, so `hook validate` rejects `${env:...}` there, even with a `:-default`. The error names the field, such as `prompt` or `options.choices.review.args`:
+
+  ```text
+  [error] "deploy-notes": ${env:DEPLOY_TOKEN} is not allowed in `prompt`: its text is shown to the agent, saved in run state, or posted to GitHub. ${env:...} works only in `run`, `cwd`, `env`, `url`, `headers`, `bodyTemplate`; to use the variable, read it in a command or script hook.
+  ```
+
+  A hand-off that needs a secret should leave it to a `command` or `script` hook, which reads the variable and acts on it, such as by calling the API itself.
+- **Redacted.** Each value used, including its percent-encoded and JSON-escaped forms, is replaced with its `${env:NAME}` reference in `--dry-run` output, the hook's result message, and `hooks.log.jsonl`. spec-lite can redact only the values it substituted: a value your script reads from its own environment and prints is not redacted, so don't print secrets.
+- **Fails closed** like every template. A variable that isn't set and has no `:-default` stops the hook with exit `2` before it runs, in every field, `env` values included.
+- **Read from the `spec-lite` process.** In a role run, that is the environment the agent was started with. A variable you export in one terminal reaches hooks only if the agent was started from that terminal; an editor extension gets the editor's environment, and CI gets the job's. `hook validate` checks only the shell it runs in, so its "not set" warning can differ from a real run. Set the variable wherever the agent or CI job starts.
 
 <!-- hook-vars-table:start -->
 | Variable | Group | Meaning | Example |
@@ -834,7 +884,7 @@ the token itself.
 | `${changes.files}` | changes | Changed paths, newline-separated. | `src/a.ts\nsrc/b.ts` |
 | `${verdict}` | verdict | Review verdict. | `Request changes` |
 | `${summary}` | summary | One-line summary supplied by the emitting role. | `Added session expiry handling` |
-| `${env:NAME}` | environment | A process environment variable — the only channel for secrets. | `${env:SLACK_WEBHOOK_URL}` |
+| `${env:NAME}` | environment | A process environment variable — the only channel for secrets. Allowed only in `run`, `cwd`, `env`, `url`, `headers`, and `bodyTemplate`. | `${env:SLACK_WEBHOOK_URL}` |
 <!-- hook-vars-table:end -->
 
 `${provider}` reads `provider` (then the first entry of `providers`) from
@@ -983,7 +1033,9 @@ Every hook run for a feature is appended to
 {"at":"2026-08-21T14:03:11.445Z","name":"capture-baseline","event":"implement.pre","kind":"builtin","status":"ok","durationMs":165,"message":"baseline bc8bd13 captured (0 pre-dirty)"}
 ```
 
-`once: true` reads it in manual runs. The log is local diagnostics: the first
+`message` is the hook's output, with
+[`${env:...}` values](#environment-variables-in-templates) redacted.
+`once: true` reads the log in manual runs. The log is local diagnostics: the first
 time a clone writes one, spec-lite adds `.spec-lite/**/hooks.log.jsonl` to
 `.git/info/exclude`, and automatic commits refuse to include it. To make the
 rule visible to your team, add the same line to `.gitignore`. A log committed by
@@ -1001,7 +1053,11 @@ an earlier version stays tracked until you `git rm --cached` it.
 | `only one hand-off … or checkpoint hook may subscribe` | Two hand-offs, or a hand-off and a checkpoint, on one event | Combine them into one checkpoint with a choice each |
 | `needs "completion": "reported"` | A `prompt` hook, or a target outside spec-lite | Add `"completion": "reported"` |
 | `tracked-required` on a manual `hook run` | The event has a gate, checkpoint, or hand-off | Let the role fire it, add `--dry-run` to preview, or `--skip` those hooks |
-| `${env:X}` warning at validate time | The variable isn't set in this shell | Set it wherever hooks run, or add `:-default` |
+| `${env:X}` warning at validate time | The variable isn't set in this shell | Set it wherever the agent or CI job starts, or add `:-default` |
+| `${env:X} has no value`, exit `2`, in a role run | The agent was started without the variable | Set it where the agent starts, such as the terminal or editor it was launched from |
+| `${env:X} is not allowed in …` | `${env:...}` in `args`, `prompt`, or a checkpoint option | Read the variable in a `command`/`script` hook; see [Environment variables in templates](#environment-variables-in-templates) |
+| `unknown variable ${X}` in a `run` command | Bash's `${X}` syntax | Write `${env:X}`, `$X`, or `$${X}` |
+| A secret appears in hook output or `hooks.log.jsonl` | The script read the variable itself and printed it | Don't print it, or pass it with `${env:X}` so spec-lite redacts it |
 | Builtin still active after disabling | The entry name doesn't match exactly | Reuse the exact name, such as `capture-changeset` |
 | `has no guaranteed value on implement.post` after upgrading | The hook uses `${feature.*}` or `${changes.*}`, which `implement.post` no longer promises | Run `spec-lite update`, or add `"requires": ["feature"]` yourself |
 | A hook is skipped with `requires feature, which this run does not carry` | The run has no feature: a Plan, Review, Change, or YOLO run | Expected. Remove `requires` and use `${name:-default}` if the hook should run anyway |

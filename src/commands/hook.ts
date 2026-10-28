@@ -356,7 +356,7 @@ function varsAction(): void {
   }
   console.log(
     chalk.dim(
-      "\n${name:-default} supplies a fallback. ${env:NAME} reads the environment."
+      "\n${name:-default} supplies a fallback. ${env:NAME} reads the environment, in run, cwd, env, url, headers and bodyTemplate only."
     )
   );
 }
